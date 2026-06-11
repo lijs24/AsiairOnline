@@ -630,14 +630,18 @@
       grid-row: 1;
       min-width: 0;
       overflow: hidden;
-      display: flex;
-      align-items: center;
+      display: grid;
+      grid-template-columns: 60px minmax(0, 1fr) 64px;
       gap: 14px;
+      align-items: center;
       padding: 0 10px;
       font: 700 12px var(--mono);
       color: var(--muted);
       white-space: nowrap;
     }
+
+    #status-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    #status-age { text-align: right; }
 
     .logline strong { color: var(--green); }
 
