@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from .config import AppConfig, Device
 from .image_preview import current_image_response
-from .rpc import IMAGER_PORT, asiair_rpc, rpc_priority_session
+from .rpc import IMAGER_PORT, asiair_rpc, asiair_rpc_batch, rpc_priority_session
 from .web_control import control_state
 
 ControlSpec = dict[str, Any]
@@ -417,17 +417,37 @@ def camera_action_response(
         progress(1, 3, "校验相机参数")
         if "sixteen_bit" in payload:
             ignored_fields.append("sixteen_bit")
-        planned = [key for key in CONTROL_SPECS if key in payload]
-        total = max(2, len(planned) + 2)
-        for key, spec in CONTROL_SPECS.items():
-            if key not in payload:
-                continue
+        planned = [(key, spec) for key, spec in CONTROL_SPECS.items() if key in payload]
+        batch: list[tuple[str, Any]] = []
+        for key, spec in planned:
             coerce: Callable[[Any], Any] = spec["coerce"]
-            value = coerce(payload.get(key))
-            progress(1 + len(writes) + 1, total, f"写入 {spec['rpc']}：{value}")
-            rpc("set_control_value", [spec["rpc"], value], timeout_seconds=12.0)
-        progress(total, total, "相机参数写入完成", state="done")
-        time.sleep(0.12)
+            batch.append(("set_control_value", [spec["rpc"], coerce(payload.get(key))]))
+        if batch:
+            # One connection + one gate hold for all control writes, instead of a
+            # fresh TCP connect + gate acquisition per parameter (the old per-call path).
+            progress(2, 3, f"批量写入 {len(batch)} 项相机参数")
+            started = time.perf_counter()
+            responses = asiair_rpc_batch(
+                device.ip, batch, port=IMAGER_PORT, priority="write", timeout_seconds=8.0
+            )
+            elapsed = round(time.perf_counter() - started, 3)
+            for (_, spec), response, (_, params) in zip(planned, responses, batch):
+                if response is None:
+                    raise RuntimeError(f"set_control_value {spec['rpc']} got no response")
+                if response.get("code") != 0:
+                    raise RuntimeError(
+                        f"set_control_value {spec['rpc']} failed with code {response.get('code')}"
+                    )
+                writes.append(
+                    {
+                        "method": "set_control_value",
+                        "params": params,
+                        "code": response.get("code"),
+                        "seconds": elapsed,
+                    }
+                )
+        progress(3, 3, "相机参数写入完成", state="done")
+        time.sleep(0.05)
         return {
             "ok": True,
             "device": {"name": device.name, "ip": device.ip},

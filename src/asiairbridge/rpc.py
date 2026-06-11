@@ -414,6 +414,81 @@ def asiair_rpc(
     raise TimeoutError(f"ASIAIR RPC timeout for {ip}:{port} {method}")
 
 
+def asiair_rpc_batch(
+    ip: str,
+    requests: list[tuple[str, Any]],
+    *,
+    port: int = IMAGER_PORT,
+    timeout_seconds: float = 8.0,
+    priority: str = "write",
+    queue_timeout_seconds: float | None = None,
+    base_request_id: int = 90_000,
+) -> list[dict[str, Any] | None]:
+    """Send several JSON-RPC requests over ONE connection under a single gate hold.
+
+    `requests` is a list of (method, params). Returns response dicts aligned to
+    `requests` (None for any that got no matching reply within the total budget).
+    Much cheaper than N asiair_rpc calls when writing several camera controls,
+    because the TCP connect and the priority-gate acquisition are paid once, not
+    per call. `timeout_seconds` is the TOTAL budget for the whole batch.
+    """
+    if not requests:
+        return []
+
+    normalized_priority = str(priority).lower()
+    if queue_timeout_seconds is None and normalized_priority not in {"write", "high", "action"}:
+        queue_timeout_seconds = 1.0
+
+    reqs: list[dict[str, Any]] = []
+    for index, (method, params) in enumerate(requests):
+        req: dict[str, Any] = {"id": base_request_id + index, "method": method}
+        if params is not None:
+            req["params"] = params
+        reqs.append(req)
+    wanted = {req["id"]: req["method"] for req in reqs}
+    results: dict[int, dict[str, Any]] = {}
+
+    deadline = time.monotonic() + timeout_seconds
+    with rpc_priority_session(
+        ip,
+        port=port,
+        priority=priority,
+        queue_timeout_seconds=queue_timeout_seconds,
+    ):
+        with socket.create_connection((ip, port), timeout=timeout_seconds) as sock:
+            for req in reqs:
+                sock.sendall(json.dumps(req, separators=(",", ":")).encode("utf-8") + b"\r\n")
+            buffer = b""
+            total_bytes = 0
+            while len(results) < len(reqs):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                sock.settimeout(remaining)
+                try:
+                    chunk = sock.recv(65536)
+                except socket.timeout:
+                    break
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                if total_bytes > MAX_RPC_RESPONSE_BYTES:
+                    raise ValueError(
+                        f"ASIAIR RPC batch from {ip}:{port} exceeded {MAX_RPC_RESPONSE_BYTES} bytes"
+                    )
+                buffer += chunk
+                lines = buffer.split(b"\n")
+                buffer = lines.pop()
+                for line in lines:
+                    if not line.strip():
+                        continue
+                    message = json.loads(line.decode("utf-8", errors="replace"))
+                    mid = message.get("id")
+                    if mid in wanted and message.get("method") == wanted[mid] and mid not in results:
+                        results[mid] = message
+    return [results.get(req["id"]) for req in reqs]
+
+
 def run_probe(
     device: Device,
     methods: tuple[RpcProbeMethod, ...],
