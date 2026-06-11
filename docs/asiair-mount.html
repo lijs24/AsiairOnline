@@ -177,7 +177,7 @@
     const $ = (id) => document.getElementById(id);
 
     let skyEq = 1, skyAlt = 0, skyGnd = 1, lastMountData = null;
-    let vAz = -90, vEl = 8, lastDragRender = 0;
+    let vAz = -90, vEl = 8, vFov = 35, lastDragRender = 0;
     function updateRig(d) {
       if (!d) return;
       const p0 = d.position || {}, s0 = d.site || {}, t0 = d.target || {};
@@ -186,7 +186,7 @@
         const u = new URLSearchParams({ ra: rr(p0.ra_hours, 3), dec: rr(p0.dec_degrees, 2),
           lst: rr(p0.lst_hours, 2), pier: d.pier_side || "",
           lat: rr(s0.lat != null ? s0.lat : 40, 1), size: 760,
-          sky: 1, eqgrid: skyEq, altgrid: skyAlt, ground: skyGnd, az: vAz.toFixed(1), el: vEl.toFixed(1) });
+          sky: 1, eqgrid: skyEq, altgrid: skyAlt, ground: skyGnd, az: vAz.toFixed(1), el: vEl.toFixed(1), fov: vFov.toFixed(0) });
         if (t0.ra_hours != null) { u.set("tra", rr(t0.ra_hours, 3)); u.set("tdec", rr(t0.dec_degrees, 2)); }
         const url = "/api/mount-render?" + u.toString();
         const img = $("mount3d");
@@ -213,6 +213,15 @@
         if (now - lastDragRender > 70) { lastDragRender = now; updateRig(lastMountData); }
       });
       img.addEventListener("pointerup", () => { drag = null; img.style.cursor = "grab"; updateRig(lastMountData); });
+      let wheelTimer = null;
+      img.addEventListener("wheel", e => {
+        e.preventDefault();
+        vFov = Math.max(12, Math.min(75, vFov + (e.deltaY > 0 ? 4 : -4)));
+        const now = Date.now();
+        if (now - lastDragRender > 70) { lastDragRender = now; updateRig(lastMountData); }
+        clearTimeout(wheelTimer);
+        wheelTimer = setTimeout(() => updateRig(lastMountData), 120);
+      }, { passive: false });
     })();
     const qs = new URLSearchParams(location.search);
     const state = { device: qs.get("device") || "", timer: null };
