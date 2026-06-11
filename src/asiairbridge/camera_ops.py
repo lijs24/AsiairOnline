@@ -140,6 +140,9 @@ def camera_status_response(
             "capture_state": capture.get("state") if isinstance(capture, dict) else None,
             "capture_working": bool(capture.get("is_working")) if isinstance(capture, dict) else False,
             "exposure_mode": capture.get("exposure_mode") if isinstance(capture, dict) else None,
+            "capture_lapse_ms": _capture_int(capture, "lapse_ms"),
+            "capture_total_ms": _capture_int(capture, "total_ms"),
+            "capture_progress": _capture_progress(capture),
         },
         "camera": {
             "name": camera_state.get("name") if isinstance(camera_state, dict) else None,
@@ -178,6 +181,70 @@ def camera_status_response(
             "bin": image_info.get("bin") if isinstance(image_info, dict) else None,
         },
     }
+
+
+def capture_progress_response(
+    config: AppConfig,
+    device_name: str | None,
+    *,
+    rpc_timeout_seconds: float = 1.5,
+) -> dict[str, Any]:
+    """Lightweight live exposure-progress poll: one get_app_state round-trip.
+
+    Returns capture state plus lapse_ms/total_ms and a 0..1 progress value, so a
+    frontend can drive an exposure progress bar at ~1 Hz without paying for the
+    full camera_status_response.
+    """
+    device = _select_device(config, device_name)
+    try:
+        response = asiair_rpc(
+            device.ip,
+            "get_app_state",
+            request_id=72_000,
+            port=IMAGER_PORT,
+            timeout_seconds=rpc_timeout_seconds,
+            priority="foreground",
+            queue_timeout_seconds=1.0,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "device": {"name": device.name, "ip": device.ip},
+            "error": str(exc),
+        }
+    result = response.get("result") if response.get("code") == 0 else None
+    capture = result.get("capture") if isinstance(result, dict) else {}
+    if not isinstance(capture, dict):
+        capture = {}
+    return {
+        "ok": True,
+        "device": {"name": device.name, "ip": device.ip},
+        "snapshot_at": datetime.now().isoformat(timespec="seconds"),
+        "page": result.get("page") if isinstance(result, dict) else None,
+        "state": capture.get("state"),
+        "is_working": bool(capture.get("is_working")),
+        "exposure_mode": capture.get("exposure_mode"),
+        "lapse_ms": _capture_int(capture, "lapse_ms"),
+        "total_ms": _capture_int(capture, "total_ms"),
+        "progress": _capture_progress(capture),
+    }
+
+
+def _capture_int(capture: Any, key: str) -> int | None:
+    if not isinstance(capture, dict):
+        return None
+    try:
+        return int(capture.get(key))
+    except (TypeError, ValueError):
+        return None
+
+
+def _capture_progress(capture: Any) -> float | None:
+    lapse = _capture_int(capture, "lapse_ms")
+    total = _capture_int(capture, "total_ms")
+    if lapse is None or not total or total <= 0:
+        return None
+    return round(min(max(lapse / total, 0.0), 1.0), 4)
 
 
 def camera_action_response(
