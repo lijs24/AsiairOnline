@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+config/devices.json
+AGENTS.md
+
+logs/
+state/
+
+*.tmp
+*.log
+
+# Local reports, exported tables, and handoff notes may contain host-specific
+# addresses, paths, or historical device state.
+docs/new-session.md
+docs/index.html
+docs/asiair-info-monitor-test*
+docs/asiair-monitor-static-preview.html
+docs/asiair-jsonrpc.md
+docs/asiair-jsonrpc-methods-organized.md
+docs/asiair-jsonrpc-method-classification*
+docs/frontend-only-spec.md
+docs/web-dashboard.md
+docs/architecture.md
+docs/asiair-control-prototype/
+scripts/export-info-monitor-html.py
+scripts/watch-*.ps1
