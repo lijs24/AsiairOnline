@@ -103,6 +103,14 @@
     <section class="grid">
       <div id="notice" class="notice">赤道仪未连接 —— 请在 ASIAIR 中连接赤道仪后自动显示。</div>
 
+      <section class="panel span2">
+        <div class="panel-head"><span>设备实时姿态 3D</span><span class="hint">GPU 渲染 · 随指向实时更新 · 只读</span></div>
+        <div style="display:flex; justify-content:center; align-items:center; background:radial-gradient(circle at 50% 40%, #0a0e0e, #040606); min-height:300px; padding:10px;">
+          <img id="mount3d" alt="赤道仪 3D 姿态" style="max-width:100%; width:560px; display:none;" />
+          <span id="mount3d-empty" style="color:var(--muted); font-size:13px;">等待赤道仪指向数据…</span>
+        </div>
+      </section>
+
       <section class="panel span2 position-panel">
         <div class="panel-head"><span>当前位置 (J2000 / JNow)</span><span id="pos-hint" class="hint"></span></div>
         <div class="readouts">
@@ -203,6 +211,19 @@
       $("notice").classList.toggle("show", d.ok && !connected);
       $("conn").textContent = connected ? "已连接" : (d.ok ? "未连接" : "无响应");
       $("conn").className = "badge " + (connected ? "good" : "bad");
+
+      const p0 = d.position || {}, s0 = d.site || {};
+      if (connected && p0.ra_hours != null) {
+        const u = new URLSearchParams({ ra: p0.ra_hours, dec: p0.dec_degrees,
+          lst: (p0.lst_hours != null ? p0.lst_hours : ""), pier: d.pier_side || "",
+          lat: (s0.lat != null ? s0.lat : 40), size: 600 });
+        const url = "/api/mount-render?" + u.toString();
+        const img = $("mount3d");
+        if (img.getAttribute("src") !== url) img.src = url;
+        img.style.display = ""; $("mount3d-empty").style.display = "none";
+      } else {
+        $("mount3d").style.display = "none"; $("mount3d-empty").style.display = "";
+      }
 
       const p = d.position || {};
       setText("ra", connected ? p.ra_text : "--");
