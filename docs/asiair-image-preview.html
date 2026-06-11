@@ -916,6 +916,8 @@
       exposureTrack: null,
       captureProgress: null,
       captureTimer: null,
+      awaitingFrame: false,
+      awaitingSince: 0,
       operationProgress: null,
       operationPollTimer: null,
       rawValues: null,
@@ -1870,12 +1872,21 @@
 
     async function loadCaptureProgress() {
       if (!state.device) return;
+      const prevWorking = !!(state.captureProgress && state.captureProgress.is_working);
       try {
         const response = await fetch(`/api/capture-progress?device=${encodeURIComponent(state.device)}`, { cache: "no-store" });
         const payload = await response.json();
         state.captureProgress = payload && payload.ok ? payload : null;
       } catch (err) {
         /* transient network/RPC hiccup; keep last known value */
+      }
+      const nowWorking = !!(state.captureProgress && state.captureProgress.is_working);
+      if (prevWorking && !nowWorking) {
+        // Device finished exposing+downloading; the displayed frame is still being
+        // pulled, so keep the bar busy ("出图中") and fetch the new frame now.
+        state.awaitingFrame = true;
+        state.awaitingSince = Date.now();
+        loadImage(true).catch(() => {});
       }
       renderExposureProgress();
     }
@@ -1918,6 +1929,13 @@
           label.style.color = "#00f5ff";
           value.textContent = `${(lapse / 1000).toFixed(1)} / ${(total / 1000).toFixed(1)}s`;
         }
+        return;
+      }
+      if (state.awaitingFrame && (Date.now() - state.awaitingSince) < 12000) {
+        fill.classList.add("indeterminate");
+        label.textContent = "出图中";
+        label.style.color = "#00f5ff";
+        value.textContent = "拉取";
         return;
       }
       const operation = state.operationProgress;
@@ -2209,6 +2227,7 @@
         renderPayload({ ok: false, error: error.message || String(error), device: { name: state.device } });
       } finally {
         state.busy = false;
+        state.awaitingFrame = false;
         $("refresh-btn").disabled = false;
       }
     }
