@@ -1430,6 +1430,7 @@
         appTitle: "ASIAIR 远程台监控",
         root: "总览",
         imagePreview: "相机",
+        mount: "赤道仪",
         materials: "素材库",
         rootIndex: "监控总览",
         controlResources: "实时状态",
@@ -1484,6 +1485,7 @@
         appTitle: "ASIAIR MONITOR // MINTERM OPS",
         root: "OVERVIEW",
         imagePreview: "CAMERA",
+        mount: "MOUNT",
         materials: "MATERIALS",
         rootIndex: "OVERVIEW",
         controlResources: "LIVE STATUS",
@@ -2553,6 +2555,7 @@
       $("breadcrumbs").innerHTML = `
         <a class="crumb is-active" href="/monitor-minterm?device=${encodeURIComponent(AppState.deviceName || "")}" data-nav="overview">${escapeHtml(t("root"))}</a>
         <a class="crumb" href="/camera?device=${encodeURIComponent(AppState.deviceName || "")}">${escapeHtml(t("imagePreview"))}</a>
+        <a class="crumb" href="/mount?device=${encodeURIComponent(AppState.deviceName || "")}">${escapeHtml(t("mount"))}</a>
         <a class="crumb" href="/materials?device=${encodeURIComponent(AppState.deviceName || "")}">${escapeHtml(t("materials"))}</a>
       `;
       const overview = $("breadcrumbs").querySelector("[data-nav='overview']");

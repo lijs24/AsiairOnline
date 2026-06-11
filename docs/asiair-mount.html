@@ -92,14 +92,14 @@
       <nav class="nav">
         <a href="/monitor-minterm">总览</a>
         <a href="/camera">相机</a>
-        <a href="/materials">素材库</a>
         <a href="/mount" class="active">赤道仪</a>
+        <a href="/materials">素材库</a>
       </nav>
       <div class="top-actions">
-        <span id="conn" class="badge">检测中…</span>
-        <select id="device-select"></select>
-        <button id="refresh-btn" class="refresh" type="button">刷新</button>
         <span id="clock" class="clock">--:--:--</span>
+        <span id="conn" class="badge">检测中…</span>
+        <button id="refresh-btn" class="refresh" type="button">刷新</button>
+        <select id="device-select"></select>
       </div>
     </header>
 
@@ -207,7 +207,7 @@
       img.addEventListener("pointermove", e => {
         if (!drag) return;
         vAz = drag.az - (e.clientX - drag.x) * 0.4;
-        vEl = Math.max(-5, Math.min(80, drag.el - (e.clientY - drag.y) * 0.25));
+        vEl = Math.max(-5, Math.min(80, drag.el + (e.clientY - drag.y) * 0.25));
         vAz = ((vAz + 180) % 360 + 360) % 360 - 180;
         const now = Date.now();
         if (now - lastDragRender > 70) { lastDragRender = now; updateRig(lastMountData); }
