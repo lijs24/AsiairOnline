@@ -188,208 +188,202 @@ PALETTE = {
 #  placeholder meshes (replaced by the modelling agents' build_* functions)   #
 # --------------------------------------------------------------------------- #
 def build_mount(C):
-    def col(key, fallback):
-        c = C.get(key) if isinstance(C, dict) else None
-        return tuple(c) if c else fallback
-
-    BODY   = col("dark",   (0.16, 0.18, 0.19))   # gunmetal graphite
-    BODY2  = (0.205, 0.225, 0.235)               # slightly lighter machined face
-    METAL  = col("metal",  (0.42, 0.45, 0.48))   # bright machined metal
-    BLACK  = col("black",  (0.045, 0.05, 0.055)) # knobs / rubber
-    RED    = col("accent", (0.78, 0.20, 0.16))   # red anodized accent
-    GLASS  = col("glass",  (0.30, 0.55, 0.85))   # bubble level fluid
-    PORT   = (0.09, 0.10, 0.11)                  # port panel recess
-    GOLD   = (0.72, 0.60, 0.30)                  # brass / contacts
-
+    import numpy as np, math
     parts = []
-    def add(PN, color, R=None, t=None):
-        P, N = PN
-        if R is not None or t is not None:
-            P, N = transform(P, N, R, t)
-        parts.append((P, N, color))
+
+    # ---------- palette ----------
+    BODY  = (0.12, 0.13, 0.14)   # dark graphite housing
+    BODY2 = (0.19, 0.20, 0.21)   # lighter machined faces
+    RED   = (0.80, 0.16, 0.13)   # red anodized
+    RED2  = (0.87, 0.23, 0.18)   # brighter red highlight
+    BLACK = (0.05, 0.05, 0.06)   # knobs / rubber
+    BOLT  = (0.45, 0.47, 0.50)   # bright metal bolts
+    METAL = (0.56, 0.58, 0.61)   # bright machined metal (shafts/axes)
+    GLASS = (0.30, 0.55, 0.85)   # bubble level fluid
+    WHITE = (0.85, 0.86, 0.88)   # labels / scale ticks
 
     SEG = 56
 
-    # ---- helper: a ring of small recessed bolts on a circle ----
-    def bolt_circle(cx, cy, cz, radius, count, bolt_r=0.32, depth=0.28, color=BLACK, axis='z'):
-        for k in range(count):
-            a = 2*math.pi*k/count
+    def add(geom, col, R=None, t=None):
+        P, N = geom
+        if R is not None or t is not None:
+            P, N = transform(P, N, R=R, t=t)
+        parts.append((P, N, col))
+
+    def ring_of_bolts(n, radius, center, axis, br=0.16, bh=0.20, col=BOLT, phase=0.0):
+        """n cylindrical bolt heads on a circle, the bolts pointing along +axis."""
+        for k in range(n):
+            a = phase + 2*math.pi*k/n
+            ca, sa = math.cos(a), math.sin(a)
             if axis == 'z':
-                px, py, pz = cx+radius*math.cos(a), cy+radius*math.sin(a), cz
-                R = None
-            elif axis == 'x':  # circle in Y-Z plane, bolt normal +X
-                px, py, pz = cx, cy+radius*math.cos(a), cz+radius*math.sin(a)
-                R = rotmat('y', 90)
-            add(cylinder(bolt_r, bolt_r*0.9, depth, seg=12), color, R=R, t=(px,py,pz))
+                off = (radius*ca, radius*sa, 0.0); R = None
+            elif axis == 'x':
+                off = (0.0, radius*ca, radius*sa); R = rotmat('y', 90)
+            else:  # 'y'
+                off = (radius*ca, 0.0, radius*sa); R = rotmat('x', -90)
+            t = (center[0]+off[0], center[1]+off[1], center[2]+off[2])
+            add(cylinder(br, br, bh, seg=16), col, R=R, t=t)
 
-    # ============================================================
-    # (1) BASE / AZIMUTH BLOCK  (sits on tripod)  z ~ [0, 4.9]
-    # ============================================================
-    add(cylinder(5.6, 5.4, 0.7, seg=SEG), BODY, t=(0,0,0.0))
-    add(cylinder(5.4, 5.2, 0.45, seg=SEG), BODY2, t=(0,0,0.7))
-    add(tube(5.45, 5.05, 0.18, seg=SEG), RED, t=(0,0,1.15))        # red accent ring at base seam
-    add(cylinder(5.1, 5.0, 0.9, seg=SEG), BODY, t=(0,0,1.33))      # azimuth rotating puck
-    add(tube(5.0, 4.55, 0.12, seg=SEG), BODY2, t=(0,0,2.18))       # machined relief ring
+    # =================================================================
+    # 1) LATITUDE BASE (纬度座) — RED, bottom of mount, z ~ [-3, 3].
+    #    A cradle/wedge whose tripod bottom face is tilted ~50deg about X.
+    #    Altitude knob points -Y, curved altitude scale faces +X.
+    # =================================================================
+    LAT = 50.0
+    Rfoot = rotmat('x', -LAT)   # tilt bottom face about X
 
-    add(box(8.6, 7.6, 2.6), BODY, t=(0,0,2.30))                    # azimuth body block
-    add(box(7.8, 6.9, 0.5), BODY2, t=(0,0,4.4))                    # top relief
-    # two horizontal azimuth-adjust bolts (front +Y face)
+    # -- tripod mounting foot: a wide slab whose underside is tilted ~50 deg.
+    add(box(7.4, 5.0, 1.3), RED, R=Rfoot, t=(0.0, 0.4, -1.2))
+    # bright machined ring on top of the foot (azimuth bearing seat)
+    add(cylinder(2.7, 2.7, 0.32, seg=SEG), BODY2, R=Rfoot, t=(0.0, 0.4, -0.6))
+    # three black rubber feet on the underside corners
+    for (fx, fy) in [(0.0, -1.9), (-2.4, 1.6), (2.4, 1.6)]:
+        add(cylinder(0.50, 0.50, 0.28, seg=22), BLACK, R=Rfoot, t=(fx, fy + 0.4, -1.35))
+
+    # -- two upright RED cheeks of the latitude cradle; the body pivots between.
+    for sx in (-3.0, 3.0):
+        add(box(1.0, 5.4, 4.4), RED, t=(sx, -0.5, -2.0))
+    # rear web tying the cheeks together (where altitude screw pushes)
+    add(box(5.2, 1.3, 2.8), RED2, t=(0.0, -2.8, -2.0))
+    # front low web
+    add(box(5.2, 1.0, 1.6), RED, t=(0.0, 2.4, -2.0))
+
+    # -- curved ALTITUDE scale on the +X cheek (curved red plate + white ticks).
+    #    Centered up at z~0.6 so the ring stays within z>=-3; ticks face +X.
+    Rsc = rotmat('y', 90)  # tube axis -> +X (annulus lies facing +X)
+    SC_CY, SC_CZ, SC_R = -0.3, 0.7, 3.3
+    add(tube(SC_R, SC_R - 0.55, 0.85, seg=SEG), RED2, R=Rsc, t=(3.55, SC_CY, SC_CZ))
+    for k in range(11):
+        ang = math.radians(-50 + k*10.0)
+        ty = SC_CY + (SC_R - 0.05)*math.cos(ang)
+        tz = SC_CZ + (SC_R - 0.05)*math.sin(ang)
+        add(box(0.12, 0.10, 0.45), WHITE, R=rotmat('x', math.degrees(ang)), t=(3.95, ty, tz))
+
+    # -- big knurled ALTITUDE adjustment bolt at BACK, pointing -Y.
+    Ralt = rotmat('x', -90)  # cylinder +Z -> -Y
+    add(cylinder(0.35, 0.35, 1.6, seg=24), METAL, R=Ralt, t=(0.0, -3.0, 0.2))   # threaded shaft
+    add(cylinder(0.95, 0.95, 1.6, seg=32), BLACK, R=Ralt, t=(0.0, -3.6, 0.2))   # knurled body
+    add(cylinder(1.06, 1.06, 0.45, seg=32), BLACK, R=Ralt, t=(0.0, -5.2, 0.2))  # outer knurl flange
+    add(tube(0.55, 0.36, 0.30, seg=24), RED, R=Ralt, t=(0.0, -2.95, 0.2))       # red collar
+
+    # -- azimuth-adjust bolts flanking the altitude screw, pointing -Y (push-pull pair)
+    for sx in (-1.4, 1.4):
+        add(cylinder(0.40, 0.40, 0.55, seg=24), BLACK, R=Ralt, t=(sx, -2.7, -0.7))
+        add(cylinder(0.16, 0.16, 0.9, seg=16), METAL, R=Ralt, t=(sx, -2.5, -0.7))
+
+    # =================================================================
+    # 2) MAIN BODY (方形本体) — RA / polar-axis strain-wave housing.
+    #    Rounded-rectangular housing running along +Z, z in [3, 17].
+    # =================================================================
+    BW, BD = 6.4, 6.0       # body cross-section (x, y)
+    Z0, Z1 = 3.0, 17.0
+    BL = Z1 - Z0
+
+    # core housing
+    add(box(BW, BD, BL), BODY, t=(0.0, 0.0, Z0))
+    # rounded vertical corner fillets
+    cr = 0.85
     for sx in (-1, 1):
-        Rb = rotmat('x', -90)  # cylinder +Z -> +Y
-        add(cylinder(0.42, 0.42, 1.9, seg=20), METAL, R=Rb, t=(sx*2.4, 3.8, 3.5))
-        add(cylinder(0.85, 0.78, 0.9, seg=18), BLACK, R=Rb, t=(sx*2.4, 5.4, 3.5))
-        add(cylinder(0.5, 0.42, 0.3, seg=16), METAL, R=Rb, t=(sx*2.4, 5.55, 3.5))
-    add(box(2.2, 0.15, 0.7), METAL, t=(0, 3.86, 2.6))             # azimuth scale window
+        for sy in (-1, 1):
+            cx = sx*(BW/2 - cr*0.55)
+            cy = sy*(BD/2 - cr*0.55)
+            add(cylinder(cr, cr, BL, seg=24), BODY, t=(cx, cy, Z0))
+    # lighter machined shoulder collars top & bottom
+    add(box(BW + 0.3, BD + 0.3, 1.0), BODY2, t=(0.0, 0.0, Z0))
+    add(box(BW + 0.3, BD + 0.3, 1.1), BODY2, t=(0.0, 0.0, Z1 - 1.1))
 
-    # ============================================================
-    # (2) LATITUDE / ALTITUDE WEDGE  — angled block, sets polar tilt
-    # ============================================================
-    LAT = 40.0
-    wedge_base_z = 4.9
-    Rx = rotmat('y', 90)  # cyl +Z -> +X (pivot axis along X)
-    add(cylinder(2.6, 2.6, 7.2, seg=SEG), BODY, R=Rx, t=(-3.6, 0, wedge_base_z+1.9))
-    add(tube(2.65, 2.2, 0.25, seg=SEG), RED, R=Rx, t=(-3.62, 0, wedge_base_z+1.9))
-    add(tube(2.65, 2.2, 0.25, seg=SEG), RED, R=Rx, t=(3.37, 0, wedge_base_z+1.9))
-    bolt_circle(3.62, 0, wedge_base_z+1.9, 1.55, 6, bolt_r=0.26, depth=0.22, axis='x')
+    # machined bevel strips on +X / -X long faces
+    for sx, R in ((BW/2 + 0.02, rotmat('y', 90)), (-BW/2 - 0.02, rotmat('y', -90))):
+        add(box(BL - 1.4, BD - 1.6, 0.18), BODY2, R=R, t=(sx, 0.0, Z0 + BL/2))
 
-    Rlat = rotmat('x', LAT)
-    add(box(7.0, 6.6, 2.2), BODY, R=Rlat, t=(0, 0, wedge_base_z+1.9))          # tilting wedge plate
-    add(box(6.0, 5.6, 0.4), BODY2, R=Rlat,
-        t=(0, 0, wedge_base_z+1.9+2.2*math.cos(math.radians(LAT))))            # machined relief
+    # -- AM5 label panel on the +Y face (lighter recessed plate + red bar)
+    add(box(3.8, 3.0, 0.12), BODY2, R=rotmat('x', -90), t=(0.0, BD/2 + 0.08, 9.6))
+    add(box(3.2, 0.42, 0.10), RED, R=rotmat('x', -90), t=(0.0, BD/2 + 0.16, 10.4))   # red AM5 bar
+    for sx in (-0.95, 0.0, 0.95):                                                    # white "A M 5" blocks
+        add(box(0.5, 0.7, 0.08), WHITE, R=rotmat('x', -90), t=(sx, BD/2 + 0.16, 9.4))
 
-    # curved altitude scale (partial tube arc) on +X face
-    def arc_tube(ro, ri, h, a_start, a_end, seg):
-        ang=np.linspace(a_start,a_end,seg+1); P=[];N=[]
-        for i in range(seg):
-            a0,a1=ang[i],ang[i+1]; c0,s0=math.cos(a0),math.sin(a0); c1,s1=math.cos(a1),math.sin(a1)
-            P+=[(ro*c0,ro*s0,0),(ro*c1,ro*s1,0),(ro*c1,ro*s1,h),(ro*c0,ro*s0,0),(ro*c1,ro*s1,h),(ro*c0,ro*s0,h)]; N+=[(c0,s0,0),(c1,s1,0),(c1,s1,0),(c0,s0,0),(c1,s1,0),(c0,s0,0)]
-            P+=[(ri*c0,ri*s0,0),(ri*c1,ri*s1,h),(ri*c1,ri*s1,0),(ri*c0,ri*s0,0),(ri*c0,ri*s0,h),(ri*c1,ri*s1,h)]; N+=[(-c0,-s0,0),(-c1,-s1,0),(-c1,-s1,0),(-c0,-s0,0),(-c0,-s0,0),(-c1,-s1,0)]
-            P+=[(ri*c0,ri*s0,h),(ro*c0,ro*s0,h),(ro*c1,ro*s1,h),(ri*c0,ri*s0,h),(ro*c1,ro*s1,h),(ri*c1,ri*s1,h)]; N+=[(0,0,1.)]*6
-            P+=[(ri*c0,ri*s0,0),(ro*c1,ro*s1,0),(ro*c0,ro*s0,0),(ri*c0,ri*s0,0),(ri*c1,ri*s1,0),(ro*c1,ro*s1,0)]; N+=[(0,0,-1.)]*6
-        return _arr(P),_arr(N)
-    add(arc_tube(3.4, 2.9, 0.45, math.radians(20), math.radians(120), 24),
-        METAL, R=rotmat('y',90), t=(3.55, 0, wedge_base_z+1.9))
-    add(box(0.18, 0.5, 0.5), RED, R=rotmat('z',LAT), t=(3.95, 2.7, wedge_base_z+1.9))   # red index tick
+    # -- ports / power panel on the -Y face (recessed black plate + connectors)
+    add(box(2.8, 2.2, 0.14), BLACK, R=rotmat('x', 90), t=(0.7, -BD/2 - 0.08, 6.2))
+    for sx in (0.0, 0.7, 1.4):
+        add(cylinder(0.28, 0.28, 0.22, seg=20), METAL, R=rotmat('x', 90), t=(sx, -BD/2 - 0.10, 6.7))
+    add(box(0.9, 0.45, 0.18), BODY2, R=rotmat('x', 90), t=(0.7, -BD/2 - 0.10, 5.6))   # USB/12V port
 
-    # big altitude adjustment knob (knurled, tilted axis at back)
-    Ralt = rotmat('x', 60)
-    add(cylinder(0.55, 0.55, 4.5, seg=20), METAL, R=Ralt, t=(0, -3.4, wedge_base_z-0.2))
-    kz_y = -3.4 - 4.5*math.sin(math.radians(60))
-    kz_z = wedge_base_z-0.2 + 4.5*math.cos(math.radians(60))
-    add(cylinder(1.55, 1.45, 1.8, seg=SEG), BLACK, R=Ralt, t=(0, kz_y, kz_z))
-    add(tube(1.58, 1.3, 0.5, seg=SEG), BODY2, R=Ralt, t=(0, kz_y, kz_z))
-    add(cylinder(0.7, 0.6, 0.5, seg=18), METAL, R=Ralt,
-        t=(0, kz_y - 1.8*math.sin(math.radians(60)), kz_z + 1.8*math.cos(math.radians(60))))
+    # -- bubble level on -Y face near top
+    add(cylinder(0.55, 0.55, 0.22, seg=28), BLACK, R=rotmat('x', 90), t=(-1.7, -BD/2 - 0.08, 7.0))
+    add(cylinder(0.40, 0.40, 0.26, seg=28), GLASS, R=rotmat('x', 90), t=(-1.7, -BD/2 - 0.12, 7.0))
+    add(tube(0.42, 0.30, 0.10, seg=28), BODY2, R=rotmat('x', 90), t=(-1.7, -BD/2 - 0.30, 7.0))
 
-    # ============================================================
-    # (3) RA (POLAR) AXIS HOUSING — thick cylinder along +Z (strain-wave gearbox)
-    # ============================================================
-    ra_z0 = 9.0
-    RA_R  = 4.3   # ~8.6 cm dia
-    RA_H  = 6.2
-    add(cylinder(3.4, 4.0, 1.4, seg=SEG), BODY, t=(0,0,ra_z0-1.4))               # mounting neck
-    add(cylinder(RA_R, RA_R, RA_H, seg=SEG, cap0=True, cap1=False), BODY, t=(0,0,ra_z0))
-    add(tube(RA_R+0.02, RA_R-0.55, 0.5, seg=SEG), BODY2, t=(0,0,ra_z0+0.5))      # machined step ring
-    add(tube(RA_R+0.06, RA_R-0.25, 0.32, seg=SEG), RED, t=(0,0,ra_z0+1.4))       # red accent ring
-    add(cylinder(RA_R-0.15, RA_R-0.9, 0.6, seg=SEG), BODY2, t=(0,0,ra_z0+RA_H-0.6))  # recessed end cap
-    add(disk(RA_R-0.9, seg=SEG, z=ra_z0+RA_H, up=1.0), BODY2)
-    bolt_circle(0,0, ra_z0+RA_H+0.001, RA_R-1.6, 6, bolt_r=0.3, depth=0.22, axis='z')
-    add(cylinder(1.2, 1.0, 0.4, seg=24), METAL, t=(0,0,ra_z0+RA_H))             # center hub cap
+    # =================================================================
+    # 3a) RA AXIS OUTPUT (赤经轴) — polar axis exits the TOP of body (+Z).
+    #     metal hub + red accent ring + 6-bolt end cap.  Carries Dec elbow.
+    # =================================================================
+    add(cylinder(2.6, 2.55, 0.7, seg=SEG), BODY2, t=(0.0, 0.0, Z1))        # output flange
+    add(tube(2.6, 2.2, 0.5, seg=SEG), RED, t=(0.0, 0.0, Z1 + 0.45))        # red accent ring
+    add(cylinder(2.3, 2.3, 0.35, seg=SEG), BODY2, t=(0.0, 0.0, Z1 + 0.85)) # end cap disk
+    ring_of_bolts(6, 1.55, (0.0, 0.0, Z1 + 1.2), 'z', br=0.15, bh=0.14, col=BOLT)
+    add(cylinder(0.45, 0.45, 0.18, seg=20), BOLT, t=(0.0, 0.0, Z1 + 1.2))  # central RA bolt
 
-    # ports / USB panel + power socket on RA body (front +Y)
-    pan_z = ra_z0 + 2.3
-    add(box(3.6, 0.5, 2.4), PORT, R=rotmat('x',-90), t=(0, RA_R-0.05, pan_z+1.2))
-    for xx in (-1.0, 0.05):
-        add(box(0.9, 0.3, 0.45), (0.02,0.02,0.025), R=rotmat('x',-90), t=(xx, RA_R+0.12, pan_z+1.7))
-    add(cylinder(0.55, 0.5, 0.5, seg=20), (0.05,0.05,0.06), R=rotmat('x',-90), t=(1.1, RA_R+0.05, pan_z+0.7))
-    add(cylinder(0.28, 0.22, 0.55, seg=16), GOLD, R=rotmat('x',-90), t=(1.1, RA_R+0.05, pan_z+0.7))
-    add(cylinder(0.18,0.16,0.3, seg=12), RED, R=rotmat('x',-90), t=(-1.55, RA_R+0.08, pan_z+1.7))  # LED
+    # =================================================================
+    # 3b) DEC CARRIER ELBOW — rides on the RA output, holds the Dec gearbox.
+    #     Block atop the body, offset so the Dec axis center is z ~ 15.3.
+    # =================================================================
+    DECZ = 15.3
+    add(box(5.2, 5.6, 4.8), BODY, t=(0.3, 0.0, 12.6))        # elbow block (overlaps body top)
+    add(box(5.6, 5.9, 0.7), BODY2, t=(0.3, 0.0, 16.6))       # lighter top plate
+    # machined cheek on +X side of the elbow (where Dec axis exits)
+    add(box(0.18, 5.0, 3.6), BODY2, R=rotmat('y', 90), t=(0.3 + 5.2/2 + 0.02, 0.0, DECZ))
 
-    # bubble level on top-front shoulder
-    blev_t = (1.6, 2.6, ra_z0+RA_H-0.2)
-    add(cylinder(0.7, 0.7, 0.45, seg=24), METAL, t=blev_t)
-    add(cylinder(0.55, 0.55, 0.25, seg=24), GLASS, t=(blev_t[0],blev_t[1],blev_t[2]+0.45))
-    add(tube(0.7,0.5,0.18, seg=24), BLACK, t=(blev_t[0],blev_t[1],blev_t[2]+0.45))
+    # =================================================================
+    # 3c) DEC AXIS (赤纬轴) — thick cylindrical harmonic gearbox along +X,
+    #     at z ~ 15.3, reaching to x ~ +8.
+    # =================================================================
+    Rdec = rotmat('y', 90)   # cylinder +Z -> +X
+    add(cylinder(2.55, 2.55, 6.6, seg=60), BODY, R=Rdec, t=(1.4, 0.0, DECZ))   # Dec barrel
+    add(tube(2.62, 2.3, 0.9, seg=60), BODY2, R=Rdec, t=(1.6, 0.0, DECZ))       # machined band (body side)
+    add(tube(2.6, 2.25, 0.6, seg=60), RED, R=Rdec, t=(5.2, 0.0, DECZ))         # red accent ring (outboard)
+    # Dec end hub (lighter) + outboard end cap + 6-bolt circle facing +X
+    add(cylinder(2.35, 2.35, 0.9, seg=60), BODY2, R=Rdec, t=(8.0, 0.0, DECZ))
+    add(disk(2.3, seg=60, up=1.0), BODY2, R=Rdec, t=(8.9, 0.0, DECZ))
+    ring_of_bolts(6, 1.5, (8.55, 0.0, DECZ), 'x', br=0.15, bh=0.2, col=BOLT)
+    add(cylinder(0.42, 0.42, 0.22, seg=20), BOLT, R=Rdec, t=(8.55, 0.0, DECZ))  # center bolt
 
-    # ============================================================
-    # (4) L-SHAPED / CURVED CONNECTING ARM  (RA top -> Dec housing)
-    # ============================================================
-    arm_z0 = ra_z0 + RA_H
-    add(box(5.2, 6.0, 3.0), BODY, t=(1.0, 0, arm_z0))            # vertical riser
-    add(box(4.4, 5.2, 0.4), BODY2, t=(1.0, 0, arm_z0+3.0))       # bevel relief
-    elbow_segs = 7
-    base_x, base_z = 1.0, arm_z0+3.0
-    for i in range(elbow_segs):
-        f = i/(elbow_segs-1)
-        ang = f * 80.0
-        Rb = rotmat('y', ang)
-        ax = base_x + 3.4*math.sin(math.radians(ang))
-        az = base_z + 3.4*(1-math.cos(math.radians(ang)))
-        add(box(4.6 - 0.4*f, 5.6 - 0.3*f, 1.5), BODY, R=Rb, t=(ax, 0, az))
-    elbow_x = base_x + 3.4*math.sin(math.radians(80))
-    elbow_z = base_z + 3.4*(1-math.cos(math.radians(80)))
+    # =================================================================
+    # 4) SADDLE / DOVETAIL CLAMP (鞍座) — RED, on the Dec axis at +X end (~x=6.5).
+    #    Dec=90 home position: dovetail SLOT runs ALONG +Z, OPENS toward +Y.
+    #    A scope (optical axis +Z) with an underside dovetail drops in from +Y
+    #    and ends up offset on the +Y side.
+    # =================================================================
+    SX, SY, SZ = 6.5, 0.0, 15.3       # saddle reference (center of the dec mount face region)
+    SLOT_LEN = 6.0                    # slot length along +Z
+    Zs = SZ - SLOT_LEN/2.0            # slot z-start
 
-    # ============================================================
-    # (5) DEC AXIS HOUSING — thick cylinder, axis along +X
-    # ============================================================
-    DEC_R = 4.0
-    DEC_H = 6.0
-    dec_cx = elbow_x + 2.2
-    dec_cz = elbow_z + 1.0
-    RxD = rotmat('y', 90)   # cylinder +Z -> +X
-    add(cylinder(DEC_R, DEC_R, DEC_H, seg=SEG, cap0=True, cap1=False), BODY, R=RxD, t=(dec_cx, 0, dec_cz))
-    add(tube(DEC_R+0.02, DEC_R-0.5, 0.5, seg=SEG), BODY2, R=RxD, t=(dec_cx+0.3, 0, dec_cz))
-    add(tube(DEC_R+0.06, DEC_R-0.25, 0.3, seg=SEG), RED, R=RxD, t=(dec_cx+1.0, 0, dec_cz))
-    dec_endx = dec_cx + DEC_H
-    add(cylinder(DEC_R-0.15, DEC_R-0.8, 0.55, seg=SEG), BODY2, R=RxD, t=(dec_endx-0.55, 0, dec_cz))
-    add(disk(DEC_R-0.8, seg=SEG, z=0, up=1.0), BODY2, R=RxD, t=(dec_endx, 0, dec_cz))
-    bolt_circle(dec_endx+0.001, 0, dec_cz, DEC_R-1.5, 6, bolt_r=0.28, depth=0.2, axis='x')
-    add(cylinder(1.0,0.85,0.4, seg=24), METAL, R=RxD, t=(dec_endx, 0, dec_cz))
+    # -- saddle base block (red): bolts onto the Dec hub, body of the clamp.
+    #    Spans X (width across slot), Y (height up to the +Y opening), Z (slot length).
+    add(box(3.4, 2.2, SLOT_LEN), RED, t=(SX, SY - 0.5, Zs))           # main red saddle body
+    add(box(3.1, 1.0, SLOT_LEN - 0.2), BODY2, t=(SX, SY - 1.4, Zs + 0.1))  # darker mounting base under it
 
-    # ============================================================
-    # (6) SADDLE / DOVETAIL CLAMP on the Dec axis (Vixen + Losmandy dual saddle)
-    #     dovetail slot opening faces +Y; slot long-axis runs along +X (Dec axis)
-    # ============================================================
-    sad_cx = dec_cx + 0.8
-    sad_cz = dec_cz
-    sad_cy = DEC_R + 1.4
-    sad_len = 8.0   # along X (dovetail direction)
-    sad_w   = 6.4   # along Y
-    sad_h   = 3.0   # along Z
-    add(box(sad_len, sad_w, sad_h), BODY, t=(sad_cx, sad_cy, sad_cz - sad_h/2))
-    add(box(sad_len-1.0, sad_w-1.0, 0.4), BODY2, t=(sad_cx, sad_cy, sad_cz + sad_h/2))
-    add(box(sad_len-0.6, 0.25, 0.18), RED, t=(sad_cx, sad_cy + sad_w/2 - 0.3, sad_cz + sad_h/2))
+    # -- two jaw rails forming the Vixen/Losmandy slot; slot opens +Y, runs +Z.
+    #    Jaws sit on +/-X sides; the dovetail channel is the +Y-open gap between them.
+    for sx in (-1, 1):
+        add(box(0.85, 1.9, SLOT_LEN), RED, t=(SX + sx*1.15, SY + 1.05, Zs))
+    # angled dovetail lips (machined) leaning inward over the slot
+    for sx in (-1, 1):
+        add(box(0.7, 0.45, SLOT_LEN - 0.4), BODY2, R=rotmat('z', -sx*24), t=(SX + sx*0.9, SY + 1.75, Zs + 0.2))
+    # slot floor strip (recessed machined surface at the bottom of the channel)
+    add(box(1.5, 0.18, SLOT_LEN - 0.6), BODY2, t=(SX, SY + 0.65, Zs + 0.3))
 
-    slot_top_z = sad_cz + sad_h/2
-    rail_len = sad_len
-    slot_y = sad_cy + 1.0
-    jaw_gap = 2.3
-    for sgn in (-1, 1):
-        jy = slot_y + sgn*(jaw_gap/2 + 0.5)
-        add(box(rail_len, 1.0, 1.6), BODY, t=(sad_cx, jy, slot_top_z))           # jaw rail
-        Rj = rotmat('x', sgn*28)
-        add(box(rail_len, 0.4, 1.2), METAL, R=Rj, t=(sad_cx, slot_y + sgn*(jaw_gap/2), slot_top_z+0.2))  # dovetail bevel lip
-    add(box(rail_len-0.4, jaw_gap, 0.2), (0.10,0.11,0.12), t=(sad_cx, slot_y, slot_top_z))  # slot floor
+    # -- big clamp KNOB on the side (-X), pointing -X (graspable handle).
+    Rknob = rotmat('y', -90)  # +Z -> -X
+    add(cylinder(0.30, 0.30, 1.0, seg=20), METAL, R=Rknob, t=(SX - 1.7, SY + 0.4, SZ - 0.2))   # shaft
+    add(cylinder(0.92, 0.92, 1.5, seg=32), BLACK, R=Rknob, t=(SX - 1.8, SY + 0.4, SZ - 0.2))   # knob body
+    add(cylinder(1.04, 1.04, 0.45, seg=32), BLACK, R=Rknob, t=(SX - 3.3, SY + 0.4, SZ - 0.2))  # knurl flange
+    add(tube(0.6, 0.32, 0.3, seg=24), RED2, R=Rknob, t=(SX - 1.78, SY + 0.4, SZ - 0.2))        # red collar
 
-    # large clamp knob on -X end of saddle (axis along X)
-    knob_x = sad_cx - sad_len/2 - 0.4
-    Rk = rotmat('y', 90)
-    add(cylinder(0.55,0.55,1.4, seg=18), METAL, R=Rk, t=(knob_x-1.2, sad_cy, sad_cz))
-    add(cylinder(1.8,1.7,2.0, seg=SEG), BLACK, R=Rk, t=(knob_x-3.2, sad_cy, sad_cz))
-    add(tube(1.85,1.5,1.4, seg=SEG), BODY2, R=Rk, t=(knob_x-3.0, sad_cy, sad_cz))
-    add(cylinder(0.8,0.7,0.5, seg=20), METAL, R=Rk, t=(knob_x-3.2, sad_cy, sad_cz))
-    add(tube(1.82,1.6,0.25, seg=SEG), RED, R=Rk, t=(knob_x-1.3, sad_cy, sad_cz))
-
-    # second smaller knob (dual-saddle secondary clamp) on +Y front face
-    sk_y = sad_cy + sad_w/2 + 0.2
-    Rsk = rotmat('x', -90)  # axis along Y
-    add(cylinder(0.4,0.4,1.0, seg=16), METAL, R=Rsk, t=(sad_cx - 2.4, sk_y, sad_cz-0.4))
-    add(cylinder(1.0,0.92,1.0, seg=28), BLACK, R=Rsk, t=(sad_cx - 2.4, sk_y+1.0, sad_cz-0.4))
-    add(tube(1.02,0.8,0.7, seg=28), BODY2, R=Rsk, t=(sad_cx - 2.4, sk_y+1.05, sad_cz-0.4))
-
-    # safety screw on +Y face
-    add(cylinder(0.3,0.28,1.2, seg=14), METAL, R=Rsk, t=(sad_cx + 2.6, sk_y, sad_cz+0.2))
-    add(cylinder(0.55,0.5,0.5, seg=14), BLACK, R=Rsk, t=(sad_cx + 2.6, sk_y+1.2, sad_cz+0.2))
+    # -- safety screw (small bright bolt, top of the +X jaw, pointing +Y).
+    add(cylinder(0.26, 0.26, 0.85, seg=16), BOLT, R=rotmat('x', -90), t=(SX + 1.15, SY + 2.0, SZ - 1.8))
+    add(cylinder(0.40, 0.40, 0.25, seg=16), BLACK, R=rotmat('x', -90), t=(SX + 1.15, SY + 2.7, SZ - 1.8))
+    # -- a second safety stop at the -Z end of the slot
+    add(box(1.4, 0.7, 0.4), BOLT, t=(SX, SY + 0.9, Zs - 0.4))
 
     return parts
 
@@ -859,33 +853,30 @@ def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", la
     if ra_hours is not None and lst_hours is not None:
         ha_deg = ((lst_hours - ra_hours) % 24) * 15.0
     dec = dec_degrees if dec_degrees is not None else 90.0
-    # Parked at/near the pole: RA/HA is undefined there, so show the clean home pose.
     if dec >= 88.5:
-        ha_deg = 0.0
+        ha_deg = float(os.environ.get("MV_HA", "270"))
     side = -1.0 if str(pier_side) == "pier_west" else 1.0
     R_ha = rotmat("z", ha_deg)
 
-    def place_fixed(P, N, col):
-        parts.append((*transform(P, N, R_polar, head_base), col))
-
-    def place_rotating(P, N, col):
-        P2, N2 = transform(P, N, R_ha)
-        parts.append((*transform(P2, N2, R_polar, head_base), col))
-
-    RA_TOP = 15.4
+    # AM5: base (z<3) is RA-fixed; body + Dec head + saddle rotate about the RA axis (+Z) by HA.
+    BASE_TOP = 3.0
     for P, N, col in build_mount(C):
-        (place_fixed if float(P[:, 2].mean()) < RA_TOP else place_rotating)(P, N, col)
+        if float(P[:, 2].mean()) < BASE_TOP:
+            parts.append((*transform(P, N, R_polar, head_base), col))
+        else:
+            P2, N2 = transform(P, N, R_ha)
+            parts.append((*transform(P2, N2, R_polar, head_base), col))
 
+    # scope + camera seated in the saddle (slot center (6.5,0.65,15.3) along +Z, opens +Y)
     optics = list(build_scope(C))
     for P, N, col in build_camera(C):
         optics.append((*transform(P, N, None, (0, 0, -32.5)), col))
-
-    DEC_AXIS_Z = 22.01
-    seat_t = np.array([7.35, 6.40, DEC_AXIS_Z + 18.0])
-    off = np.array([0.0, 0.0, DEC_AXIS_Z])
+    SADDLE = np.array([6.5, 7.85, 16.3])   # scope center: underside dovetail seats in the slot
+    DECZ = 15.3
+    off = np.array([0.0, 0.0, DECZ])
     R_dec = rotmat("x", side * (90.0 - dec))
     for P, N, col in optics:
-        P1, N1 = transform(P, N, None, seat_t)
+        P1, N1 = transform(P, N, None, SADDLE)
         P1 = (P1 - off).astype("f4")
         P1, N1 = transform(P1, N1, R_dec)
         P1 = (P1 + off).astype("f4")
@@ -980,7 +971,7 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035)):
     center = (lo + hi) / 2.0
     radius = float(np.linalg.norm(hi - lo)) / 2.0
     dist = radius * 2.6
-    az, el = math.radians(float(os.environ.get('MV_AZ','-85'))), math.radians(float(os.environ.get('MV_EL','9')))
+    az, el = math.radians(float(os.environ.get('MV_AZ','-90'))), math.radians(float(os.environ.get('MV_EL','8')))
     eye = center + dist * np.array([math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), math.sin(el)])
     mvp = _perspective(35, 1.0, 0.5, dist * 4) @ _look_at(eye, center, (0, 0, 1))
     prog["u_mvp"].write(np.ascontiguousarray(mvp.T).tobytes())
