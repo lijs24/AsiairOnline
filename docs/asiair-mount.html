@@ -17,21 +17,18 @@
     body { display: flex; }
     .shell { width: 100%; min-height: 100vh; display: grid; grid-template-rows: 54px 1fr auto; }
     .topbar {
-      display: grid; grid-template-columns: minmax(150px, 200px) 1fr auto; align-items: center;
-      border-bottom: 1px solid var(--line); background: #020303; padding: 0 16px; gap: 14px;
+      display: grid; grid-template-columns: minmax(160px, 220px) 1fr auto; align-items: center;
+      border-bottom: 1px solid var(--line); background: #020303; min-width: 0;
     }
-    .brand { font-weight: 700; letter-spacing: 1px; color: var(--cyan); font-size: 15px; }
-    .nav { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-    .nav a {
-      color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 700;
-      padding: 6px 12px; border: 1px solid transparent; border-radius: 4px;
-    }
-    .nav a:hover { color: var(--text); border-color: var(--line); }
-    .nav a.active { color: var(--cyan); border-color: var(--cyan); }
+    .brand { padding: 0 14px; color: var(--cyan); font-weight: 800; font-size: 18px; letter-spacing: 2px; white-space: nowrap; }
+    .nav { height: 100%; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+    .nav a { color: var(--muted); text-decoration: none; padding: 10px 12px; border: 1px solid transparent; white-space: nowrap; }
+    .nav a:hover { color: var(--text); }
+    .nav a.active { color: var(--text); border-color: var(--line); background: var(--panel); }
     .tgbtn { background:#101617; color:var(--muted); border:1px solid var(--line); border-radius:4px;
       padding:3px 8px; font:inherit; font-size:11px; cursor:pointer; }
     .tgbtn.on { color: var(--cyan); border-color: var(--cyan); }
-    .top-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
+    .top-actions { display: flex; align-items: center; gap: 10px; padding-right: 12px; color: var(--muted); white-space: nowrap; min-width: 0; }
     .badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); white-space: nowrap; }
     .badge.good { color: var(--green); border-color: var(--green); }
     .badge.bad { color: var(--danger); border-color: var(--danger); }
