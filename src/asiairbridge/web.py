@@ -127,6 +127,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.server.config.root / "docs" / "asiair-mount.html",
                     "text/html; charset=utf-8",
                 )
+            elif parsed.path == "/topbar.js":
+                self._send_file(
+                    self.server.config.root / "docs" / "asiair-topbar.js",
+                    "application/javascript; charset=utf-8",
+                )
             elif parsed.path == "/static/asiair-monitor-static-preview.html":
                 self._send_file(
                     self.server.config.root / "docs" / "asiair-monitor-static-preview.html",

@@ -140,137 +140,11 @@
       overflow: hidden;
     }
 
-    .topbar {
-      display: grid;
-      grid-template-columns: 210px minmax(0, 1fr) auto;
-      align-items: center;
-      border-bottom: 1px solid var(--line);
-      min-width: 0;
-      max-width: 100%;
-      overflow: hidden;
-    }
-
-    .brand {
-      color: var(--cyan);
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      padding: 0 12px;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-
-    .breadcrumbs {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      height: 100%;
-      overflow: hidden;
-      color: var(--muted);
-      text-transform: uppercase;
-    }
-
-    .crumb {
-      display: inline-flex;
-      align-items: center;
-      color: var(--text);
-      border: 1px solid transparent;
-      background: transparent;
-      min-height: 34px;
-      padding: 0 12px;
-      cursor: pointer;
-      white-space: nowrap;
-      text-decoration: none;
-      font-family: inherit;
-      font-size: inherit;
-    }
-
-    .crumb.is-active {
-      border-color: var(--line);
-      background: var(--panel);
-      color: var(--text);
-    }
-
-    .crumb:hover,
-    .crumb:focus-visible {
-      color: var(--cyan);
-      border-color: var(--cyan);
-      background: var(--hover-cyan);
-      outline: none;
-    }
-
-    .crumb-sep {
-      color: var(--muted);
-      white-space: nowrap;
-    }
-
-    .clock {
-      color: var(--muted);
-      text-align: right;
-      white-space: nowrap;
-      text-transform: uppercase;
-    }
-
-    .top-actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 8px;
-      height: 100%;
-      padding: 0 12px;
-      min-width: 0;
-      overflow: hidden;
-    }
-
-    .top-actions select {
-      min-height: 32px;
-      height: 32px;
-      border: 1px solid var(--line);
-      background: transparent;
-      color: var(--text);
-      padding: 0 10px;
-      min-width: 88px;
-      white-space: nowrap;
-    }
-
-    .top-actions select:hover,
-    .top-actions select:focus-visible {
-      border-color: var(--cyan);
-      outline: none;
-    }
-
-    .control-cluster {
+    .pane-head-tools {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      min-width: 0;
-    }
-
-    .control-indicator {
-      display: inline-flex;
-      align-items: center;
-      height: 32px;
-      padding: 0 10px;
-      border: 1px solid var(--line);
-      color: var(--muted);
-      background: transparent;
-      font-size: 12px;
-      letter-spacing: 0.03em;
-      white-space: nowrap;
-    }
-
-    .control-indicator.self {
-      color: var(--green);
-      border-color: var(--green);
-    }
-
-    .control-indicator.busy {
-      color: var(--amber);
-      border-color: var(--amber);
-    }
-
-    .control-indicator.free {
-      color: var(--muted);
+      flex: 0 0 auto;
     }
 
     .top-icon-btn {
@@ -929,10 +803,6 @@
         display: none;
       }
 
-      .topbar {
-        grid-template-columns: 180px minmax(0, 1fr) auto;
-      }
-
       .stat-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -967,32 +837,6 @@
       .app-shell {
         height: 100dvh;
         grid-template-rows: 46px minmax(0, 1fr);
-      }
-
-      .topbar {
-        grid-template-columns: minmax(0, 1fr);
-      }
-
-      .brand,
-      .clock {
-        display: none;
-      }
-
-      .breadcrumbs {
-        padding: 0 8px;
-        gap: 5px;
-        font-size: 13px;
-        overflow-x: auto;
-      }
-
-      .top-actions {
-        display: none;
-      }
-
-      .top-actions button {
-        min-height: 30px;
-        padding: 0 7px;
-        font-size: 12px;
       }
 
       .workbench {
@@ -1213,27 +1057,9 @@
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar">
-      <div class="brand">ASIAIR OPS</div>
-      <nav id="breadcrumbs" class="breadcrumbs" aria-label="page navigation"></nav>
-      <div class="top-actions" aria-label="top controls">
-        <div id="clock" class="clock">---- -- -- --:--:-- LOCAL</div>
-        <button id="btn-theme" class="top-icon-btn" type="button" aria-pressed="true" aria-label="切换主题" title="切换主题">
-          <span class="icon-core theme-core" aria-hidden="true"></span>
-        </button>
-        <button id="btn-top-lang" class="top-icon-btn" type="button" aria-label="切换语言" title="切换语言">
-          <span class="icon-core lang-core" aria-hidden="true">文</span>
-        </button>
-        <div class="control-cluster">
-          <span id="control-indicator" class="control-indicator free">主控空闲</span>
-          <select id="role-select" aria-label="协作模式">
-            <option value="monitor">监控</option>
-            <option value="controller">主控</option>
-          </select>
-        </div>
-        <select id="device-select" aria-label="设备"></select>
-      </div>
-    </header>
+    <header id="app-topbar"></header>
+    <script>window.OPS_TOPBAR_DELEGATE = { role: true, device: true };</script>
+    <script src="/topbar.js"></script>
 
     <main class="workbench">
       <section class="pane">
@@ -1258,6 +1084,14 @@
         <div class="pane-head">
           <strong id="inspector-title">监控侧栏</strong>
           <span id="inspector-path">总览 / 概况</span>
+          <div class="pane-head-tools">
+            <button id="btn-theme" class="top-icon-btn" type="button" aria-pressed="true" aria-label="切换主题" title="切换主题">
+              <span class="icon-core theme-core" aria-hidden="true"></span>
+            </button>
+            <button id="btn-top-lang" class="top-icon-btn" type="button" aria-label="切换语言" title="切换语言">
+              <span class="icon-core lang-core" aria-hidden="true">文</span>
+            </button>
+          </div>
         </div>
         <div id="inspect-scroll" class="scroll-host">
           <div class="scroll-viewport">
@@ -1415,7 +1249,6 @@
       bootstrapped: false,
       lastLiveError: null,
       tickTimer: null,
-      clockTimer: null,
       routeSerial: 0,
       lang: initialLanguage(),
       theme: StorageBridge.get("asiair-monitor-theme", "dark")
@@ -2147,7 +1980,7 @@
     }
 
     function renderTopDeviceSelect() {
-      const select = $("device-select");
+      const select = $("ops-device");
       if (!select) return;
       const devices = (AppState.data && Array.isArray(AppState.data.devices) ? AppState.data.devices : []).slice();
       const current = currentDeviceName();
@@ -2162,13 +1995,13 @@
 
     function renderControlState(payload) {
       AppState.controlState = payload || null;
-      const indicator = $("control-indicator");
-      const roleSelect = $("role-select");
+      const indicator = $("ops-control");
+      const roleSelect = $("ops-role");
       if (!indicator || !roleSelect) return;
       const holder = payload && payload.controller ? payload.controller : null;
       const heldBySelf = Boolean(payload && payload.held_by_self);
       const desiredRole = roleForDevice(currentDeviceName());
-      indicator.className = "control-indicator";
+      indicator.className = "ops-indicator";
       if (!holder) {
         indicator.textContent = AppState.lang === "zh" ? "主控空闲" : "FREE";
         indicator.classList.add("free");
@@ -2270,7 +2103,6 @@
     function switchLanguage() {
       AppState.lang = AppState.lang === "zh" ? "en" : "zh";
       StorageBridge.set("asiair-monitor-lang", AppState.lang);
-      setClock();
       renderApp();
       renderLogs(false);
       addLog("INFO", t("logLangSwitched"));
@@ -2325,12 +2157,6 @@
 
     function nowStamp() {
       return new Date().toLocaleTimeString("zh-CN", { hour12: false });
-    }
-
-    function setClock() {
-      const d = new Date();
-      const pad = (n) => String(n).padStart(2, "0");
-      $("clock").textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${t("local")}`;
     }
 
     function addLog(level, message) {
@@ -2552,19 +2378,7 @@
     }
 
     function renderBreadcrumbs() {
-      $("breadcrumbs").innerHTML = `
-        <a class="crumb is-active" href="/monitor-minterm?device=${encodeURIComponent(AppState.deviceName || "")}" data-nav="overview">${escapeHtml(t("root"))}</a>
-        <a class="crumb" href="/camera?device=${encodeURIComponent(AppState.deviceName || "")}">${escapeHtml(t("imagePreview"))}</a>
-        <a class="crumb" href="/mount?device=${encodeURIComponent(AppState.deviceName || "")}">${escapeHtml(t("mount"))}</a>
-        <a class="crumb" href="/materials?device=${encodeURIComponent(AppState.deviceName || "")}">${escapeHtml(t("materials"))}</a>
-      `;
-      const overview = $("breadcrumbs").querySelector("[data-nav='overview']");
-      if (overview) {
-        overview.addEventListener("click", (event) => {
-          event.preventDefault();
-          setRoute("root");
-        });
-      }
+      /* Nav is rendered by the shared topbar (/topbar.js); kept as a no-op so callers don't break. */
     }
 
     function renderToolbar() {
@@ -3114,16 +2928,16 @@
     function bindGlobalActions() {
       $("btn-top-lang").addEventListener("click", switchLanguage);
       $("btn-theme").addEventListener("click", switchTheme);
-      $("role-select").addEventListener("change", async () => {
-        const requestedRole = $("role-select").value === "controller" ? "controller" : "monitor";
+      $("ops-role").addEventListener("change", async () => {
+        const requestedRole = $("ops-role").value === "controller" ? "controller" : "monitor";
         try {
           await syncRole(requestedRole);
         } catch (_) {
-          $("role-select").value = AppState.controlState && AppState.controlState.held_by_self ? "controller" : roleForDevice(currentDeviceName());
+          $("ops-role").value = AppState.controlState && AppState.controlState.held_by_self ? "controller" : roleForDevice(currentDeviceName());
         }
       });
-      $("device-select").addEventListener("change", () => {
-        requestDeviceFocus($("device-select").value);
+      $("ops-device").addEventListener("change", () => {
+        requestDeviceFocus($("ops-device").value);
       });
 
       $("inject-log").addEventListener("click", () => {
@@ -3151,8 +2965,6 @@
 
     function boot() {
       applyTheme();
-      setClock();
-      AppState.clockTimer = setInterval(setClock, 1000);
       AppState.desiredRole = roleForDevice(AppState.deviceName);
       bindGlobalActions();
       initRetroScrollbars();

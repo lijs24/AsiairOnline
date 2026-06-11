@@ -55,93 +55,6 @@
       overflow: hidden;
     }
 
-    .topbar {
-      display: grid;
-      grid-template-columns: minmax(160px, 220px) 1fr auto;
-      align-items: center;
-      border-bottom: 1px solid var(--line);
-      background: #020303;
-      min-width: 0;
-    }
-
-    .brand {
-      padding: 0 14px;
-      color: var(--cyan);
-      font: 800 18px var(--mono);
-      letter-spacing: 2px;
-      white-space: nowrap;
-    }
-
-    .nav {
-      height: 100%;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      overflow: hidden;
-    }
-
-    .nav a {
-      color: var(--muted);
-      text-decoration: none;
-      padding: 10px 12px;
-      border: 1px solid transparent;
-      white-space: nowrap;
-    }
-
-    .nav a.active {
-      color: var(--text);
-      border-color: var(--line);
-      background: var(--panel);
-    }
-
-    .top-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding-right: 12px;
-      color: var(--muted);
-      white-space: nowrap;
-      min-width: 0;
-    }
-
-    .control-cluster {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-    }
-
-    .control-indicator {
-      display: inline-flex;
-      align-items: center;
-      height: 32px;
-      padding: 0 10px;
-      border: 1px solid var(--line);
-      color: var(--muted);
-      background: #050707;
-      font: 700 12px var(--mono);
-      white-space: nowrap;
-    }
-
-    .control-indicator.self {
-      color: var(--green);
-      border-color: var(--green);
-    }
-
-    .control-indicator.busy {
-      color: var(--warn);
-      border-color: var(--warn);
-    }
-
-    .control-indicator.free {
-      color: var(--muted);
-    }
-
-    #role-select {
-      min-width: 92px;
-    }
-
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 344px;
@@ -713,14 +626,6 @@
         min-height: 100dvh;
         overflow: visible;
       }
-      .topbar {
-        grid-template-columns: 1fr;
-        gap: 10px;
-        padding: 12px;
-      }
-      .brand, .top-actions { padding: 0; }
-      .nav { overflow-x: auto; }
-      .top-actions { flex-wrap: wrap; }
       .layout {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(48vh, 64vh) auto;
@@ -742,25 +647,9 @@
 </head>
 <body>
   <main class="shell">
-    <header class="topbar">
-      <div class="brand">ASIAIR OPS</div>
-      <nav class="nav">
-        <a id="overview-link" href="/monitor-minterm">总览</a>
-        <a id="preview-link" class="active" href="/camera">相机</a>
-        <a id="mount-link" href="/mount">赤道仪</a>
-        <a id="materials-link" href="/materials">素材库</a>
-      </nav>
-            <div class="top-actions">
-        <span id="clock">--:--:--</span>
-        <div class="control-cluster">
-          <span id="control-indicator" class="control-indicator free">主控空闲</span>
-          <select id="role-select" aria-label="协作模式">
-            <option value="monitor">监控</option>
-            <option value="controller">主控</option>
-          </select>
-        </div>
-        <select id="device-select" aria-label="设备"></select>
-      </div>    </header>
+    <header id="app-topbar"></header>
+    <script>window.OPS_TOPBAR_DELEGATE = { role: true, device: true };</script>
+    <script src="/topbar.js"></script>
 
     <section class="layout">
       <section class="stage">
@@ -1553,10 +1442,6 @@
       }
     }
 
-    function setClock() {
-      $("clock").textContent = new Date().toLocaleString("zh-CN", { hour12: false });
-    }
-
     function pair(key, value, cls = "") {
       return `<div class="pair"><span class="key">${key}</span><span class="value ${cls}">${value}</span></div>`;
     }
@@ -1725,13 +1610,10 @@
     }
 
     function renderDevices() {
-      $("device-select").innerHTML = DEVICES.map((device) => {
+      $("ops-device").innerHTML = DEVICES.map((device) => {
         const selected = device.name === state.device ? " selected" : "";
         return `<option value="${device.name}"${selected}>${device.name}</option>`;
       }).join("");
-      $("overview-link").href = `/monitor-minterm?device=${encodeURIComponent(state.device)}`;
-      $("preview-link").href = `/camera?device=${encodeURIComponent(state.device)}`;
-      $("materials-link").href = `/materials?device=${encodeURIComponent(state.device)}`;
     }
 
     function metric(label, value, cls = "") {
@@ -1742,10 +1624,10 @@
       state.controlState = payload || null;
       const holder = payload && payload.controller ? payload.controller : null;
       const heldBySelf = Boolean(payload && payload.held_by_self);
-      const indicator = $("control-indicator");
-      const roleSelect = $("role-select");
+      const indicator = $("ops-control");
+      const roleSelect = $("ops-role");
       const desiredRole = roleForDevice(state.device);
-      indicator.className = "control-indicator";
+      indicator.className = "ops-indicator";
 
       if (!holder) {
         indicator.textContent = "主控空闲";
@@ -2396,22 +2278,19 @@
       $("open-monitor").addEventListener("click", () => {
         location.href = `/monitor-minterm?device=${encodeURIComponent(state.device)}`;
       });
-      $("role-select").addEventListener("change", async () => {
-        const requestedRole = $("role-select").value === "controller" ? "controller" : "monitor";
+      $("ops-role").addEventListener("change", async () => {
+        const requestedRole = $("ops-role").value === "controller" ? "controller" : "monitor";
         try {
           await syncRole(requestedRole);
         } catch (_) {
-          $("role-select").value = state.controlState && state.controlState.held_by_self ? "controller" : roleForDevice(state.device);
+          $("ops-role").value = state.controlState && state.controlState.held_by_self ? "controller" : roleForDevice(state.device);
         }
       });
-      $("device-select").addEventListener("change", async () => {
-        const nextDevice = $("device-select").value;
+      $("ops-device").addEventListener("change", async () => {
+        const nextDevice = $("ops-device").value;
         state.device = nextDevice;
         state.desiredRole = roleForDevice(nextDevice);
         history.replaceState(null, "", `/camera?device=${encodeURIComponent(state.device)}`);
-        $("overview-link").href = `/monitor-minterm?device=${encodeURIComponent(state.device)}`;
-        $("preview-link").href = `/camera?device=${encodeURIComponent(state.device)}`;
-        $("materials-link").href = `/materials?device=${encodeURIComponent(state.device)}`;
         setAuto(false);
         fetchControlState().catch(() => {});
         loadImage(false);
@@ -2432,9 +2311,7 @@
       setStretchControlsEnabled(false);
       updateStretchHandles();
       drawHistogram();
-      $("role-select").value = state.desiredRole;
-      setClock();
-      setInterval(setClock, 1000);
+      $("ops-role").value = state.desiredRole;
       state.exposureTicker = setInterval(renderExposureProgress, 200);
       state.cameraTimer = setInterval(loadCameraStates, 3000);
       state.captureTimer = setInterval(loadCaptureProgress, 1000);

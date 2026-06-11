@@ -16,40 +16,25 @@
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); }
     body { display: flex; }
     .shell { width: 100%; min-height: 100vh; display: grid; grid-template-rows: 54px 1fr auto; }
-    .topbar {
-      display: grid; grid-template-columns: minmax(160px, 220px) 1fr auto; align-items: center;
-      border-bottom: 1px solid var(--line); background: #020303; min-width: 0;
-    }
-    .brand { padding: 0 14px; color: var(--cyan); font-weight: 800; font-size: 18px; letter-spacing: 2px; white-space: nowrap; }
-    .nav { height: 100%; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
-    .nav a { color: var(--muted); text-decoration: none; padding: 10px 12px; border: 1px solid transparent; white-space: nowrap; }
-    .nav a:hover { color: var(--text); }
-    .nav a.active { color: var(--text); border-color: var(--line); background: var(--panel); }
-    .tgbtn { background:#101617; color:var(--muted); border:1px solid var(--line); border-radius:4px;
+    .tgbtn { background:#101617; color:var(--muted); border:1px solid var(--line); border-radius:0;
       padding:3px 8px; font:inherit; font-size:11px; cursor:pointer; }
     .tgbtn.on { color: var(--cyan); border-color: var(--cyan); }
-    .top-actions { display: flex; align-items: center; gap: 10px; padding-right: 12px; color: var(--muted); white-space: nowrap; min-width: 0; }
-    .badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); white-space: nowrap; }
+    .badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border: 1px solid var(--line); border-radius: 0; color: var(--muted); white-space: nowrap; }
     .badge.good { color: var(--green); border-color: var(--green); }
     .badge.bad { color: var(--danger); border-color: var(--danger); }
-    select {
-      background: #050707; color: var(--text); border: 1px solid var(--line); border-radius: 4px;
-      font: 700 13px var(--mono); padding: 5px 8px; min-width: 110px;
-    }
-    .clock { color: var(--muted); font-size: 13px; }
     button.refresh {
-      background: #050707; color: var(--text); border: 1px solid var(--line); border-radius: 4px;
+      background: #050707; color: var(--text); border: 1px solid var(--line); border-radius: 0;
       font: 700 12px var(--mono); padding: 6px 12px; cursor: pointer;
     }
     button.refresh:hover { border-color: var(--cyan); color: var(--cyan); }
 
     .grid { padding: 16px; display: grid; gap: 14px; align-content: start;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .panel { background: #050707; border: 1px solid var(--line); border-radius: 0; overflow: hidden; }
     .panel.span2 { grid-column: 1 / -1; }
     .panel-head {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 14px; border-bottom: 1px solid var(--line-soft);
+      min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line-soft);
       font-size: 13px; font-weight: 700; color: var(--muted); background: #050707;
     }
     .panel-head .hint { color: var(--cyan); font-size: 12px; }
@@ -58,22 +43,22 @@
     .readout { padding: 14px; border-right: 1px solid var(--line-soft); }
     .readout:last-child { border-right: 0; }
     .rl { color: var(--muted); font-size: 12px; }
-    .rv { margin-top: 8px; font-size: 22px; font-weight: 700; color: var(--cyan); letter-spacing: 1px; }
-    .rv.small { font-size: 16px; color: var(--text); }
+    .rv { margin-top: 8px; font-size: 25px; font-weight: 700; color: var(--cyan); letter-spacing: 1px; }
+    .rv.small { font-size: 18px; color: var(--text); }
 
     .kv { padding: 6px 0; }
     .kv .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--line-soft); }
     .kv .row:last-child { border-bottom: 0; }
-    .kv .k { color: var(--muted); font-size: 13px; }
-    .kv .v { font-size: 14px; font-weight: 700; color: var(--text); text-align: right; overflow-wrap: anywhere; }
+    .kv .k { color: var(--muted); font-size: 12px; }
+    .kv .v { font-size: 13px; font-weight: 700; color: var(--text); text-align: right; overflow-wrap: anywhere; }
     .v.on { color: var(--green); } .v.off { color: var(--muted); }
     .v.warn { color: var(--warn); } .v.cyan { color: var(--cyan); }
 
     .caps { padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 8px; }
-    .cap { font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
+    .cap { font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 0; padding: 4px 10px; }
     .raw { margin: 0; padding: 12px 14px; font-size: 12px; color: var(--muted); white-space: pre-wrap; max-height: 240px; overflow: auto; }
 
-    .notice { grid-column: 1 / -1; padding: 14px 16px; border: 1px solid var(--warn); border-radius: 8px; color: var(--warn); font-weight: 700; font-size: 14px; display: none; }
+    .notice { grid-column: 1 / -1; padding: 14px 16px; border: 1px solid var(--warn); border-radius: 0; color: var(--warn); font-weight: 700; font-size: 14px; display: none; }
     .notice.show { display: block; }
 
     .footer { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; border-top: 1px solid var(--line); background: #020303; min-height: 36px; }
@@ -84,27 +69,16 @@
 </head>
 <body>
   <main class="shell">
-    <header class="topbar">
-      <div class="brand">ASIAIR OPS</div>
-      <nav class="nav">
-        <a href="/monitor-minterm">总览</a>
-        <a href="/camera">相机</a>
-        <a href="/mount" class="active">赤道仪</a>
-        <a href="/materials">素材库</a>
-      </nav>
-      <div class="top-actions">
-        <span id="clock" class="clock">--:--:--</span>
-        <span id="conn" class="badge">检测中…</span>
-        <button id="refresh-btn" class="refresh" type="button">刷新</button>
-        <select id="device-select"></select>
-      </div>
-    </header>
+    <header id="app-topbar"></header>
+    <script src="/topbar.js"></script>
 
     <section class="grid">
       <div id="notice" class="notice">赤道仪未连接 —— 请在 ASIAIR 中连接赤道仪后自动显示。</div>
 
       <section class="panel span2">
         <div class="panel-head"><span>实时天球 · 设备姿态 3D</span><span class="hint" style="display:flex; gap:8px; align-items:center;">
+          <span id="conn" class="badge">检测中…</span>
+          <button id="refresh-btn" class="refresh" type="button">刷新</button>
           <button id="tg-eq" class="tgbtn on" type="button">赤道网格</button>
           <button id="tg-alt" class="tgbtn" type="button">地平网格</button>
           <button id="tg-gnd" class="tgbtn on" type="button">地面</button>
@@ -220,43 +194,13 @@
         wheelTimer = setTimeout(() => updateRig(lastMountData), 120);
       }, { passive: false });
     })();
-    const qs = new URLSearchParams(location.search);
-    const state = { device: qs.get("device") || "", timer: null };
+    const DEVICE = new URLSearchParams(location.search).get("device") || "";
 
     function setText(id, value, cls) {
       const el = $(id);
       if (!el) return;
       el.textContent = (value === null || value === undefined || value === "") ? "--" : value;
       if (cls !== undefined) el.className = "v " + cls;
-    }
-    function setClock() {
-      const d = new Date();
-      $("clock").textContent = d.toLocaleTimeString("zh-CN", { hour12: false });
-    }
-    function navWithDevice() {
-      const d = state.device ? `?device=${encodeURIComponent(state.device)}` : "";
-      document.querySelectorAll(".nav a").forEach((a) => {
-        const base = a.getAttribute("href").split("?")[0];
-        a.setAttribute("href", base + d);
-      });
-    }
-
-    async function loadDevices() {
-      try {
-        const r = await fetch("/api/devices", { cache: "no-store" });
-        const data = await r.json();
-        const sel = $("device-select");
-        sel.innerHTML = "";
-        (data.devices || []).forEach((dev) => {
-          const opt = document.createElement("option");
-          opt.value = dev.name;
-          opt.textContent = dev.name;
-          sel.appendChild(opt);
-        });
-        if (!state.device) state.device = data.default_device || (data.devices[0] && data.devices[0].name) || "";
-        sel.value = state.device;
-        navWithDevice();
-      } catch (e) { /* ignore */ }
     }
 
     function render(d) {
@@ -307,28 +251,20 @@
     }
 
     async function poll() {
-      if (!state.device) return;
       try {
-        const r = await fetch(`/api/mount-state?device=${encodeURIComponent(state.device)}`, { cache: "no-store" });
+        const q = DEVICE ? `?device=${encodeURIComponent(DEVICE)}` : "";
+        const r = await fetch(`/api/mount-state${q}`, { cache: "no-store" });
         render(await r.json());
       } catch (e) {
         $("conn").textContent = "无响应"; $("conn").className = "badge bad";
       }
     }
 
-    $("device-select").addEventListener("change", (e) => {
-      state.device = e.target.value;
-      navWithDevice();
-      poll();
-    });
     $("refresh-btn").addEventListener("click", poll);
 
-    (async function init() {
-      setClock();
-      setInterval(setClock, 1000);
-      await loadDevices();
+    (function init() {
       poll();
-      state.timer = setInterval(poll, 2000);
+      setInterval(poll, 2000);
     })();
   </script>
 </body>
