@@ -1,0 +1,1616 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASIAIR OPS // 素材库</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #000;
+      --panel: #050808;
+      --panel-soft: #071111;
+      --text: #fff;
+      --muted: #888;
+      --quiet: #666;
+      --line: #333;
+      --line-dim: #1f1f1f;
+      --cyan: #00f3ff;
+      --green: #00ff00;
+      --amber: #f5b000;
+      --red: #ff5555;
+      --hover-cyan: rgba(0, 243, 255, 0.07);
+      --selection-text: #000;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.55 "JetBrains Mono", "Consolas", "SFMono-Regular", "Menlo", "Microsoft YaHei", monospace;
+    }
+
+    body {
+      overflow-x: hidden;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button,
+    select,
+    input {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      background: #000;
+      color: var(--text);
+      padding: 0 12px;
+      border-radius: 0;
+    }
+
+    button {
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    button:hover,
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: var(--hover-cyan);
+      outline: none;
+    }
+
+    button.active {
+      color: var(--cyan);
+      border-color: var(--cyan);
+      background: var(--hover-cyan);
+    }
+
+    button:disabled {
+      color: var(--quiet);
+      border-color: var(--line-dim);
+      cursor: not-allowed;
+    }
+
+    ::selection {
+      background: var(--cyan);
+      color: var(--selection-text);
+    }
+
+    ::-webkit-scrollbar {
+      width: 14px;
+      height: 14px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #000;
+      border-left: 1px solid var(--line-dim);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #111;
+      border: 1px solid var(--line);
+    }
+
+    .topbar {
+      height: 54px;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr) auto;
+      align-items: stretch;
+      border-bottom: 1px solid var(--line-dim);
+      background: #000;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      color: var(--cyan);
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      white-space: nowrap;
+    }
+
+    .nav {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      overflow-x: auto;
+    }
+
+    .nav a {
+      min-width: 92px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      text-decoration: none;
+      border-left: 1px solid transparent;
+      border-right: 1px solid transparent;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      color: var(--text);
+      border-color: var(--line);
+      background: var(--panel-soft);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .shell {
+      min-height: calc(100vh - 54px);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+    }
+
+    .main {
+      min-width: 0;
+      border-right: 1px solid var(--line-dim);
+    }
+
+    .side {
+      min-width: 0;
+      padding: 12px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 170px 180px minmax(220px, 1fr) auto auto;
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line-dim);
+      background: #000;
+      position: sticky;
+      top: 54px;
+      z-index: 10;
+    }
+
+    .crumbbar {
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line-dim);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .crumb {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: #000;
+      min-height: 32px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .crumb:hover,
+    .crumb.active {
+      color: var(--cyan);
+      border-color: var(--cyan);
+      background: var(--hover-cyan);
+    }
+
+    .crumb-sep {
+      color: var(--quiet);
+    }
+
+    .viewbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line-dim);
+      flex-wrap: wrap;
+    }
+
+    .view-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .content {
+      padding: 12px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .folder-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .folder-card,
+    .image-card,
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .folder-card {
+      min-height: 138px;
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr);
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .folder-cover {
+      background:
+        linear-gradient(var(--line-dim) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line-dim) 1px, transparent 1px),
+        #000;
+      background-size: 24px 24px;
+      display: grid;
+      place-items: center;
+      border-right: 1px solid var(--line-dim);
+      overflow: hidden;
+    }
+
+    .folder-cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      filter: grayscale(1);
+    }
+
+    .folder-mark {
+      color: var(--cyan);
+      font-size: 42px;
+      line-height: 1;
+    }
+
+    .folder-body {
+      min-width: 0;
+      padding: 12px;
+      display: grid;
+      align-content: space-between;
+      gap: 12px;
+    }
+
+    .folder-name,
+    .image-name {
+      color: var(--text);
+      font-weight: 800;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .folder-count,
+    .muted {
+      color: var(--muted);
+    }
+
+    .thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .image-card {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: 180px auto;
+      cursor: zoom-in;
+      overflow: hidden;
+    }
+
+    .thumb {
+      background:
+        linear-gradient(var(--line-dim) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line-dim) 1px, transparent 1px),
+        #000;
+      background-size: 24px 24px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .thumb-empty {
+      color: var(--quiet);
+      font-size: 13px;
+    }
+
+    .image-meta {
+      min-width: 0;
+      padding: 9px 10px;
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .image-list {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 980px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line-dim);
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    tr {
+      cursor: zoom-in;
+    }
+
+    tr:hover td {
+      color: var(--cyan);
+      background: var(--hover-cyan);
+    }
+
+    .cyan {
+      color: var(--cyan);
+    }
+
+    .green {
+      color: var(--green);
+    }
+
+    .amber {
+      color: var(--amber);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line-dim);
+      font-weight: 800;
+    }
+
+    .pairs {
+      display: grid;
+      padding: 8px 12px 12px;
+    }
+
+    .pair {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 10px;
+      min-height: 31px;
+      align-items: center;
+      border-bottom: 1px dotted var(--line);
+    }
+
+    .pair span:first-child {
+      color: var(--muted);
+    }
+
+    .pair span:last-child {
+      color: var(--cyan);
+      text-align: right;
+      overflow-wrap: anywhere;
+      font-weight: 800;
+    }
+
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 0 4px;
+    }
+
+    .empty {
+      min-height: 220px;
+      border: 1px solid var(--line);
+      color: var(--quiet);
+      display: grid;
+      place-items: center;
+      background: var(--panel);
+    }
+
+    .viewer {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: none;
+      grid-template-rows: 54px minmax(0, 1fr);
+      background: rgba(0, 0, 0, 0.94);
+    }
+
+    .viewer.open {
+      display: grid;
+    }
+
+    .viewer-head {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 12px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .viewer-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--cyan);
+      font-weight: 800;
+    }
+
+    .viewer-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .viewer-tools button {
+      min-height: 32px;
+      padding: 0 10px;
+    }
+
+    .viewer-zoom {
+      min-width: 64px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .viewer-body {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+    }
+
+    .viewer-image-wrap {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(var(--line-dim) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line-dim) 1px, transparent 1px),
+        #000;
+      background-size: 34px 34px;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .viewer-image-wrap.dragging {
+      cursor: grabbing;
+    }
+
+    .viewer-image-wrap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .viewer-side {
+      min-width: 0;
+      border-left: 1px solid var(--line);
+      padding: 12px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+
+    .viewer-loading {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      z-index: 2;
+      color: var(--amber);
+      font-weight: 800;
+      background: rgba(0, 0, 0, 0.78);
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+    }
+
+    .histogram {
+      width: 100%;
+      height: 128px;
+      display: block;
+      border: 1px solid var(--line);
+      background: #000;
+      cursor: ew-resize;
+      touch-action: none;
+    }
+
+    .stretch-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px 12px 0;
+    }
+
+    .stretch-buttons button {
+      min-height: 32px;
+      padding: 0 8px;
+    }
+
+    .stretch-readout {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px 12px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .stretch-readout div {
+      min-width: 0;
+      border: 1px solid var(--line-dim);
+      padding: 6px 8px;
+      display: grid;
+      gap: 2px;
+    }
+
+    .stretch-readout strong {
+      color: var(--cyan);
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 1480px) {
+      .folder-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .thumb-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 1120px) {
+      .shell,
+      .viewer-body {
+        display: block;
+      }
+      .main {
+        border-right: 0;
+      }
+      .side,
+      .viewer-side {
+        border-top: 1px solid var(--line-dim);
+      }
+      .toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .folder-grid,
+      .thumb-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 680px) {
+      .topbar {
+        height: auto;
+        grid-template-columns: 1fr;
+      }
+      .brand,
+      .top-actions {
+        min-height: 48px;
+      }
+      .toolbar {
+        position: static;
+        grid-template-columns: 1fr;
+      }
+      .folder-grid,
+      .thumb-grid {
+        grid-template-columns: 1fr;
+      }
+      .folder-card {
+        grid-template-columns: 92px minmax(0, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">ASIAIR OPS</div>
+    <nav class="nav">
+      <a id="overview-link" href="/monitor-minterm">总览</a>
+      <a id="camera-link" href="/camera">相机</a>
+      <a class="active" href="/materials">素材库</a>
+    </nav>
+    <div class="top-actions">
+      <span id="clock">--:--:--</span>
+      <span id="scan-state" class="cyan">索引</span>
+    </div>
+  </header>
+
+  <div class="shell">
+    <main class="main">
+      <section class="toolbar">
+        <select id="device-select" aria-label="设备"></select>
+        <select id="source-select" aria-label="来源"></select>
+        <input id="search-input" type="search" placeholder="在当前目录搜索">
+        <button id="refresh-btn" type="button">刷新</button>
+        <button id="scan-btn" type="button">扫描</button>
+      </section>
+
+      <section id="crumbbar" class="crumbbar"></section>
+
+      <section class="viewbar">
+        <div>
+          <strong id="current-title">素材库</strong>
+          <span id="current-meta" class="muted">--</span>
+        </div>
+        <div class="view-actions">
+          <button id="view-list" type="button">列表</button>
+          <button id="view-thumb" type="button">缩略图</button>
+        </div>
+      </section>
+
+      <section class="content">
+        <div id="folder-section"></div>
+        <div id="image-section"></div>
+      </section>
+    </main>
+
+    <aside class="side">
+      <section class="panel">
+        <div class="panel-head"><span>素材库</span><span id="library-state" class="cyan">--</span></div>
+        <div id="library-meta" class="pairs"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><span>当前目录</span><span id="path-state" class="cyan">--</span></div>
+        <div id="path-meta" class="pairs"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><span>预览策略</span><span class="amber">按需</span></div>
+        <div class="pairs">
+          <div class="pair"><span>小图</span><span>_thn.jpg</span></div>
+          <div class="pair"><span>大图</span><span>STF / Q64</span></div>
+          <div class="pair"><span>缓存</span><span>生成后复用</span></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div id="viewer" class="viewer" aria-hidden="true">
+    <div class="viewer-head">
+      <div id="viewer-title" class="viewer-title">--</div>
+      <div class="viewer-tools">
+        <button id="viewer-fit" type="button">适配</button>
+        <button id="viewer-actual" type="button">100%</button>
+        <button id="viewer-zoom-out" type="button">-</button>
+        <span id="viewer-zoom-label" class="viewer-zoom">--</span>
+        <button id="viewer-zoom-in" type="button">+</button>
+      </div>
+      <button id="viewer-close" type="button">关闭</button>
+    </div>
+    <div class="viewer-body">
+      <div id="viewer-image-wrap" class="viewer-image-wrap">
+        <div id="viewer-loading" class="viewer-loading">正在读取 STF 大图预览</div>
+        <canvas id="viewer-canvas"></canvas>
+      </div>
+      <aside class="viewer-side">
+        <section class="panel">
+          <div class="panel-head"><span>图像</span><span id="viewer-status" class="cyan">--</span></div>
+          <div id="viewer-meta" class="pairs"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span>直方图拉伸</span><span id="viewer-stretch-status" class="amber">本地</span></div>
+          <div style="padding: 12px 12px 0;">
+            <canvas id="viewer-histogram" class="histogram"></canvas>
+          </div>
+          <div class="stretch-buttons">
+            <button id="stretch-auto" type="button">自动</button>
+            <button id="stretch-strong" type="button">强拉伸</button>
+            <button id="stretch-reset" type="button">复位</button>
+          </div>
+          <div class="stretch-readout">
+            <div>
+              <span>黑场</span>
+              <strong id="stretch-black-value">0</strong>
+            </div>
+            <div>
+              <span>中调</span>
+              <strong id="stretch-mid-value">0.50</strong>
+            </div>
+            <div>
+              <span>白场</span>
+              <strong id="stretch-white-value">255</strong>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const PAGE_SIZE = 80;
+    const state = {
+      summary: null,
+      browse: null,
+      device: "",
+      source: "",
+      path: "",
+      q: "",
+      page: 1,
+      view: localStorage.getItem("asiair-materials-view") || "thumb"
+    };
+
+    const viewerState = {
+      item: null,
+      image: null,
+      imageUrl: "",
+      naturalWidth: 0,
+      naturalHeight: 0,
+      zoom: 1,
+      fitZoom: 1,
+      panX: 0,
+      panY: 0,
+      dragging: false,
+      dragX: 0,
+      dragY: 0,
+      renderPending: false,
+      histogramDrag: null,
+      histogram: new Array(256).fill(0),
+      stretch: {
+        black: 0,
+        mid: 0.5,
+        white: 255
+      }
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function clock() {
+      $("clock").textContent = new Date().toLocaleString("zh-CN", { hour12: false });
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function fmtBytes(value) {
+      if (value === null || value === undefined || value === "") return "--";
+      const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+      let number = Number(value);
+      let index = 0;
+      while (number >= 1024 && index < units.length - 1) {
+        number /= 1024;
+        index += 1;
+      }
+      return `${number.toFixed(index < 2 ? 0 : 1)} ${units[index]}`;
+    }
+
+    function pair(name, value, tone = "") {
+      return `<div class="pair"><span>${escapeHtml(name)}</span><span class="${tone}">${escapeHtml(value ?? "--")}</span></div>`;
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, { cache: "no-store", ...options });
+      const payload = await response.json();
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP ${response.status}`);
+      return payload;
+    }
+
+    function optionList(items, fallback) {
+      return (items || []).map((item) => {
+        const value = item.value;
+        const selected = value === fallback ? " selected" : "";
+        return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(value)} (${item.count})</option>`;
+      }).join("");
+    }
+
+    async function loadSummary() {
+      state.summary = await api("/api/materials/summary");
+      const devices = state.summary.devices || [];
+      const sources = state.summary.sources || [];
+      if (!state.device) state.device = initialParam("device") || (devices[0] && devices[0].value) || "";
+      if (!state.source) {
+        state.source = initialParam("source") || (sources.find((item) => item.value === "EMMC Images") || sources[0] || {}).value || "";
+      }
+      $("device-select").innerHTML = optionList(devices, state.device);
+      $("source-select").innerHTML = optionList(sources, state.source);
+      $("library-state").textContent = state.summary.scan?.running ? "扫描中" : "就绪";
+      $("scan-state").textContent = state.summary.scan?.running ? "扫描中" : "索引就绪";
+      $("library-meta").innerHTML = [
+        pair("素材", state.summary.total),
+        pair("已缓存", state.summary.preview_ready),
+        pair("失败", state.summary.preview_failed || 0, state.summary.preview_failed ? "amber" : ""),
+        pair("根目录", state.summary.library_root_display || state.summary.library_root)
+      ].join("");
+    }
+
+    function initialParam(name) {
+      return new URLSearchParams(location.search).get(name) || "";
+    }
+
+    async function loadBrowse() {
+      if (!state.device || !state.source) return;
+      const params = new URLSearchParams({
+        device: state.device,
+        source: state.source,
+        path: state.path,
+        page: String(state.page),
+        page_size: String(PAGE_SIZE)
+      });
+      if (state.q) params.set("q", state.q);
+      state.browse = await api(`/api/materials/browse?${params.toString()}`);
+      syncUrl();
+      render();
+    }
+
+    function syncUrl() {
+      const params = new URLSearchParams();
+      if (state.device) params.set("device", state.device);
+      if (state.source) params.set("source", state.source);
+      if (state.path) params.set("path", state.path);
+      if (state.view !== "thumb") params.set("view", state.view);
+      const suffix = params.toString() ? `?${params.toString()}` : "";
+      history.replaceState(null, "", `/materials${suffix}`);
+      const deviceSuffix = state.device ? `?device=${encodeURIComponent(state.device)}` : "";
+      $("overview-link").href = `/monitor-minterm${deviceSuffix}`;
+      $("camera-link").href = `/camera${deviceSuffix}`;
+    }
+
+    function render() {
+      renderBreadcrumbs();
+      renderViewButtons();
+      renderFolders();
+      renderImages();
+      renderSide();
+      wirePager();
+    }
+
+    function renderBreadcrumbs() {
+      const crumbs = state.browse?.breadcrumbs || [];
+      $("crumbbar").innerHTML = crumbs.map((crumb, index) => {
+        const isLast = index === crumbs.length - 1;
+        const sep = index === crumbs.length - 1 ? "" : `<span class="crumb-sep">/</span>`;
+        return `<button class="crumb ${isLast ? "active" : ""}" data-path="${escapeHtml(crumb.path)}">${escapeHtml(crumb.label)}</button>${sep}`;
+      }).join("");
+      $("crumbbar").querySelectorAll(".crumb").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.path = button.dataset.path || "";
+          state.page = 1;
+          loadBrowse().catch(showError);
+        });
+      });
+    }
+
+    function renderViewButtons() {
+      $("view-list").classList.toggle("active", state.view === "list");
+      $("view-thumb").classList.toggle("active", state.view === "thumb");
+      $("current-title").textContent = state.path || `${state.device} / ${state.source}`;
+      $("current-meta").textContent = ` · 文件夹 ${state.browse?.folder_total || 0} · 图像 ${state.browse?.image_total || 0}`;
+    }
+
+    function renderFolders() {
+      const folders = state.browse?.folders || [];
+      if (!folders.length) {
+        $("folder-section").innerHTML = "";
+        return;
+      }
+      $("folder-section").innerHTML = `
+        <div class="section-title"><span>文件夹</span><span>${folders.length}</span></div>
+        <div class="folder-grid">
+          ${folders.map(renderFolder).join("")}
+        </div>
+      `;
+      $("folder-section").querySelectorAll(".folder-card").forEach((card) => {
+        card.addEventListener("click", () => {
+          state.path = card.dataset.path || "";
+          state.page = 1;
+          $("search-input").value = "";
+          state.q = "";
+          loadBrowse().catch(showError);
+        });
+      });
+    }
+
+    function renderFolder(folder) {
+      const cover = folder.cover_thumb_url
+        ? `<img loading="lazy" src="${escapeHtml(folder.cover_thumb_url)}" alt="">`
+        : `<span class="folder-mark">□</span>`;
+      return `
+        <article class="folder-card" data-path="${escapeHtml(folder.path)}">
+          <div class="folder-cover">${cover}</div>
+          <div class="folder-body">
+            <div class="folder-name" title="${escapeHtml(folder.name)}">${escapeHtml(folder.name)}</div>
+            <div class="folder-count">${folder.item_count} 张</div>
+          </div>
+        </article>
+      `;
+    }
+
+    function renderImages() {
+      const images = state.browse?.images || [];
+      if (!images.length) {
+        $("image-section").innerHTML = state.browse?.folder_total ? "" : `<div class="empty">当前目录没有图像</div>`;
+        return;
+      }
+      const content = state.view === "list" ? renderImageList(images) : renderThumbGrid(images);
+      $("image-section").innerHTML = `
+        <div class="section-title"><span>图像</span><span>${state.browse.image_total}</span></div>
+        ${content}
+        ${renderPager()}
+      `;
+      $("image-section").querySelectorAll("[data-image-id]").forEach((node) => {
+        node.addEventListener("click", () => {
+          const item = images.find((candidate) => candidate.id === node.dataset.imageId);
+          if (item) openViewer(item);
+        });
+      });
+    }
+
+    function renderThumbGrid(images) {
+      return `
+        <div class="thumb-grid">
+          ${images.map((item) => {
+            const thumb = item.thumb_url
+              ? `<img loading="lazy" src="${escapeHtml(item.thumb_url)}" alt="${escapeHtml(item.file_name)}">`
+              : `<span class="thumb-empty">NO THUMB</span>`;
+            return `
+              <article class="image-card" data-image-id="${escapeHtml(item.id)}">
+                <div class="thumb">${thumb}</div>
+                <div class="image-meta">
+                  <div class="image-name" title="${escapeHtml(item.file_name)}">${escapeHtml(item.file_name)}</div>
+                  <div>${escapeHtml(item.exposure || "--")} · Bin ${escapeHtml(item.bin || "--")} · ${fmtBytes(item.size_bytes)}</div>
+                </div>
+              </article>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
+    function renderImageList(images) {
+      return `
+        <div class="image-list">
+          <table>
+            <thead>
+              <tr>
+                <th>文件名</th>
+                <th>曝光</th>
+                <th>Bin</th>
+                <th>Gain</th>
+                <th>温度</th>
+                <th>时间</th>
+                <th>大小</th>
+                <th>大图缓存</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${images.map((item) => `
+                <tr data-image-id="${escapeHtml(item.id)}">
+                  <td>${escapeHtml(item.file_name)}</td>
+                  <td class="cyan">${escapeHtml(item.exposure || "--")}</td>
+                  <td>${escapeHtml(item.bin || "--")}</td>
+                  <td>${escapeHtml(item.gain ?? "--")}</td>
+                  <td>${escapeHtml(item.temperature_c ?? "--")}</td>
+                  <td>${escapeHtml(item.captured_at || item.mtime_text || "--")}</td>
+                  <td>${fmtBytes(item.size_bytes)}</td>
+                  <td class="${item.preview_status === "ready" ? "green" : "muted"}">${escapeHtml(item.preview_status || "--")}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderPager() {
+      const total = state.browse?.image_total || 0;
+      const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      return `
+        <div class="pager">
+          <button id="prev-page" type="button" ${state.page <= 1 ? "disabled" : ""}>上一页</button>
+          <span class="muted">${state.page} / ${pages}</span>
+          <button id="next-page" type="button" ${state.page >= pages ? "disabled" : ""}>下一页</button>
+        </div>
+      `;
+    }
+
+    function renderSide() {
+      const browse = state.browse || {};
+      $("path-state").textContent = browse.path || "根目录";
+      $("path-meta").innerHTML = [
+        pair("设备", browse.device || "--"),
+        pair("来源", browse.source || "--"),
+        pair("路径", browse.path || "/"),
+        pair("文件夹", browse.folder_total || 0),
+        pair("图像", browse.image_total || 0)
+      ].join("");
+    }
+
+    function wirePager() {
+      const prev = $("prev-page");
+      const next = $("next-page");
+      if (prev) prev.addEventListener("click", () => {
+        state.page = Math.max(1, state.page - 1);
+        loadBrowse().catch(showError);
+      });
+      if (next) next.addEventListener("click", () => {
+        state.page += 1;
+        loadBrowse().catch(showError);
+      });
+    }
+
+    function openViewer(item) {
+      $("viewer").classList.add("open");
+      $("viewer").setAttribute("aria-hidden", "false");
+      $("viewer-title").textContent = item.file_name;
+      $("viewer-status").textContent = item.preview_status === "ready" ? "读取缓存" : "生成中";
+      $("viewer-loading").style.display = "block";
+      $("viewer-loading").textContent = "正在读取 STF 大图预览";
+      resetViewerImage();
+      $("viewer-meta").innerHTML = [
+        pair("目标", item.target || "--"),
+        pair("曝光", item.exposure || "--"),
+        pair("Bin", item.bin || "--"),
+        pair("Gain", item.gain ?? "--"),
+        pair("温度", item.temperature_c ?? "--"),
+        pair("大小", fmtBytes(item.size_bytes)),
+        pair("路径", item.relative_path)
+      ].join("");
+      const url = `${item.preview_url}&t=${Date.now()}`;
+      loadViewerImage(item, url);
+    }
+
+    function closeViewer() {
+      $("viewer").classList.remove("open");
+      $("viewer").setAttribute("aria-hidden", "true");
+      resetViewerImage();
+      $("viewer-loading").textContent = "正在读取 STF 大图预览";
+    }
+
+    function resetViewerImage() {
+      viewerState.item = null;
+      viewerState.image = null;
+      viewerState.imageUrl = "";
+      viewerState.naturalWidth = 0;
+      viewerState.naturalHeight = 0;
+      viewerState.zoom = 1;
+      viewerState.fitZoom = 1;
+      viewerState.panX = 0;
+      viewerState.panY = 0;
+      viewerState.histogram = new Array(256).fill(0);
+      viewerState.stretch = { black: 0, mid: 0.5, white: 255 };
+      const canvas = $("viewer-canvas");
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width || 1, canvas.height || 1);
+      syncStretchControls();
+      drawHistogram();
+      updateZoomLabel();
+    }
+
+    function loadViewerImage(item, url) {
+      const image = new Image();
+      viewerState.item = item;
+      viewerState.imageUrl = url;
+      image.onload = () => {
+        viewerState.image = image;
+        viewerState.naturalWidth = image.naturalWidth || image.width;
+        viewerState.naturalHeight = image.naturalHeight || image.height;
+        $("viewer-loading").style.display = "none";
+        $("viewer-status").textContent = "已显示";
+        computeHistogram(image);
+        setStretchValues(0, 0.5, 255, false);
+        resizeViewerCanvas();
+        fitViewerImage();
+      };
+      image.onerror = () => {
+        $("viewer-loading").textContent = "大图预览生成失败";
+        $("viewer-status").textContent = "失败";
+      };
+      image.src = url;
+    }
+
+    function resizeViewerCanvas() {
+      const wrap = $("viewer-image-wrap");
+      const canvas = $("viewer-canvas");
+      const rect = wrap.getBoundingClientRect();
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.floor(rect.width * ratio));
+      const height = Math.max(1, Math.floor(rect.height * ratio));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+        canvas.style.width = `${Math.floor(rect.width)}px`;
+        canvas.style.height = `${Math.floor(rect.height)}px`;
+      }
+      return { width: rect.width, height: rect.height, ratio };
+    }
+
+    function fitViewerImage() {
+      if (!viewerState.image) return;
+      const viewport = resizeViewerCanvas();
+      const fit = Math.min(
+        viewport.width / viewerState.naturalWidth,
+        viewport.height / viewerState.naturalHeight
+      );
+      viewerState.fitZoom = Number.isFinite(fit) && fit > 0 ? fit : 1;
+      viewerState.zoom = viewerState.fitZoom;
+      viewerState.panX = (viewport.width - viewerState.naturalWidth * viewerState.zoom) / 2;
+      viewerState.panY = (viewport.height - viewerState.naturalHeight * viewerState.zoom) / 2;
+      scheduleViewerRender();
+    }
+
+    function setActualSize() {
+      if (!viewerState.image) return;
+      const viewport = resizeViewerCanvas();
+      viewerState.zoom = 1;
+      viewerState.panX = (viewport.width - viewerState.naturalWidth) / 2;
+      viewerState.panY = (viewport.height - viewerState.naturalHeight) / 2;
+      scheduleViewerRender();
+    }
+
+    function zoomViewerAt(clientX, clientY, factor) {
+      if (!viewerState.image) return;
+      const wrap = $("viewer-image-wrap");
+      const rect = wrap.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const beforeX = (x - viewerState.panX) / viewerState.zoom;
+      const beforeY = (y - viewerState.panY) / viewerState.zoom;
+      const minZoom = Math.max(viewerState.fitZoom * 0.25, 0.01);
+      const maxZoom = 8;
+      viewerState.zoom = clamp(viewerState.zoom * factor, minZoom, maxZoom);
+      viewerState.panX = x - beforeX * viewerState.zoom;
+      viewerState.panY = y - beforeY * viewerState.zoom;
+      scheduleViewerRender();
+    }
+
+    function scheduleViewerRender() {
+      if (viewerState.renderPending) return;
+      viewerState.renderPending = true;
+      requestAnimationFrame(() => {
+        viewerState.renderPending = false;
+        renderViewerCanvas();
+      });
+    }
+
+    function renderViewerCanvas() {
+      const canvas = $("viewer-canvas");
+      const ctx = canvas.getContext("2d");
+      const viewport = resizeViewerCanvas();
+      const ratio = viewport.ratio;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.clearRect(0, 0, viewport.width, viewport.height);
+      if (!viewerState.image) {
+        updateZoomLabel();
+        return;
+      }
+      ctx.drawImage(
+        viewerState.image,
+        viewerState.panX,
+        viewerState.panY,
+        viewerState.naturalWidth * viewerState.zoom,
+        viewerState.naturalHeight * viewerState.zoom
+      );
+      applyViewportStretch(ctx, canvas.width, canvas.height);
+      updateZoomLabel();
+    }
+
+    function applyViewportStretch(ctx, width, height) {
+      const black = Number(viewerState.stretch.black);
+      const white = Number(viewerState.stretch.white);
+      const mid = Number(viewerState.stretch.mid);
+      if (black <= 0 && white >= 255 && Math.abs(mid - 0.5) < 0.001) return;
+      if (white <= black + 1) return;
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+      const lut = buildStretchLut(black, mid, white);
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = lut[data[i]];
+        data[i + 1] = lut[data[i + 1]];
+        data[i + 2] = lut[data[i + 2]];
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    function buildStretchLut(black, mid, white) {
+      const lut = new Uint8ClampedArray(256);
+      for (let value = 0; value < 256; value += 1) {
+        let x = (value - black) / (white - black);
+        x = clamp(x, 0, 1);
+        if (Math.abs(mid - 0.5) > 0.001) {
+          const denominator = ((2 * mid - 1) * x) - mid;
+          x = denominator === 0 ? 0 : (((mid - 1) * x) / denominator);
+        }
+        lut[value] = Math.round(clamp(x, 0, 1) * 255);
+      }
+      return lut;
+    }
+
+    function computeHistogram(image) {
+      const maxEdge = 900;
+      const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+      const width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
+      const height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(image, 0, 0, width, height);
+      const data = ctx.getImageData(0, 0, width, height).data;
+      const histogram = new Array(256).fill(0);
+      for (let i = 0; i < data.length; i += 4) {
+        const value = Math.round(data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722);
+        histogram[value] += 1;
+      }
+      viewerState.histogram = histogram;
+      drawHistogram();
+    }
+
+    function drawHistogram() {
+      const canvas = $("viewer-histogram");
+      const rect = canvas.getBoundingClientRect();
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.floor((rect.width || 300) * ratio));
+      const height = Math.max(1, Math.floor((rect.height || 128) * ratio));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, width, height);
+      const histogram = viewerState.histogram || [];
+      const maxValue = Math.max(1, ...histogram.map((value) => Math.log10(value + 1)));
+      ctx.strokeStyle = "#00f3ff";
+      ctx.lineWidth = Math.max(1, ratio);
+      ctx.beginPath();
+      for (let i = 0; i < 256; i += 1) {
+        const x = (i / 255) * width;
+        const y = height - (Math.log10((histogram[i] || 0) + 1) / maxValue) * (height - 10) - 4;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      drawHistogramMarker(ctx, width, height, viewerState.stretch.black, "#00f3ff");
+      drawHistogramMarker(ctx, width, height, viewerState.stretch.mid * 255, "#ff5bd6");
+      drawHistogramMarker(ctx, width, height, viewerState.stretch.white, "#f5b000");
+    }
+
+    function drawHistogramMarker(ctx, width, height, value, color) {
+      const x = clamp(value / 255, 0, 1) * width;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, width / 420);
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x, height - 1);
+      ctx.lineTo(x - 6, height - 12);
+      ctx.lineTo(x + 6, height - 12);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x, 1);
+      ctx.lineTo(x - 5, 10);
+      ctx.lineTo(x + 5, 10);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function histogramPercentile(percentile) {
+      const histogram = viewerState.histogram || [];
+      const total = histogram.reduce((sum, value) => sum + value, 0);
+      if (!total) return percentile <= 0.5 ? 0 : 255;
+      const threshold = total * percentile;
+      let running = 0;
+      for (let i = 0; i < histogram.length; i += 1) {
+        running += histogram[i] || 0;
+        if (running >= threshold) return i;
+      }
+      return 255;
+    }
+
+    function setStretchValues(black, mid, white, rerender = true) {
+      black = Math.round(clamp(Number(black), 0, 254));
+      white = Math.round(clamp(Number(white), 1, 255));
+      if (white <= black) white = Math.min(255, black + 1);
+      mid = clamp(Number(mid), 0.05, 0.95);
+      viewerState.stretch = { black, mid, white };
+      syncStretchControls();
+      drawHistogram();
+      if (rerender) scheduleViewerRender();
+    }
+
+    function syncStretchControls() {
+      const stretch = viewerState.stretch;
+      $("stretch-black-value").textContent = String(stretch.black);
+      $("stretch-mid-value").textContent = stretch.mid.toFixed(2);
+      $("stretch-white-value").textContent = String(stretch.white);
+    }
+
+    function histogramValueFromEvent(event) {
+      const canvas = $("viewer-histogram");
+      const rect = canvas.getBoundingClientRect();
+      const x = clamp(event.clientX - rect.left, 0, rect.width || 1);
+      return Math.round((x / Math.max(1, rect.width)) * 255);
+    }
+
+    function nearestHistogramMarker(value) {
+      const markers = [
+        ["black", viewerState.stretch.black],
+        ["mid", viewerState.stretch.mid * 255],
+        ["white", viewerState.stretch.white]
+      ];
+      markers.sort((a, b) => Math.abs(a[1] - value) - Math.abs(b[1] - value));
+      return markers[0][0];
+    }
+
+    function setHistogramMarker(marker, value) {
+      const stretch = viewerState.stretch;
+      if (marker === "black") {
+        setStretchValues(Math.min(value, stretch.white - 1), stretch.mid, stretch.white);
+      } else if (marker === "white") {
+        setStretchValues(stretch.black, stretch.mid, Math.max(value, stretch.black + 1));
+      } else {
+        setStretchValues(stretch.black, value / 255, stretch.white);
+      }
+    }
+
+    function updateZoomLabel() {
+      $("viewer-zoom-label").textContent = viewerState.image ? `${Math.round(viewerState.zoom * 100)}%` : "--";
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, Number(value)));
+    }
+
+    function showError(error) {
+      $("current-meta").textContent = ` · ${error.message || String(error)}`;
+    }
+
+    function onBrowseRendered() {
+      wirePager();
+    }
+
+    function wire() {
+      $("device-select").addEventListener("change", () => {
+        state.device = $("device-select").value;
+        state.path = "";
+        state.page = 1;
+        loadBrowse().then(onBrowseRendered).catch(showError);
+      });
+      $("source-select").addEventListener("change", () => {
+        state.source = $("source-select").value;
+        state.path = "";
+        state.page = 1;
+        loadBrowse().then(onBrowseRendered).catch(showError);
+      });
+      $("search-input").addEventListener("change", () => {
+        state.q = $("search-input").value.trim();
+        state.page = 1;
+        loadBrowse().then(onBrowseRendered).catch(showError);
+      });
+      $("refresh-btn").addEventListener("click", () => {
+        loadSummary().then(loadBrowse).then(onBrowseRendered).catch(showError);
+      });
+      $("scan-btn").addEventListener("click", async () => {
+        $("scan-btn").disabled = true;
+        try {
+          await api("/api/materials/scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({})
+          });
+          await waitScan();
+        } catch (error) {
+          showError(error);
+        } finally {
+          $("scan-btn").disabled = false;
+        }
+      });
+      $("view-list").addEventListener("click", () => {
+        state.view = "list";
+        localStorage.setItem("asiair-materials-view", state.view);
+        syncUrl();
+        render();
+        onBrowseRendered();
+      });
+      $("view-thumb").addEventListener("click", () => {
+        state.view = "thumb";
+        localStorage.setItem("asiair-materials-view", state.view);
+        syncUrl();
+        render();
+        onBrowseRendered();
+      });
+      $("viewer-fit").addEventListener("click", fitViewerImage);
+      $("viewer-actual").addEventListener("click", setActualSize);
+      $("viewer-zoom-in").addEventListener("click", () => {
+        const rect = $("viewer-image-wrap").getBoundingClientRect();
+        zoomViewerAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.25);
+      });
+      $("viewer-zoom-out").addEventListener("click", () => {
+        const rect = $("viewer-image-wrap").getBoundingClientRect();
+        zoomViewerAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.8);
+      });
+      $("viewer-image-wrap").addEventListener("wheel", (event) => {
+        if (!viewerState.image) return;
+        event.preventDefault();
+        zoomViewerAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.18 : 0.85);
+      }, { passive: false });
+      $("viewer-image-wrap").addEventListener("pointerdown", (event) => {
+        if (!viewerState.image) return;
+        viewerState.dragging = true;
+        viewerState.dragX = event.clientX;
+        viewerState.dragY = event.clientY;
+        $("viewer-image-wrap").classList.add("dragging");
+        $("viewer-image-wrap").setPointerCapture(event.pointerId);
+      });
+      $("viewer-image-wrap").addEventListener("pointermove", (event) => {
+        if (!viewerState.dragging) return;
+        const dx = event.clientX - viewerState.dragX;
+        const dy = event.clientY - viewerState.dragY;
+        viewerState.dragX = event.clientX;
+        viewerState.dragY = event.clientY;
+        viewerState.panX += dx;
+        viewerState.panY += dy;
+        scheduleViewerRender();
+      });
+      $("viewer-image-wrap").addEventListener("pointerup", (event) => {
+        viewerState.dragging = false;
+        $("viewer-image-wrap").classList.remove("dragging");
+        try {
+          $("viewer-image-wrap").releasePointerCapture(event.pointerId);
+        } catch (_) {}
+      });
+      $("viewer-image-wrap").addEventListener("pointercancel", () => {
+        viewerState.dragging = false;
+        $("viewer-image-wrap").classList.remove("dragging");
+      });
+      $("stretch-auto").addEventListener("click", () => {
+        setStretchValues(histogramPercentile(0.002), 0.5, histogramPercentile(0.998));
+      });
+      $("stretch-strong").addEventListener("click", () => {
+        setStretchValues(histogramPercentile(0.01), 0.34, histogramPercentile(0.992));
+      });
+      $("stretch-reset").addEventListener("click", () => {
+        setStretchValues(0, 0.5, 255);
+      });
+      $("viewer-histogram").addEventListener("pointerdown", (event) => {
+        if (!viewerState.image) return;
+        const value = histogramValueFromEvent(event);
+        viewerState.histogramDrag = nearestHistogramMarker(value);
+        setHistogramMarker(viewerState.histogramDrag, value);
+        $("viewer-histogram").setPointerCapture(event.pointerId);
+      });
+      $("viewer-histogram").addEventListener("pointermove", (event) => {
+        if (!viewerState.histogramDrag) return;
+        setHistogramMarker(viewerState.histogramDrag, histogramValueFromEvent(event));
+      });
+      $("viewer-histogram").addEventListener("pointerup", (event) => {
+        viewerState.histogramDrag = null;
+        try {
+          $("viewer-histogram").releasePointerCapture(event.pointerId);
+        } catch (_) {}
+      });
+      $("viewer-histogram").addEventListener("pointercancel", () => {
+        viewerState.histogramDrag = null;
+      });
+      $("viewer-close").addEventListener("click", closeViewer);
+      window.addEventListener("resize", () => {
+        if (!$("viewer").classList.contains("open") || !viewerState.image) return;
+        resizeViewerCanvas();
+        scheduleViewerRender();
+        drawHistogram();
+      });
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeViewer();
+        if (!$("viewer").classList.contains("open")) return;
+        if (event.key === "0") fitViewerImage();
+        if (event.key === "1") setActualSize();
+      });
+    }
+
+    async function waitScan() {
+      for (;;) {
+        await loadSummary();
+        if (!state.summary.scan?.running) break;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      await loadBrowse();
+      onBrowseRendered();
+    }
+
+    async function init() {
+      clock();
+      setInterval(clock, 1000);
+      state.path = initialParam("path") || "";
+      state.view = initialParam("view") || state.view;
+      if (!["list", "thumb"].includes(state.view)) state.view = "thumb";
+      wire();
+      await loadSummary();
+      if (!state.summary.total && !state.summary.scan?.running) {
+        await api("/api/materials/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        });
+        await waitScan();
+      }
+      await loadBrowse();
+    }
+
+    init().catch(showError);
+  </script>
+</body>
+</html>

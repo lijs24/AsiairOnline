@@ -1,0 +1,78 @@
+{
+  "project": {
+    "timezone": "Asia/Shanghai",
+    "destination_root": "D:\\AstroBackups\\RemoteStation",
+    "logs_dir": "logs",
+    "state_dir": "state",
+    "lock_file": "state\\backup.lock",
+    "robocopy_threads": 8,
+    "default_device": "pier-a",
+    "private_path_prefixes": [
+      "D:\\AstroBackups"
+    ]
+  },
+  "backup": {
+    "dry_run_default": true,
+    "copy_empty_dirs": true,
+    "retry_count": 2,
+    "retry_wait_seconds": 5,
+    "smb_port": 445,
+    "exclude_dirs": [
+      "@eaDir",
+      "#recycle",
+      "$RECYCLE.BIN",
+      "System Volume Information",
+      ".Spotlight-V100",
+      ".Trashes",
+      ".fseventsd"
+    ],
+    "exclude_files": [
+      "Thumbs.db",
+      ".DS_Store",
+      "._*"
+    ],
+    "source_roots": [
+      {
+        "label": "EMMC Images",
+        "path_template": "\\\\{ip}\\EMMC Images",
+        "enabled": true
+      }
+    ]
+  },
+  "devices": [
+    {
+      "name": "pier-a",
+      "ip": "100.64.0.10",
+      "enabled": true,
+      "source_roots": [
+        {
+          "label": "EMMC Images",
+          "path_template": "\\\\{ip}\\EMMC Images",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "name": "pier-b",
+      "ip": "100.64.0.11",
+      "enabled": true,
+      "source_roots": [
+        {
+          "label": "EMMC Images",
+          "path_template": "\\\\{ip}\\EMMC Images",
+          "enabled": true
+        },
+        {
+          "label": "TF Images",
+          "path_template": "\\\\{ip}\\TF Images",
+          "enabled": true
+        },
+        {
+          "label": "Udisk Images",
+          "path_template": "\\\\{ip}\\Udisk Images",
+          "enabled": true
+        }
+      ]
+    }
+  ]
+}

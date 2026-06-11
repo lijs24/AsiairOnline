@@ -1,0 +1,2362 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASIAIR 相机</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #030404;
+      --panel: #070909;
+      --line: #2b3030;
+      --line-soft: #171b1b;
+      --text: #f2f6f4;
+      --muted: #8c9693;
+      --cyan: #00f5ff;
+      --green: #35ff4f;
+      --warn: #ffb300;
+      --danger: #ff4f5e;
+      --mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+      --sans: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      letter-spacing: 0;
+    }
+
+    button, select {
+      font: 700 14px var(--sans);
+      color: var(--text);
+      background: #050707;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      min-height: 40px;
+    }
+
+    button { padding: 0 16px; cursor: pointer; }
+    button:hover, select:hover { border-color: var(--cyan); color: var(--cyan); }
+    button:disabled { color: var(--muted); border-color: var(--line-soft); cursor: progress; }
+    select { padding: 0 12px; min-width: 110px; }
+
+    .shell {
+      width: 100vw;
+      max-width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 54px minmax(0, 1fr) 42px;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(160px, 220px) 1fr auto;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      background: #020303;
+      min-width: 0;
+    }
+
+    .brand {
+      padding: 0 14px;
+      color: var(--cyan);
+      font: 800 18px var(--mono);
+      letter-spacing: 2px;
+      white-space: nowrap;
+    }
+
+    .nav {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .nav a {
+      color: var(--muted);
+      text-decoration: none;
+      padding: 10px 12px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .nav a.active {
+      color: var(--text);
+      border-color: var(--line);
+      background: var(--panel);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-right: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .control-cluster {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .control-indicator {
+      display: inline-flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: #050707;
+      font: 700 12px var(--mono);
+      white-space: nowrap;
+    }
+
+    .control-indicator.self {
+      color: var(--green);
+      border-color: var(--green);
+    }
+
+    .control-indicator.busy {
+      color: var(--warn);
+      border-color: var(--warn);
+    }
+
+    .control-indicator.free {
+      color: var(--muted);
+    }
+
+    #role-select {
+      min-width: 92px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 344px;
+      min-height: 0;
+      max-height: 100%;
+      overflow: hidden;
+    }
+
+    .stage {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
+      border-right: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .stage-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line-soft);
+      color: var(--muted);
+      font: 700 14px var(--mono);
+      min-width: 0;
+    }
+
+    .stage-head,
+    .metric-strip {
+      display: none !important;
+    }
+
+    .stage-head strong { color: var(--text); font-family: var(--sans); }
+    .stage-head .spacer { flex: 1; min-width: 0; }
+    .badge { color: var(--green); }
+    .badge.warn { color: var(--warn); }
+    .badge.err { color: var(--danger); }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--line-soft);
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .metric-card {
+      border: 1px solid var(--line);
+      background: #050707;
+      padding: 6px 9px;
+      min-width: 0;
+      display: grid;
+      gap: 4px;
+      align-content: center;
+    }
+
+    .metric-card span {
+      color: var(--muted);
+      font: 700 11px var(--mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .metric-card strong {
+      color: var(--cyan);
+      font: 900 15px var(--mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .viewer {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) 124px;
+      gap: 6px;
+      padding: 8px;
+      overflow: hidden;
+      background:
+        linear-gradient(var(--line-soft) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    .viewer.stretch-collapsed {
+      grid-template-rows: minmax(0, 1fr) 40px;
+    }
+
+    .image-frame {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      border: 1px solid var(--line);
+      background: #000;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .image-viewport {
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      display: block;
+      cursor: default;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line) #050707;
+    }
+
+    .image-viewport.can-pan {
+      cursor: grab;
+    }
+
+    .image-viewport.dragging {
+      cursor: grabbing;
+      user-select: none;
+    }
+
+    .image-stage {
+      min-width: 100%;
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+    }
+
+    .image-frame img {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: auto;
+    }
+
+    .image-frame canvas {
+      display: block;
+      max-width: none;
+      max-height: none;
+      width: auto;
+      height: auto;
+      image-rendering: auto;
+    }
+
+    .empty {
+      color: var(--muted);
+      font: 700 14px var(--mono);
+      text-align: center;
+      padding: 18px;
+    }
+
+    .hidden { display: none !important; }
+
+    .stretch-panel {
+      min-width: 0;
+      min-height: 0;
+      border: 1px solid var(--line);
+      background: #050707;
+      display: grid;
+      grid-template-rows: 40px minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    .stretch-panel.collapsed {
+      grid-template-rows: 40px 0;
+    }
+
+    .stretch-panel.collapsed .histogram-wrap {
+      display: none;
+    }
+
+    .stretch-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .stretch-toolbar button {
+      min-height: 30px;
+      padding: 0 12px;
+      font-size: 12px;
+    }
+
+    #stretch-toggle {
+      min-width: 88px;
+    }
+
+    .stretch-readout {
+      margin-left: auto;
+      min-width: 0;
+      color: var(--muted);
+      font: 700 12px var(--mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .histogram-wrap {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      padding: 8px 12px 24px;
+    }
+
+    #histogram-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 48px;
+    }
+
+    .stretch-bar {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 9px;
+      height: 8px;
+      border: 1px solid var(--line);
+      background: linear-gradient(90deg, #000, #555, #fff);
+    }
+
+    .stretch-range {
+      position: absolute;
+      top: -1px;
+      bottom: -1px;
+      border: 1px solid var(--cyan);
+      background: rgba(0, 245, 255, 0.12);
+      pointer-events: none;
+    }
+
+    .stretch-handle {
+      position: absolute;
+      top: -9px;
+      width: 14px;
+      height: 14px;
+      padding: 0;
+      min-height: 0;
+      border: 0;
+      background: transparent;
+      transform: translateX(-50%);
+      cursor: ew-resize;
+      color: var(--cyan);
+    }
+
+    .stretch-handle::before {
+      content: "";
+      display: block;
+      width: 0;
+      height: 0;
+      margin: 0 auto;
+    }
+
+    .stretch-handle.clip::before {
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid var(--cyan);
+    }
+
+    .stretch-handle.white::before { border-top-color: var(--warn); }
+
+    .stretch-handle.point {
+      top: -12px;
+    }
+
+    .stretch-handle.point::before {
+      width: 10px;
+      height: 10px;
+      background: currentColor;
+      transform: rotate(45deg);
+    }
+
+    .stretch-handle.source { color: var(--green); }
+
+    .stretch-handle.target {
+      top: auto;
+      bottom: -12px;
+      color: #ff63d6;
+    }
+
+    .side {
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      background: #030404;
+      padding: 12px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line) #050707;
+    }
+
+    .image-viewport::-webkit-scrollbar,
+    .side::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    .image-viewport::-webkit-scrollbar-track,
+    .side::-webkit-scrollbar-track {
+      background: #050707;
+    }
+
+    .image-viewport::-webkit-scrollbar-thumb,
+    .side::-webkit-scrollbar-thumb {
+      background: #202727;
+      border: 1px solid #050707;
+    }
+
+    .image-viewport::-webkit-scrollbar-thumb:hover,
+    .side::-webkit-scrollbar-thumb:hover {
+      background: #2d3636;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      margin-bottom: 12px;
+    }
+
+    .panel-head {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line-soft);
+      font-weight: 800;
+    }
+
+    .panel-head span:last-child {
+      color: var(--muted);
+      font: 700 13px var(--mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pairs { padding: 10px 12px 12px; }
+    .pair {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px dotted var(--line);
+      min-width: 0;
+    }
+    .pair:last-child { border-bottom: 0; }
+    .key { color: var(--muted); white-space: nowrap; }
+    .value {
+      color: var(--cyan);
+      font: 800 14px var(--mono);
+      text-align: right;
+      overflow-wrap: anywhere;
+      min-width: 0;
+    }
+    .value.ok { color: var(--green); }
+    .value.warn { color: var(--warn); }
+    .value.err { color: var(--danger); }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .controls button.primary {
+      grid-column: 1 / -1;
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .field,
+    .toggle-stack {
+      min-width: 0;
+      display: grid;
+      gap: 6px;
+    }
+
+    .toggle-stack,
+    .panel-button {
+      grid-column: 1 / -1;
+    }
+
+    .field label,
+    .toggle-stack > span {
+      color: var(--muted);
+      font: 700 12px var(--mono);
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      height: 36px;
+      border: 1px solid var(--line);
+      background: #050707;
+      color: var(--cyan);
+      padding: 0 10px;
+      font: 800 14px var(--mono);
+      outline: 0;
+    }
+
+    .field input:disabled,
+    .field select:disabled {
+      color: var(--muted);
+      opacity: 0.7;
+    }
+
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .toggle-chip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      background: #050707;
+      padding: 0 10px;
+      color: var(--muted);
+      font: 700 12px var(--mono);
+    }
+
+    .toggle-chip input {
+      width: 14px;
+      height: 14px;
+      accent-color: #00f5ff;
+      margin: 0;
+    }
+
+    .toggle-chip:has(input:checked) {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      box-shadow: inset 0 0 0 1px rgba(0, 245, 255, 0.12);
+    }
+
+    .panel-button {
+      height: 36px;
+      border: 1px solid var(--line);
+      background: #050707;
+      color: var(--cyan);
+      font: 800 14px var(--mono);
+      cursor: pointer;
+    }
+
+    .panel-button.primary {
+      border-color: var(--cyan);
+    }
+
+    .panel-button:disabled {
+      color: var(--muted);
+      border-color: var(--line);
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .footer {
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto 34px;
+      align-items: stretch;
+      min-width: 0;
+      background: #020303;
+    }
+
+    .logline {
+      min-width: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 10px;
+      font: 700 12px var(--mono);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .logline strong { color: var(--green); }
+
+    .footer-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+    }
+
+    .progress-row {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 0 10px 8px;
+      border-top: 1px solid var(--line-soft);
+      min-width: 0;
+    }
+
+    .progress-label,
+    .progress-value {
+      color: var(--muted);
+      font: 700 12px var(--mono);
+      white-space: nowrap;
+    }
+
+    .progress-track {
+      position: relative;
+      height: 8px;
+      border: 1px solid var(--line);
+      background: #050707;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+      transition: width 0.18s linear;
+    }
+
+    .progress-fill.indeterminate {
+      width: 34%;
+      animation: progress-scan 1.1s linear infinite;
+    }
+
+    @keyframes progress-scan {
+      0% { transform: translateX(-110%); }
+      100% { transform: translateX(320%); }
+    }
+
+    @media (max-width: 900px) {
+      html, body { height: auto; min-height: 100%; overflow: auto; }
+      .shell {
+        grid-template-rows: auto auto auto;
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+      }
+      .topbar {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 12px;
+      }
+      .brand, .top-actions { padding: 0; }
+      .nav { overflow-x: auto; }
+      .top-actions { flex-wrap: wrap; }
+      .layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(48vh, 64vh) auto;
+        overflow: visible;
+      }
+      .stage { grid-template-rows: auto auto minmax(0, 1fr); }
+      .viewer { grid-template-rows: minmax(36vh, 1fr) 124px; }
+      .metric-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+      .stage { border-right: 0; }
+      .side { overflow: visible; }
+      .footer { grid-template-columns: 1fr; }
+      .footer-actions { padding: 10px 12px; justify-content: stretch; }
+      .footer-actions button { flex: 1; }
+      .form-grid,
+      .toggle-grid { grid-template-columns: 1fr; }
+      .progress-row { grid-template-columns: 1fr; padding: 8px 12px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">ASIAIR OPS</div>
+      <nav class="nav">
+        <a id="overview-link" href="/monitor-minterm">总览</a>
+        <a id="preview-link" class="active" href="/camera">相机</a>
+        <a id="materials-link" href="/materials">素材库</a>
+      </nav>
+            <div class="top-actions">
+        <span id="clock">--:--:--</span>
+        <div class="control-cluster">
+          <span id="control-indicator" class="control-indicator free">主控空闲</span>
+          <select id="role-select" aria-label="协作模式">
+            <option value="monitor">监控</option>
+            <option value="controller">主控</option>
+          </select>
+        </div>
+        <select id="device-select" aria-label="设备"></select>
+      </div>    </header>
+
+    <section class="layout">
+      <section class="stage">
+        <div class="stage-head">
+          <strong id="title-device">--</strong>
+          <span id="title-size">--</span>
+          <span class="spacer"></span>
+          <span id="title-state" class="badge warn">等待图像</span>
+        </div>
+        <div class="metric-strip" id="metric-strip"></div>
+        <div class="viewer" id="viewer">
+          <div class="image-frame" id="image-frame">
+            <div class="image-viewport" id="image-viewport">
+              <div class="image-stage" id="image-stage">
+                <canvas id="preview-canvas" class="hidden"></canvas>
+                <div class="empty" id="frame-empty">NO FRAME</div>
+              </div>
+            </div>
+          </div>
+          <div class="stretch-panel" id="stretch-panel">
+            <div class="stretch-toolbar">
+              <button id="stretch-stf" type="button">一键拉伸</button>
+              <button id="stretch-strong" type="button">强拉伸</button>
+              <button id="stretch-linear" type="button">线性</button>
+              <button id="stretch-toggle" type="button">收起 STF</button>
+              <span class="stretch-readout" id="stretch-readout">等待原始图像</span>
+            </div>
+            <div class="histogram-wrap">
+              <canvas id="histogram-canvas"></canvas>
+              <div class="stretch-bar" id="stretch-bar">
+                <div class="stretch-range" id="stretch-range"></div>
+                <button class="stretch-handle clip black" id="black-handle" type="button" aria-label="black point"></button>
+                <button class="stretch-handle point source" id="source-handle" type="button" aria-label="source midtone"></button>
+                <button class="stretch-handle point target" id="target-handle" type="button" aria-label="target midtone"></button>
+                <button class="stretch-handle clip white" id="white-handle" type="button" aria-label="white point"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="panel">
+          <div class="panel-head"><span>主控</span><span id="control-mode-head">监控</span></div>
+          <div class="controls">
+            <button class="primary" id="shutter-btn" type="button">拍摄一张</button>
+            <button id="refresh-btn" type="button">拉取最新图像</button>
+            <button id="auto-btn" type="button">自动刷新</button>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span>曝光参数</span><span id="exposure-head">--</span></div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="exposure-input">曝光 (s)</label>
+              <input id="exposure-input" type="number" min="0.001" step="0.1" />
+            </div>
+            <div class="field">
+              <label for="bin-select">Bin</label>
+              <select id="bin-select"></select>
+            </div>
+            <button class="panel-button primary" id="apply-exposure-btn" type="button">写入曝光参数</button>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span>相机参数</span><span id="camera-write-head">--</span></div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="gain-input">Gain</label>
+              <input id="gain-input" type="number" step="1" />
+            </div>
+            <div class="field">
+              <label for="offset-input">Offset</label>
+              <input id="offset-input" type="number" step="1" />
+            </div>
+            <div class="field">
+              <label for="target-temp-input">目标温度 (°C)</label>
+              <input id="target-temp-input" type="number" step="0.5" />
+            </div>
+            <div class="field">
+              <label for="frame-size-select">Frame</label>
+              <select id="frame-size-select">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </div>
+            <div class="toggle-stack">
+              <span>开关</span>
+              <div class="toggle-grid">
+                <label class="toggle-chip"><span>16 Bit 只读</span><input id="camera-16bit" type="checkbox" disabled /></label>
+                <label class="toggle-chip"><span>制冷</span><input id="cooler-on" type="checkbox" /></label>
+                <label class="toggle-chip"><span>防露</span><input id="anti-dew" type="checkbox" /></label>
+                <label class="toggle-chip"><span>硬件 Bin</span><input id="hardware-bin" type="checkbox" /></label>
+                <label class="toggle-chip"><span>半速风扇</span><input id="fan-half-speed" type="checkbox" /></label>
+                <label class="toggle-chip"><span>LED</span><input id="led-on" type="checkbox" /></label>
+              </div>
+            </div>
+            <button class="panel-button" id="apply-camera-btn" type="button">写入相机参数</button>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span>相机状态</span><span id="camera-head">--</span></div>
+          <div class="pairs" id="camera-meta"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span>当前帧</span><span id="image-id">--</span></div>
+          <div class="pairs" id="image-meta"></div>
+        </section>
+      </aside>
+    </section>
+
+    <footer class="footer">
+      <div class="logline">
+        <span id="status-kind">[READY]</span>
+        <strong id="status-text">等待取图或手动拉取</strong>
+        <span id="status-age">--</span>
+      </div>
+      <div class="footer-actions">
+        <button id="open-monitor" type="button">返回总览</button>
+      </div>
+      <div class="progress-row">
+        <span class="progress-label" id="exposure-progress-label">待机</span>
+        <div class="progress-track"><div class="progress-fill" id="exposure-progress-fill"></div></div>
+        <span class="progress-value" id="exposure-progress-value">--</span>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    let DEVICES = [];
+    const $ = (id) => document.getElementById(id);
+    const state = {
+      device: new URLSearchParams(location.search).get("device") || "",
+      sessionId: "",
+      sessionLabel: "",
+      desiredRoleMap: {},
+      desiredRole: "monitor",
+      controlTimer: null,
+      controlState: null,
+      roleBusy: false,
+      busy: false,
+      auto: false,
+      autoTimer: null,
+      monitorTimer: null,
+      cameraTimer: null,
+      lastPayload: null,
+      lastMonitor: null,
+      lastCameraState: null,
+      cameraStateByDevice: {},
+      cameraBusy: false,
+      editedFields: {},
+      exposureTicker: null,
+      exposureTrack: null,
+      operationProgress: null,
+      operationPollTimer: null,
+      rawValues: null,
+      rawMeta: null,
+      histogram: null,
+      stretch: { black: 0, white: 1, sourceMid: 0.5, targetMid: 0.5, mode: "linear" },
+      stretchDrag: null,
+      lastImageKey: null,
+      stretchCollapsed: false,
+      view: {
+        zoom: 1,
+        fitZoom: 1,
+        minZoom: 0.1,
+        maxZoom: 12,
+        dragging: false,
+        pointerId: null,
+        dragStartX: 0,
+        dragStartY: 0,
+        dragScrollLeft: 0,
+        dragScrollTop: 0
+      }
+    };
+
+    function fmtBytes(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "--";
+      if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(2)} MiB`;
+      if (n >= 1024) return `${(n / 1024).toFixed(1)} KiB`;
+      return `${n} B`;
+    }
+
+    function fmt(value, suffix = "") {
+      if (value === null || value === undefined || value === "") return "--";
+      return `${value}${suffix}`;
+    }
+
+    const PAGE_LABELS = {
+      preview: "预览",
+      plan: "拍摄计划",
+      live: "实时预览",
+      focus: "调焦",
+      guide: "导星",
+      mount: "赤道仪",
+      settings: "设置"
+    };
+
+    const STATE_LABELS = {
+      idle: "空闲",
+      busy: "忙碌",
+      running: "运行中",
+      exposing: "曝光中",
+      saving: "保存中",
+      close: "相机未打开",
+      closed: "相机未打开",
+      disconnected: "未连接",
+      error: "异常"
+    };
+
+    const SEQUENCE_LABELS = {
+      light: "亮场",
+      dark: "暗场",
+      flat: "平场",
+      bias: "偏置"
+    };
+
+    function sessionStorageKey(name) {
+      return `asiair-ops:${name}`;
+    }
+
+    function ensureSessionId() {
+      const key = sessionStorageKey("session-id");
+      let value = localStorage.getItem(key);
+      if (!value) {
+        value = (window.crypto && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `session-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+        localStorage.setItem(key, value);
+      }
+      return value;
+    }
+
+    function sessionLabelFromId(sessionId) {
+      return `Session ${String(sessionId).slice(0, 6)}`;
+    }
+
+    function normalizeRole(role) {
+      return role === "controller" ? "controller" : "monitor";
+    }
+
+    function readStoredRoleMap() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(sessionStorageKey("camera-role-map")) || "{}");
+        const mapped = {};
+        Object.keys(parsed || {}).forEach((deviceName) => {
+          mapped[deviceName] = normalizeRole(parsed[deviceName]);
+        });
+        return mapped;
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function writeStoredRoleMap(roleMap) {
+      localStorage.setItem(sessionStorageKey("camera-role-map"), JSON.stringify(roleMap || {}));
+    }
+
+    function roleForDevice(deviceName) {
+      return normalizeRole((state.desiredRoleMap || {})[deviceName]);
+    }
+
+    function setRoleForDevice(deviceName, role) {
+      const next = { ...(state.desiredRoleMap || {}) };
+      next[deviceName] = normalizeRole(role);
+      state.desiredRoleMap = next;
+      state.desiredRole = roleForDevice(state.device);
+      writeStoredRoleMap(next);
+    }
+
+    function controllerDevices() {
+      return Object.keys(state.desiredRoleMap || {}).filter((deviceName) => roleForDevice(deviceName) === "controller");
+    }
+
+    function roleLabel(role) {
+      return role === "controller" ? "主控" : "监控";
+    }
+
+    function mapLabel(labels, value) {
+      if (value === null || value === undefined || value === "") return "--";
+      return labels[String(value).toLowerCase()] || String(value);
+    }
+
+    function fmtProgress(progress) {
+      if (!progress) return "--";
+      const done = progress.done ?? progress.lapse ?? 0;
+      const total = progress.total ?? 0;
+      return total ? `${done}/${total}` : "--";
+    }
+
+    function fmtRate(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "--";
+      if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(2)} MiB/s`;
+      if (n >= 1024) return `${(n / 1024).toFixed(1)} KiB/s`;
+      return `${Math.round(n)} B/s`;
+    }
+
+    function fmtExposureMs(value) {
+      if (value === null || value === undefined || value === "") return "--";
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "--";
+      return n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}s` : `${n} ms`;
+    }
+
+    function fmtAge(value) {
+      if (value === null || value === undefined || value === "") return "--";
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "--";
+      return n < 60 ? `${n.toFixed(1)}s` : `${Math.floor(n / 60)}m ${Math.round(n % 60)}s`;
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function setFrameEmpty(text) {
+      const canvas = $("preview-canvas");
+      const empty = $("frame-empty");
+      canvas.classList.add("hidden");
+      canvas.style.width = "";
+      canvas.style.height = "";
+      empty.textContent = text;
+      empty.classList.remove("hidden");
+      $("image-stage").style.width = "100%";
+      $("image-stage").style.height = "100%";
+      state.view.dragging = false;
+      updateViewportCursor();
+    }
+
+    function showCanvas() {
+      $("frame-empty").classList.add("hidden");
+      $("preview-canvas").classList.remove("hidden");
+      updateViewportCursor();
+    }
+
+    function canvasHasImage() {
+      const canvas = $("preview-canvas");
+      const sourceWidth = Number(canvas.width) || 0;
+      const sourceHeight = Number(canvas.height) || 0;
+      return sourceWidth > 0 && sourceHeight > 0 && !canvas.classList.contains("hidden");
+    }
+
+    function updateViewportCursor() {
+      const viewport = $("image-viewport");
+      const canPan = canvasHasImage() && (
+        viewport.scrollWidth > viewport.clientWidth + 1 ||
+        viewport.scrollHeight > viewport.clientHeight + 1
+      );
+      viewport.classList.toggle("can-pan", canPan && !state.view.dragging);
+      viewport.classList.toggle("dragging", !!state.view.dragging);
+    }
+
+    function viewportMetrics(zoom = state.view.zoom) {
+      const canvas = $("preview-canvas");
+      const viewport = $("image-viewport");
+      const sourceWidth = Number(canvas.width) || 0;
+      const sourceHeight = Number(canvas.height) || 0;
+      const viewportWidth = viewport.clientWidth || 1;
+      const viewportHeight = viewport.clientHeight || 1;
+      const displayWidth = Math.max(1, Math.round(sourceWidth * zoom));
+      const displayHeight = Math.max(1, Math.round(sourceHeight * zoom));
+      const stageWidth = Math.max(displayWidth, viewportWidth);
+      const stageHeight = Math.max(displayHeight, viewportHeight);
+      const canvasOffsetX = Math.max(0, Math.round((stageWidth - displayWidth) / 2));
+      const canvasOffsetY = Math.max(0, Math.round((stageHeight - displayHeight) / 2));
+      return {
+        sourceWidth,
+        sourceHeight,
+        viewportWidth,
+        viewportHeight,
+        displayWidth,
+        displayHeight,
+        stageWidth,
+        stageHeight,
+        canvasOffsetX,
+        canvasOffsetY,
+      };
+    }
+
+    function applyViewportLayout() {
+      const canvas = $("preview-canvas");
+      const stage = $("image-stage");
+      const metrics = viewportMetrics();
+      canvas.style.width = `${metrics.displayWidth}px`;
+      canvas.style.height = `${metrics.displayHeight}px`;
+      stage.style.width = `${metrics.stageWidth}px`;
+      stage.style.height = `${metrics.stageHeight}px`;
+      updateViewportCursor();
+      return metrics;
+    }
+
+    function centerViewport() {
+      const viewport = $("image-viewport");
+      viewport.scrollLeft = Math.max(0, Math.round((viewport.scrollWidth - viewport.clientWidth) / 2));
+      viewport.scrollTop = Math.max(0, Math.round((viewport.scrollHeight - viewport.clientHeight) / 2));
+      updateViewportCursor();
+    }
+
+    function updateViewportFit(resetZoom = false) {
+      if (!canvasHasImage()) return;
+      const canvas = $("preview-canvas");
+      const viewport = $("image-viewport");
+      const sourceWidth = Number(canvas.width) || 1;
+      const sourceHeight = Number(canvas.height) || 1;
+      const fitZoom = Math.min(
+        (viewport.clientWidth || 1) / sourceWidth,
+        (viewport.clientHeight || 1) / sourceHeight
+      );
+      const previousFit = state.view.fitZoom || fitZoom;
+      const wasFit = resetZoom || Math.abs(state.view.zoom - previousFit) < 0.001;
+      state.view.fitZoom = fitZoom;
+      state.view.minZoom = Math.min(fitZoom, 1);
+      if (wasFit) {
+        state.view.zoom = fitZoom;
+        applyViewportLayout();
+        centerViewport();
+      } else {
+        state.view.zoom = clamp(state.view.zoom, state.view.minZoom, state.view.maxZoom);
+        applyViewportLayout();
+      }
+    }
+
+    function zoomAtPoint(clientX, clientY, scaleFactor) {
+      if (!canvasHasImage()) return;
+      const viewport = $("image-viewport");
+      const before = viewportMetrics(state.view.zoom);
+      const rect = viewport.getBoundingClientRect();
+      const offsetX = clientX - rect.left;
+      const offsetY = clientY - rect.top;
+      const localX = clamp(
+        (viewport.scrollLeft + offsetX - before.canvasOffsetX) / Math.max(1, before.displayWidth),
+        0,
+        1
+      );
+      const localY = clamp(
+        (viewport.scrollTop + offsetY - before.canvasOffsetY) / Math.max(1, before.displayHeight),
+        0,
+        1
+      );
+      const oldZoom = state.view.zoom;
+      const nextZoom = clamp(oldZoom * scaleFactor, state.view.minZoom, state.view.maxZoom);
+      if (Math.abs(nextZoom - oldZoom) < 0.0001) return;
+      state.view.zoom = nextZoom;
+      const after = applyViewportLayout();
+      const stageX = after.canvasOffsetX + (localX * after.displayWidth);
+      const stageY = after.canvasOffsetY + (localY * after.displayHeight);
+      viewport.scrollLeft = clamp(stageX - offsetX, 0, Math.max(0, after.stageWidth - after.viewportWidth));
+      viewport.scrollTop = clamp(stageY - offsetY, 0, Math.max(0, after.stageHeight - after.viewportHeight));
+      updateViewportCursor();
+    }
+
+    function setStretchCollapsed(collapsed) {
+      state.stretchCollapsed = collapsed;
+      $("viewer").classList.toggle("stretch-collapsed", collapsed);
+      $("stretch-panel").classList.toggle("collapsed", collapsed);
+      $("stretch-toggle").textContent = collapsed ? "展开 STF" : "收起 STF";
+      requestAnimationFrame(() => {
+        updateViewportFit(false);
+        drawHistogram();
+      });
+    }
+
+    function setStretchControlsEnabled(enabled) {
+      ["stretch-stf", "stretch-strong", "stretch-linear", "black-handle", "source-handle", "target-handle", "white-handle"].forEach((id) => {
+        const el = $(id);
+        if (el) el.disabled = !enabled;
+      });
+    }
+
+    function detectRawByteOrder(bytes) {
+      const histEven = new Uint32Array(256);
+      const histOdd = new Uint32Array(256);
+      const pairs = Math.floor(bytes.length / 2);
+      const samplePairs = Math.min(pairs, 262144);
+      const step = Math.max(1, Math.floor(pairs / samplePairs));
+      let sampled = 0;
+      for (let pair = 0; pair < pairs && sampled < samplePairs; pair += step, sampled += 1) {
+        const index = pair * 2;
+        histEven[bytes[index]] += 1;
+        histOdd[bytes[index + 1]] += 1;
+      }
+
+      function score(hist) {
+        let total = 0;
+        let sumSquares = 0;
+        for (let i = 0; i < hist.length; i += 1) {
+          total += hist[i];
+          sumSquares += hist[i] * hist[i];
+        }
+        return sumSquares - ((total * total) / hist.length);
+      }
+
+      return score(histOdd) > score(histEven) ? "little" : "big";
+    }
+
+    function parseRaw16(buffer, width, height, byteOrderHint = "") {
+      const count = width * height;
+      const bytes = new Uint8Array(buffer);
+      if (bytes.length < count * 2) {
+        throw new Error(`raw_data 尺寸不足：${bytes.length} B`);
+      }
+      let byteOrder = String(byteOrderHint || "").toLowerCase();
+      if (byteOrder !== "little" && byteOrder !== "big") {
+        byteOrder = detectRawByteOrder(bytes);
+      }
+      const values = new Uint16Array(count);
+      for (let i = 0, j = 0; i < count; i += 1, j += 2) {
+        values[i] = byteOrder === "little"
+          ? ((bytes[j + 1] << 8) | bytes[j])
+          : ((bytes[j] << 8) | bytes[j + 1]);
+      }
+      return { values, byteOrder };
+    }
+
+    function buildHistogram(values, bins = 512) {
+      const counts = new Uint32Array(bins);
+      const shift = 16 - Math.log2(bins);
+      for (let i = 0; i < values.length; i += 1) {
+        counts[Math.min(bins - 1, values[i] >> shift)] += 1;
+      }
+      return { counts, bins, total: values.length };
+    }
+
+    function histPercentile(hist, percentile) {
+      if (!hist || !hist.total) return 0;
+      const target = Math.max(1, Math.floor(hist.total * percentile));
+      let running = 0;
+      for (let i = 0; i < hist.bins; i += 1) {
+        running += hist.counts[i];
+        if (running >= target) return (i + 0.5) / hist.bins;
+      }
+      return 1;
+    }
+
+    function histMad(hist, median) {
+      if (!hist || !hist.total) return 0;
+      const medianBin = clamp(Math.round(median * (hist.bins - 1)), 0, hist.bins - 1);
+      const target = Math.max(1, Math.floor(hist.total * 0.5));
+      let running = hist.counts[medianBin];
+      for (let distance = 1; distance < hist.bins; distance += 1) {
+        const left = medianBin - distance;
+        const right = medianBin + distance;
+        if (left >= 0) running += hist.counts[left];
+        if (right < hist.bins) running += hist.counts[right];
+        if (running >= target) return distance / hist.bins;
+      }
+      return 0;
+    }
+
+    function mtf(m, x) {
+      const mid = clamp(m, 0.001, 0.999);
+      const value = clamp(x, 0, 1);
+      if (value <= 0) return 0;
+      if (value >= 1) return 1;
+      return ((mid - 1) * value) / (((2 * mid) - 1) * value - mid);
+    }
+
+    function midtoneForTarget(target, source) {
+      const t = clamp(target, 0.001, 0.999);
+      const x = clamp(source, 0.001, 0.999);
+      return clamp((x * (1 - t)) / (t + x - (2 * t * x)), 0.001, 0.999);
+    }
+
+    function stretchState() {
+      const black = clamp(state.stretch.black, 0, 0.999);
+      const white = clamp(state.stretch.white, black + 0.001, 1);
+      const sourceMid = clamp(state.stretch.sourceMid, 0.001, 0.999);
+      const targetMid = clamp(state.stretch.targetMid, 0.001, 0.999);
+      const sourcePosition = black + (sourceMid * (white - black));
+      const midtone = midtoneForTarget(targetMid, sourceMid);
+      return { black, white, sourceMid, targetMid, sourcePosition, midtone, mode: state.stretch.mode };
+    }
+
+    function applyStretchPreset(mode) {
+      const hist = state.histogram;
+      if (!hist) return;
+      if (mode === "linear") {
+        state.stretch = { black: 0, white: 1, sourceMid: 0.5, targetMid: 0.5, mode: "linear" };
+        renderRawCanvas();
+        return;
+      }
+
+      const median = histPercentile(hist, 0.5);
+      const mad = histMad(hist, median);
+      const sigma = 1.4826 * mad;
+      const strong = mode === "strong";
+      const clipSigma = strong ? -4.5 : -2.8;
+      const targetBackground = strong ? 0.42 : 0.25;
+      let black = clamp(median + (clipSigma * sigma), 0, 0.98);
+      let white = histPercentile(hist, strong ? 0.9998 : 0.9995);
+      if (!Number.isFinite(white) || white <= black + 0.001) white = 1;
+      const sourceBackground = clamp((median - black) / (white - black), 0.001, 0.999);
+      state.stretch = {
+        black,
+        white,
+        sourceMid: sourceBackground,
+        targetMid: targetBackground,
+        mode: strong ? "strong" : "stf"
+      };
+      renderRawCanvas();
+    }
+
+    function updateStretchReadout() {
+      const { black, white, sourcePosition, targetMid, mode } = stretchState();
+      const labels = { linear: "线性", stf: "STF", strong: "强 STF", manual: "手动" };
+      $("stretch-readout").textContent =
+        `${labels[mode] || mode}  黑 ${Math.round(black * 65535)}  输入 ${Math.round(sourcePosition * 65535)}  输出 ${Math.round(targetMid * 65535)}  白 ${Math.round(white * 65535)}`;
+    }
+
+    function updateStretchHandles() {
+      const { black, white, sourcePosition, targetMid } = stretchState();
+      $("black-handle").style.left = `${black * 100}%`;
+      $("source-handle").style.left = `${sourcePosition * 100}%`;
+      $("target-handle").style.left = `${targetMid * 100}%`;
+      $("white-handle").style.left = `${white * 100}%`;
+      $("stretch-range").style.left = `${black * 100}%`;
+      $("stretch-range").style.width = `${Math.max(0, white - black) * 100}%`;
+    }
+
+    function drawHistogram() {
+      const canvas = $("histogram-canvas");
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.fillStyle = "#030404";
+      ctx.fillRect(0, 0, rect.width, rect.height);
+
+      const hist = state.histogram;
+      if (!hist) {
+        updateStretchHandles();
+        updateStretchReadout();
+        return;
+      }
+
+      let maxLog = 1;
+      for (let i = 0; i < hist.bins; i += 1) {
+        maxLog = Math.max(maxLog, Math.log1p(hist.counts[i]));
+      }
+      const xStep = rect.width / Math.max(1, hist.bins - 1);
+      ctx.beginPath();
+      ctx.moveTo(0, rect.height);
+      for (let i = 0; i < hist.bins; i += 1) {
+        const h = (Math.log1p(hist.counts[i]) / maxLog) * rect.height;
+        const x = i * xStep;
+        const y = rect.height - h;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(rect.width, rect.height);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(0, 245, 255, 0.18)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0, 245, 255, 0.92)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      const { black, white, sourcePosition, targetMid, midtone } = stretchState();
+      const usableHeight = rect.height - 4;
+      ctx.beginPath();
+      for (let px = 0; px <= rect.width; px += 1) {
+        const normalized = px / Math.max(1, rect.width);
+        const mapped = normalized <= black
+          ? 0
+          : normalized >= white
+            ? 1
+            : mtf(midtone, (normalized - black) / Math.max(0.00001, white - black));
+        const py = usableHeight - (mapped * usableHeight);
+        if (px === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.strokeStyle = "rgba(53, 255, 79, 0.96)";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      function marker(position, color, dash = []) {
+        const x = position * rect.width;
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.setLineDash(dash);
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, rect.height);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      marker(black, "#00f5ff");
+      marker(sourcePosition, "#35ff4f", [4, 3]);
+      marker(targetMid, "#ff63d6", [2, 3]);
+      marker(white, "#ffb300");
+      updateStretchHandles();
+      updateStretchReadout();
+    }
+
+    function renderRawCanvas() {
+      const values = state.rawValues;
+      const meta = state.rawMeta;
+      if (!values || !meta) {
+        drawHistogram();
+        return;
+      }
+
+      const canvas = $("preview-canvas");
+      canvas.width = meta.width;
+      canvas.height = meta.height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: false });
+      const imageData = ctx.createImageData(meta.width, meta.height);
+      const data = imageData.data;
+      const { black, white, midtone } = stretchState();
+      const invRange = 1 / (white - black);
+      for (let i = 0, j = 0; i < values.length; i += 1, j += 4) {
+        const x = ((values[i] / 65535) - black) * invRange;
+        const y = x <= 0 ? 0 : x >= 1 ? 255 : Math.round(mtf(midtone, x) * 255);
+        data[j] = y;
+        data[j + 1] = y;
+        data[j + 2] = y;
+        data[j + 3] = 255;
+      }
+      ctx.putImageData(imageData, 0, 0);
+      showCanvas();
+      updateViewportFit(true);
+      drawHistogram();
+    }
+
+    async function drawPngFallback(payload) {
+      const image = payload.image || {};
+      const url = payload.image_url ? `${payload.image_url}&_=${Date.now()}` : "";
+      if (!url) {
+        setFrameEmpty("NO FRAME");
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        const canvas = $("preview-canvas");
+        canvas.width = img.naturalWidth || image.width || 1;
+        canvas.height = img.naturalHeight || image.height || 1;
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        showCanvas();
+        updateViewportFit(true);
+      };
+      img.onerror = () => setFrameEmpty("LOAD FAILED");
+      img.src = url;
+    }
+
+    async function loadRawFrame(payload) {
+      const image = payload.image || {};
+      const rawUrl = payload.raw_url ? `${payload.raw_url}&_=${Date.now()}` : "";
+      state.rawValues = null;
+      state.rawMeta = null;
+      state.histogram = null;
+      setStretchControlsEnabled(false);
+      $("stretch-readout").textContent = "拉取原始图像";
+      drawHistogram();
+
+      if (!rawUrl || !image.width || !image.height) {
+        $("stretch-readout").textContent = "拉取最新图像后可用";
+        await drawPngFallback(payload);
+        return;
+      }
+
+      try {
+        const response = await fetch(rawUrl, { cache: "no-store" });
+        if (!response.ok) throw new Error(`raw ${response.status}`);
+        const buffer = await response.arrayBuffer();
+        const parsed = parseRaw16(buffer, image.width, image.height, image.byte_order || "");
+        const key = `${image.image_id || "image"}:${payload.generated_at || ""}`;
+        state.rawValues = parsed.values;
+        state.rawMeta = { width: image.width, height: image.height, key, byteOrder: parsed.byteOrder };
+        state.histogram = buildHistogram(parsed.values);
+        setStretchControlsEnabled(true);
+        if (state.lastImageKey !== key) {
+          state.lastImageKey = key;
+          applyStretchPreset("stf");
+        } else {
+          renderRawCanvas();
+        }
+      } catch (error) {
+        $("stretch-readout").textContent = "拉取最新图像后可用";
+        await drawPngFallback(payload);
+      }
+    }
+
+    function setClock() {
+      $("clock").textContent = new Date().toLocaleString("zh-CN", { hour12: false });
+    }
+
+    function pair(key, value, cls = "") {
+      return `<div class="pair"><span class="key">${key}</span><span class="value ${cls}">${value}</span></div>`;
+    }
+
+    function setStatus(kind, text, cls = "ok") {
+      $("status-kind").textContent = `[${kind}]`;
+      $("status-kind").className = cls === "err" ? "value err" : cls === "warn" ? "value warn" : "value ok";
+      $("status-text").textContent = text;
+    }
+
+    function renderOperationProgress(operation) {
+      state.operationProgress = operation || null;
+      renderExposureProgress();
+      if (!operation) return;
+      const step = Number(operation.step || 0);
+      const total = Math.max(1, Number(operation.total || 1));
+      const label = operation.label || "正在执行";
+      const cls = operation.state === "error" ? "warn" : operation.state === "done" ? "ok" : "warn";
+      setStatus(operation.state === "error" ? "ERR" : operation.state === "done" ? "DONE" : "STEP", `${label} ${step}/${total}`, cls);
+    }
+
+    async function pollCameraOperation(operationId) {
+      if (!operationId) return null;
+      const params = new URLSearchParams({
+        device: state.device,
+        session_id: state.sessionId,
+        operation_id: operationId,
+      });
+      const response = await fetch(`/api/camera-operation?${params.toString()}`, { cache: "no-store" });
+      const payload = await response.json();
+      if (payload && payload.operation) renderOperationProgress(payload.operation);
+      return payload.operation || null;
+    }
+
+    function startOperationPoll(operationId) {
+      if (state.operationPollTimer) clearInterval(state.operationPollTimer);
+      state.operationPollTimer = setInterval(() => {
+        pollCameraOperation(operationId).catch(() => {});
+      }, 500);
+      pollCameraOperation(operationId).catch(() => {});
+    }
+
+    function stopOperationPoll() {
+      if (state.operationPollTimer) clearInterval(state.operationPollTimer);
+      state.operationPollTimer = null;
+    }
+
+    function markFieldEdited(id) {
+      state.editedFields[id] = Date.now();
+    }
+
+    function fieldEditProtected(id) {
+      if (state.cameraBusy) return true;
+      const editedAt = Number(state.editedFields[id] || 0);
+      return editedAt > 0 && Date.now() - editedAt < 8000;
+    }
+
+    function clearEditedFields() {
+      state.editedFields = {};
+    }
+
+    function safeSetValue(id, value) {
+      const el = $(id);
+      if (!el) return;
+      if (document.activeElement === el) return;
+      if (fieldEditProtected(id)) return;
+      el.value = value === null || value === undefined ? "" : String(value);
+    }
+
+    function safeSetChecked(id, checked) {
+      const el = $(id);
+      if (!el) return;
+      if (document.activeElement === el) return;
+      if (fieldEditProtected(id)) return;
+      el.checked = Boolean(checked);
+    }
+
+    function renderBinOptions(bins, currentValue) {
+      const select = $("bin-select");
+      if (!select) return;
+      if (document.activeElement === select || fieldEditProtected("bin-select")) return;
+      const values = Array.isArray(bins) && bins.length ? bins : [1, 2, 3, 4];
+      const current = Number(currentValue) || Number(values[0]) || 1;
+      select.innerHTML = values.map((value) => {
+        const num = Number(value);
+        const selected = num === current ? " selected" : "";
+        return `<option value="${num}"${selected}>Bin ${num}</option>`;
+      }).join("");
+      if (document.activeElement !== select) select.value = String(current);
+    }
+
+    const UNSUPPORTED_CAMERA_WRITE_IDS = new Set([
+      "camera-16bit",
+    ]);
+
+    function cameraControlsWritable() {
+      return Boolean(state.controlState && state.controlState.held_by_self && !state.cameraBusy);
+    }
+
+    function cameraIsOpen() {
+      const camera = (state.lastCameraState && state.lastCameraState.camera) || {};
+      if (!state.lastCameraState || !Object.keys(camera).length) return false;
+      const cameraState = String(camera.state || "").toLowerCase();
+      return cameraState !== "close" && cameraState !== "closed" && cameraState !== "disconnected";
+    }
+
+    function cameraCaptureReady() {
+      const camera = (state.lastCameraState && state.lastCameraState.camera) || {};
+      return cameraIsOpen() && camera.sixteen_bit === true;
+    }
+
+    function syncCameraControlAvailability() {
+      const writable = cameraControlsWritable();
+      const cameraOpen = cameraIsOpen();
+      const captureReady = cameraCaptureReady();
+      const modeHead = $("control-mode-head");
+      const writeHead = $("camera-write-head");
+      if (modeHead) {
+        if (state.cameraBusy) modeHead.textContent = "写入中";
+        else if (!cameraOpen) modeHead.textContent = "相机未开";
+        else if (state.controlState && state.controlState.held_by_self) modeHead.textContent = "主控";
+        else if (state.controlState && state.controlState.controller) modeHead.textContent = "占用";
+        else modeHead.textContent = "监控";
+      }
+      if (writeHead) {
+        writeHead.textContent = !cameraOpen ? "未打开" : (writable ? "可写" : "只读");
+      }
+      const shutter = $("shutter-btn");
+      if (shutter) {
+        shutter.disabled = !writable || !captureReady;
+        shutter.title = cameraOpen
+          ? (captureReady ? "" : "相机当前不是 16 Bit，请先在 ASIAIR App 中重新打开相机")
+          : "相机未打开，请先在 ASIAIR App 中打开相机";
+      }
+      [
+        "apply-exposure-btn",
+        "apply-camera-btn",
+        "exposure-input",
+        "bin-select",
+        "gain-input",
+        "offset-input",
+        "target-temp-input",
+        "frame-size-select",
+        "cooler-on",
+        "anti-dew",
+        "hardware-bin",
+        "fan-half-speed",
+        "led-on"
+      ].forEach((id) => {
+        const el = $(id);
+        if (el) el.disabled = !writable || !cameraOpen || UNSUPPORTED_CAMERA_WRITE_IDS.has(id);
+      });
+    }
+
+    async function loadDevices() {
+      const response = await fetch("/api/devices", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP ${response.status}`);
+      DEVICES = Array.isArray(payload.devices) ? payload.devices : [];
+      const requested = state.device;
+      const fallback = payload.default_device || (DEVICES[0] && DEVICES[0].name) || "";
+      if (!requested || !DEVICES.some((device) => device.name === requested)) {
+        state.device = fallback;
+      }
+      return payload;
+    }
+
+    function renderDevices() {
+      $("device-select").innerHTML = DEVICES.map((device) => {
+        const selected = device.name === state.device ? " selected" : "";
+        return `<option value="${device.name}"${selected}>${device.name}</option>`;
+      }).join("");
+      $("overview-link").href = `/monitor-minterm?device=${encodeURIComponent(state.device)}`;
+      $("preview-link").href = `/camera?device=${encodeURIComponent(state.device)}`;
+      $("materials-link").href = `/materials?device=${encodeURIComponent(state.device)}`;
+    }
+
+    function metric(label, value, cls = "") {
+      return `<div class="metric-card"><span>${label}</span><strong class="${cls}">${value}</strong></div>`;
+    }
+
+    function renderControlState(payload) {
+      state.controlState = payload || null;
+      const holder = payload && payload.controller ? payload.controller : null;
+      const heldBySelf = Boolean(payload && payload.held_by_self);
+      const indicator = $("control-indicator");
+      const roleSelect = $("role-select");
+      const desiredRole = roleForDevice(state.device);
+      indicator.className = "control-indicator";
+
+      if (!holder) {
+        indicator.textContent = "主控空闲";
+        indicator.classList.add("free");
+      } else if (heldBySelf) {
+        indicator.textContent = "当前主控";
+        indicator.classList.add("self");
+      } else {
+        indicator.textContent = `主控中 · ${holder.display_name || holder.client_ip || "其他会话"}`;
+        indicator.classList.add("busy");
+      }
+
+      roleSelect.value = heldBySelf ? "controller" : desiredRole;
+      roleSelect.disabled = !!state.roleBusy;
+      syncCameraControlAvailability();
+    }
+
+    async function fetchControlState() {
+      const params = new URLSearchParams({
+        device: state.device,
+        session_id: state.sessionId,
+      });
+      const response = await fetch(`/api/control-role?${params.toString()}`, { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+      renderControlState(payload);
+      return payload;
+    }
+
+    async function syncRole(role, silent = false, deviceName = state.device) {
+      state.roleBusy = true;
+      renderControlState(state.controlState);
+      try {
+        const response = await fetch("/api/control-role", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            device: deviceName,
+            session_id: state.sessionId,
+            session_label: state.sessionLabel,
+            role,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+        setRoleForDevice(deviceName, payload.held_by_self ? "controller" : "monitor");
+        if (deviceName === state.device) renderControlState(payload);
+        if (!silent) {
+          setStatus(
+            "ROLE",
+            payload.held_by_self ? `${state.device} 已进入主控` : `${state.device} 已切回监控`,
+            payload.held_by_self ? "ok" : "warn"
+          );
+        }
+        return payload;
+      } catch (error) {
+        setRoleForDevice(deviceName, "monitor");
+        if (deviceName === state.device) await fetchControlState().catch(() => {});
+        if (!silent) {
+          setStatus("LOCK", error.message || String(error), "warn");
+        }
+        throw error;
+      } finally {
+        state.roleBusy = false;
+        renderControlState(state.controlState);
+      }
+    }
+
+    async function refreshControlLease() {
+      for (const deviceName of controllerDevices()) {
+        try {
+          await syncRole("controller", true, deviceName);
+        } catch (_) {}
+      }
+      await fetchControlState().catch(() => {});
+    }
+
+    function startControlPolling() {
+      if (state.controlTimer) clearInterval(state.controlTimer);
+      state.controlTimer = setInterval(() => {
+        refreshControlLease().catch(() => {});
+      }, 10000);
+    }
+
+    function releaseControlBeacon(deviceName) {
+      if (!navigator.sendBeacon || roleForDevice(deviceName) !== "controller") return;
+      const blob = new Blob([JSON.stringify({
+        device: deviceName,
+        session_id: state.sessionId,
+        session_label: state.sessionLabel,
+        role: "monitor",
+      })], { type: "application/json" });
+      navigator.sendBeacon("/api/control-role", blob);
+    }
+
+    function releaseAllControlBeacons() {
+      controllerDevices().forEach((deviceName) => releaseControlBeacon(deviceName));
+    }
+
+    function updateExposureProgress(snapshot) {
+      const app = (snapshot && snapshot.app) || {};
+      const exposure = (snapshot && snapshot.exposure) || {};
+      const captureState = String(app.capture_state || "").toLowerCase();
+      const working = Boolean(app.capture_working) || ["busy", "running", "exposing", "saving"].includes(captureState);
+      if (!working) {
+        state.exposureTrack = null;
+        renderExposureProgress();
+        return;
+      }
+      const durationMs = Math.max(0, Number(exposure.seconds || 0) * 1000);
+      const key = `${captureState}|${durationMs}`;
+      if (!state.exposureTrack || state.exposureTrack.key !== key) {
+        state.exposureTrack = {
+          key,
+          startedAt: Date.now(),
+          durationMs,
+          captureState,
+        };
+      } else {
+        state.exposureTrack.durationMs = durationMs;
+        state.exposureTrack.captureState = captureState;
+      }
+      renderExposureProgress();
+    }
+
+    function renderExposureProgress() {
+      const fill = $("exposure-progress-fill");
+      const label = $("exposure-progress-label");
+      const value = $("exposure-progress-value");
+      if (!fill || !label || !value) return;
+      const operation = state.operationProgress;
+      if (operation && operation.state && operation.state !== "idle") {
+        const step = Number(operation.step || 0);
+        const total = Math.max(1, Number(operation.total || 1));
+        const percent = operation.state === "done" ? 100 : clamp((step / total) * 100, 0, 98);
+        fill.classList.toggle("indeterminate", operation.state === "running" && step <= 0);
+        fill.style.transform = "";
+        fill.style.width = `${percent}%`;
+        label.textContent = `${operation.label || "正在执行"} ${step}/${total}`;
+        value.textContent = operation.state === "error" ? "异常" : operation.state === "done" ? "完成" : "进行中";
+        return;
+      }
+      const track = state.exposureTrack;
+      if (!track) {
+        fill.classList.remove("indeterminate");
+        fill.style.width = "0%";
+        fill.style.transform = "";
+        label.textContent = "待机";
+        value.textContent = "--";
+        return;
+      }
+      if (track.captureState === "saving") {
+        fill.classList.add("indeterminate");
+        label.textContent = "保存中";
+        value.textContent = "写盘";
+        return;
+      }
+      const durationMs = Number(track.durationMs || 0);
+      if (durationMs <= 0) {
+        fill.classList.add("indeterminate");
+        label.textContent = "曝光中";
+        value.textContent = "进行中";
+        return;
+      }
+      const elapsed = Math.max(0, Date.now() - track.startedAt);
+      const percent = clamp((elapsed / durationMs) * 100, 0, 99);
+      fill.classList.remove("indeterminate");
+      fill.style.transform = "";
+      fill.style.width = `${percent}%`;
+      label.textContent = "曝光中";
+      value.textContent = `${Math.round(percent)}%`;
+    }
+
+    function renderCameraState(payload) {
+      state.lastCameraState = payload;
+      const app = payload.app || {};
+      const camera = payload.camera || {};
+      const exposure = payload.exposure || {};
+      const controls = payload.controls || {};
+      const frameSize = controls.frame_size || {};
+      const temperature = controls.temperature || controls.sensor_temperature || null;
+
+      $("camera-head").textContent = mapLabel(STATE_LABELS, camera.state || app.capture_state);
+      $("exposure-head").textContent = `${fmt(exposure.seconds, "s")} · Bin ${fmt(exposure.bin)}`;
+      $("camera-write-head").textContent = camera.name || "--";
+
+      renderBinOptions(camera.bins, exposure.bin);
+      safeSetValue("exposure-input", exposure.seconds);
+      safeSetValue("gain-input", controls.gain && controls.gain.value);
+      safeSetValue("offset-input", controls.offset && controls.offset.value);
+      safeSetValue("target-temp-input", controls.target_temp && controls.target_temp.value);
+      safeSetValue("frame-size-select", controls.frame_size && controls.frame_size.raw_value);
+      safeSetChecked("camera-16bit", camera.sixteen_bit);
+      safeSetChecked("cooler-on", controls.cooler_on && controls.cooler_on.value);
+      safeSetChecked("anti-dew", controls.anti_dew_heater && controls.anti_dew_heater.value);
+      safeSetChecked("hardware-bin", controls.hardware_bin && controls.hardware_bin.value);
+      safeSetChecked("fan-half-speed", controls.fan_half_speed && controls.fan_half_speed.value);
+      safeSetChecked("led-on", controls.led_on && controls.led_on.value);
+
+      $("camera-meta").innerHTML = [
+        pair("相机", fmt(camera.name)),
+        pair("页面", mapLabel(PAGE_LABELS, app.page)),
+        pair("状态", mapLabel(STATE_LABELS, camera.state || app.capture_state), app.capture_working ? "ok" : "warn"),
+        pair("曝光 / Bin", `${fmt(exposure.seconds, "s")} / ${fmt(exposure.bin)}`),
+        pair("传感器", controls.temperature ? controls.temperature.display : "--"),
+        pair("目标温度", controls.target_temp ? controls.target_temp.display : "--"),
+        pair("制冷功率", controls.cool_power ? controls.cool_power.display : "--"),
+        pair("Gain / Offset", `${fmt(controls.gain && controls.gain.value)} / ${fmt(controls.offset && controls.offset.value)}`),
+        pair("Frame", frameSize.text || frameSize.display || fmt(frameSize.raw_value)),
+        pair("16 Bit", camera.sixteen_bit ? "On" : "Off", camera.sixteen_bit ? "ok" : "warn")
+      ].join("");
+
+      updateExposureProgress(payload);
+      syncCameraControlAvailability();
+    }
+
+    async function loadCameraState() {
+      if (state.cameraBusy) return;
+      try {
+        const params = new URLSearchParams({ device: state.device, session_id: state.sessionId });
+        const response = await fetch(`/api/camera-state?${params.toString()}`, { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+        if (payload.device && payload.device.name) state.cameraStateByDevice[payload.device.name] = payload;
+        renderCameraState(payload);
+      } catch (error) {
+        $("camera-head").textContent = "异常";
+        $("camera-meta").innerHTML = pair("状态", error.message || String(error), "err");
+        state.lastCameraState = null;
+        syncCameraControlAvailability();
+      }
+    }
+
+    function renderSelectedCameraState() {
+      const payload = state.cameraStateByDevice[state.device];
+      if (!payload) return false;
+      renderCameraState(payload);
+      return true;
+    }
+
+    async function loadCameraStates() {
+      if (state.cameraBusy) return;
+      try {
+        const params = new URLSearchParams({ session_id: state.sessionId });
+        const response = await fetch(`/api/camera-states?${params.toString()}`, { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+        state.cameraStateByDevice = payload.devices || {};
+        renderSelectedCameraState();
+      } catch (error) {
+        if (!renderSelectedCameraState()) {
+          $("camera-head").textContent = "异常";
+          $("camera-meta").innerHTML = pair("状态", error.message || String(error), "err");
+          state.lastCameraState = null;
+          syncCameraControlAvailability();
+        }
+      }
+    }
+
+    function exposurePayloadFromForm() {
+      return {
+        exposure_seconds: Number($("exposure-input").value),
+        bin: Number($("bin-select").value),
+      };
+    }
+
+    function cameraPayloadFromForm() {
+      const controls = (state.lastCameraState && state.lastCameraState.controls) || {};
+      const payload = {};
+      const setNumberIfChanged = (key, nextValue, currentValue, epsilon = 0.0001) => {
+        if (currentValue == null || !Number.isFinite(Number(currentValue)) || Math.abs(Number(nextValue) - Number(currentValue)) > epsilon) {
+          payload[key] = nextValue;
+        }
+      };
+      const setBoolIfChanged = (key, nextValue, currentValue) => {
+        if (currentValue == null || Boolean(nextValue) !== Boolean(currentValue)) {
+          payload[key] = nextValue;
+        }
+      };
+
+      setNumberIfChanged("gain", Number($("gain-input").value), controls.gain && controls.gain.value);
+      setNumberIfChanged("offset", Number($("offset-input").value), controls.offset && controls.offset.value);
+      setNumberIfChanged("target_temp", Number($("target-temp-input").value), controls.target_temp && controls.target_temp.value, 0.01);
+      setNumberIfChanged("frame_size", Number($("frame-size-select").value), controls.frame_size && controls.frame_size.raw_value);
+      setBoolIfChanged("cooler_on", $("cooler-on").checked, controls.cooler_on && controls.cooler_on.value);
+      setBoolIfChanged("anti_dew_heater", $("anti-dew").checked, controls.anti_dew_heater && controls.anti_dew_heater.value);
+      setBoolIfChanged("hardware_bin", $("hardware-bin").checked, controls.hardware_bin && controls.hardware_bin.value);
+      setBoolIfChanged("fan_half_speed", $("fan-half-speed").checked, controls.fan_half_speed && controls.fan_half_speed.value);
+      setBoolIfChanged("led_on", $("led-on").checked, controls.led_on && controls.led_on.value);
+      return payload;
+    }
+
+    async function postCameraAction(action, extraPayload) {
+      state.cameraBusy = true;
+      syncCameraControlAvailability();
+      const operationId = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      renderOperationProgress({ step: 0, total: 1, label: "准备相机操作", state: "running" });
+      startOperationPoll(operationId);
+      try {
+        const response = await fetch("/api/camera-action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            device: state.device,
+            session_id: state.sessionId,
+            operation_id: operationId,
+            action,
+            ...(extraPayload || {})
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+        clearEditedFields();
+        if (payload.status) renderCameraState(payload.status);
+        if (payload.operation) renderOperationProgress(payload.operation);
+        setStatus("OK", action === "shutter" ? `${state.device} 已发送快门` : `${state.device} 参数已写入`, "ok");
+        setTimeout(() => {
+          if (state.operationProgress && state.operationProgress.operation_id === operationId) {
+            state.operationProgress = null;
+            renderExposureProgress();
+          }
+        }, 1800);
+        return payload;
+      } catch (error) {
+        await pollCameraOperation(operationId).catch(() => {});
+        setStatus("ERR", error.message || String(error), "warn");
+        throw error;
+      } finally {
+        stopOperationPoll();
+        state.cameraBusy = false;
+        syncCameraControlAvailability();
+      }
+    }
+
+    function renderPayload(payload) {
+      state.lastPayload = payload;
+      $("title-device").textContent = payload.device ? payload.device.name : state.device;
+
+      if (!payload.ok) {
+        $("title-state").textContent = payload.needs_refresh ? "尚未取图" : "异常";
+        $("title-state").className = "badge err";
+        $("title-size").textContent = "--";
+        $("metric-strip").innerHTML = [
+          metric("图像", "--"),
+          metric("尺寸", "--"),
+          metric("图像曝光", "--"),
+          metric("距上次取图", payload.needs_refresh ? "尚未取图" : "异常", "err")
+        ].join("");
+        setFrameEmpty(payload.needs_refresh ? "NO FRAME" : "LOAD FAILED");
+        state.rawValues = null;
+        state.rawMeta = null;
+        state.histogram = null;
+        setStretchControlsEnabled(false);
+        $("stretch-readout").textContent = payload.needs_refresh ? "等待原始图像" : "图像不可用";
+        drawHistogram();
+        $("image-meta").innerHTML = pair("状态", payload.error || "未加载", "err");
+        $("image-id").textContent = "--";
+        $("status-age").textContent = "--";
+        setStatus(payload.needs_refresh ? "EMPTY" : "ERR", payload.error || "尚未取图", payload.needs_refresh ? "warn" : "err");
+        return;
+      }
+
+      const image = payload.image || {};
+      const displayWidth = image.original_width || image.width;
+      const displayHeight = image.original_height || image.height;
+      const displaySizeText = `${fmt(displayWidth)} × ${fmt(displayHeight)}`;
+      const previewSizeText = image.sample_step && image.sample_step > 1
+        ? `${fmt(image.width)} × ${fmt(image.height)}`
+        : displaySizeText;
+      $("title-state").textContent = payload.refreshed ? "刚取图" : "已取图";
+      $("title-state").className = payload.refreshed ? "badge" : "badge warn";
+      $("title-size").textContent = displaySizeText;
+      $("image-id").textContent = fmt(image.image_id);
+
+      $("metric-strip").innerHTML = [
+        metric("图像 ID", fmt(image.image_id)),
+        metric("尺寸", displaySizeText),
+        metric("图像曝光", `${fmtExposureMs(image.exposure_ms)} · Bin ${fmt(image.bin)}`),
+        metric("距上次取图", payload.refreshed ? "刚刚" : fmtAge(payload.age_seconds), payload.age_seconds > 60 ? "warn" : "")
+      ].join("");
+
+      $("image-meta").innerHTML = [
+        pair("采集尺寸", displaySizeText),
+        pair("显示尺寸", previewSizeText),
+        pair("图像 ID", fmt(image.image_id)),
+        pair("Bin", fmt(image.bin)),
+        pair("图像曝光", fmtExposureMs(image.exposure_ms)),
+        pair("拉取时间", payload.generated_at || "--"),
+        pair("距上次取图", fmtAge(payload.age_seconds), payload.age_seconds > 60 ? "warn" : "ok"),
+        pair("原始包", fmtBytes(image.packet_bytes)),
+        pair("预览 Raw", fmtBytes(image.raw_bytes)),
+        pair("拉伸", image.stretch ? `${image.stretch.low}-${image.stretch.high}` : "--")
+      ].join("");
+
+      $("status-age").textContent = fmtAge(payload.age_seconds);
+      setStatus(payload.refreshed ? "OK" : "CACHE", payload.refreshed ? "已从设备拉取最新图像" : "显示上次取图结果", payload.refreshed ? "ok" : "warn");
+    }
+
+    async function loadImage(force = false) {
+      if (state.busy) return;
+      state.busy = true;
+      $("refresh-btn").disabled = true;
+      try {
+        const params = new URLSearchParams({ device: state.device });
+        if (force) params.set("refresh", "1");
+        const response = await fetch(`/api/current-image?${params.toString()}`, { cache: "no-store" });
+        const payload = await response.json();
+        renderPayload(payload);
+        if (payload.ok) await loadRawFrame(payload);
+      } catch (error) {
+        renderPayload({ ok: false, error: error.message || String(error), device: { name: state.device } });
+      } finally {
+        state.busy = false;
+        $("refresh-btn").disabled = false;
+      }
+    }
+
+    function setAuto(enabled) {
+      state.auto = enabled;
+      $("auto-btn").textContent = enabled ? "停止自动" : "自动刷新";
+      if (state.autoTimer) clearInterval(state.autoTimer);
+      state.autoTimer = null;
+      if (enabled) {
+        state.autoTimer = setInterval(() => loadImage(true), 15000);
+      }
+    }
+
+    function bind() {
+      const viewport = $("image-viewport");
+      [
+        "exposure-input",
+        "bin-select",
+        "gain-input",
+        "offset-input",
+        "target-temp-input",
+        "frame-size-select",
+        "cooler-on",
+        "anti-dew",
+        "hardware-bin",
+        "fan-half-speed",
+        "led-on"
+      ].forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        el.addEventListener("input", () => markFieldEdited(id));
+        el.addEventListener("change", () => markFieldEdited(id));
+      });
+      $("shutter-btn").addEventListener("click", async () => {
+        try {
+          const exposurePayload = exposurePayloadFromForm();
+          await postCameraAction("shutter", exposurePayload);
+          state.exposureTrack = {
+            key: `manual|${Number(exposurePayload.exposure_seconds || 0) * 1000}`,
+            startedAt: Date.now(),
+            durationMs: Math.max(0, Number(exposurePayload.exposure_seconds || 0) * 1000),
+            captureState: "exposing",
+          };
+          renderExposureProgress();
+          setTimeout(() => { loadCameraState(); }, 900);
+          setTimeout(() => { loadImage(true); }, Math.max(1500, Math.round(Number(exposurePayload.exposure_seconds || 0) * 1000) + 900));
+        } catch (_) {}
+      });
+      $("refresh-btn").addEventListener("click", () => loadImage(true));
+      $("auto-btn").addEventListener("click", () => setAuto(!state.auto));
+      $("apply-exposure-btn").addEventListener("click", async () => {
+        try {
+          const payload = await postCameraAction("apply_exposure", exposurePayloadFromForm());
+          setTimeout(() => { loadCameraState(); }, Number(payload && payload.refresh_after_ms) || 600);
+        } catch (_) {}
+      });
+      $("apply-camera-btn").addEventListener("click", async () => {
+        try {
+          const requestPayload = cameraPayloadFromForm();
+          if (!Object.keys(requestPayload).length) {
+            setStatus("IDLE", `${state.device} 相机参数没有变化`, "warn");
+            return;
+          }
+          const payload = await postCameraAction("apply_camera", requestPayload);
+          const delay = Number(payload && payload.refresh_after_ms) || 1200;
+          setTimeout(() => { loadCameraState(); }, delay);
+          setTimeout(() => { loadCameraState(); }, delay + 1800);
+        } catch (_) {}
+      });
+      $("stretch-stf").addEventListener("click", () => applyStretchPreset("stf"));
+      $("stretch-strong").addEventListener("click", () => applyStretchPreset("strong"));
+      $("stretch-linear").addEventListener("click", () => applyStretchPreset("linear"));
+      $("stretch-toggle").addEventListener("click", () => setStretchCollapsed(!state.stretchCollapsed));
+      $("black-handle").addEventListener("pointerdown", (event) => {
+        state.stretchDrag = "black";
+        event.preventDefault();
+      });
+      $("source-handle").addEventListener("pointerdown", (event) => {
+        state.stretchDrag = "source";
+        event.preventDefault();
+      });
+      $("target-handle").addEventListener("pointerdown", (event) => {
+        state.stretchDrag = "target";
+        event.preventDefault();
+      });
+      $("white-handle").addEventListener("pointerdown", (event) => {
+        state.stretchDrag = "white";
+        event.preventDefault();
+      });
+      document.addEventListener("pointermove", (event) => {
+        if (!state.stretchDrag || !state.rawValues) return;
+        const rect = $("stretch-bar").getBoundingClientRect();
+        const x = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+        const current = stretchState();
+        if (state.stretchDrag === "black") {
+          state.stretch.black = clamp(x, 0, current.white - 0.001);
+          state.stretch.sourceMid = clamp(
+            (current.sourcePosition - state.stretch.black) / Math.max(0.001, current.white - state.stretch.black),
+            0.001,
+            0.999
+          );
+        } else if (state.stretchDrag === "white") {
+          state.stretch.white = clamp(x, current.black + 0.001, 1);
+          state.stretch.sourceMid = clamp(
+            (current.sourcePosition - current.black) / Math.max(0.001, state.stretch.white - current.black),
+            0.001,
+            0.999
+          );
+        } else if (state.stretchDrag === "source") {
+          state.stretch.sourceMid = clamp(
+            (x - current.black) / Math.max(0.001, current.white - current.black),
+            0.001,
+            0.999
+          );
+        } else if (state.stretchDrag === "target") {
+          state.stretch.targetMid = clamp(x, 0.001, 0.999);
+        }
+        state.stretch.mode = "manual";
+        renderRawCanvas();
+      });
+      document.addEventListener("pointerup", () => {
+        state.stretchDrag = null;
+      });
+      viewport.addEventListener("wheel", (event) => {
+        if (!canvasHasImage()) return;
+        event.preventDefault();
+        const factor = event.deltaY < 0 ? 1.12 : (1 / 1.12);
+        zoomAtPoint(event.clientX, event.clientY, factor);
+      }, { passive: false });
+      viewport.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || !canvasHasImage()) return;
+        if (event.target && String(event.target.id || "").includes("handle")) return;
+        if (viewport.scrollWidth <= viewport.clientWidth + 1 && viewport.scrollHeight <= viewport.clientHeight + 1) return;
+        state.view.dragging = true;
+        state.view.pointerId = event.pointerId;
+        state.view.dragStartX = event.clientX;
+        state.view.dragStartY = event.clientY;
+        state.view.dragScrollLeft = viewport.scrollLeft;
+        state.view.dragScrollTop = viewport.scrollTop;
+        viewport.setPointerCapture(event.pointerId);
+        updateViewportCursor();
+        event.preventDefault();
+      });
+      viewport.addEventListener("pointermove", (event) => {
+        if (!state.view.dragging || state.view.pointerId !== event.pointerId) return;
+        viewport.scrollLeft = state.view.dragScrollLeft - (event.clientX - state.view.dragStartX);
+        viewport.scrollTop = state.view.dragScrollTop - (event.clientY - state.view.dragStartY);
+      });
+      function stopViewportDrag(event) {
+        if (state.view.pointerId !== null && event.pointerId !== undefined && state.view.pointerId !== event.pointerId) return;
+        state.view.dragging = false;
+        state.view.pointerId = null;
+        updateViewportCursor();
+      }
+      viewport.addEventListener("pointerup", stopViewportDrag);
+      viewport.addEventListener("pointercancel", stopViewportDrag);
+      viewport.addEventListener("lostpointercapture", stopViewportDrag);
+      window.addEventListener("resize", () => {
+        updateViewportFit(false);
+        drawHistogram();
+      });
+      $("open-monitor").addEventListener("click", () => {
+        location.href = `/monitor-minterm?device=${encodeURIComponent(state.device)}`;
+      });
+      $("role-select").addEventListener("change", async () => {
+        const requestedRole = $("role-select").value === "controller" ? "controller" : "monitor";
+        try {
+          await syncRole(requestedRole);
+        } catch (_) {
+          $("role-select").value = state.controlState && state.controlState.held_by_self ? "controller" : roleForDevice(state.device);
+        }
+      });
+      $("device-select").addEventListener("change", async () => {
+        const nextDevice = $("device-select").value;
+        state.device = nextDevice;
+        state.desiredRole = roleForDevice(nextDevice);
+        history.replaceState(null, "", `/camera?device=${encodeURIComponent(state.device)}`);
+        $("overview-link").href = `/monitor-minterm?device=${encodeURIComponent(state.device)}`;
+        $("preview-link").href = `/camera?device=${encodeURIComponent(state.device)}`;
+        $("materials-link").href = `/materials?device=${encodeURIComponent(state.device)}`;
+        setAuto(false);
+        fetchControlState().catch(() => {});
+        loadImage(false);
+        if (!renderSelectedCameraState()) loadCameraStates();
+      });
+      window.addEventListener("pagehide", releaseAllControlBeacons);
+      window.addEventListener("beforeunload", releaseAllControlBeacons);
+    }
+
+    async function boot() {
+      state.sessionId = ensureSessionId();
+      state.sessionLabel = sessionLabelFromId(state.sessionId);
+      state.desiredRoleMap = readStoredRoleMap();
+      await loadDevices();
+      state.desiredRole = roleForDevice(state.device);
+      renderDevices();
+      bind();
+      setStretchControlsEnabled(false);
+      updateStretchHandles();
+      drawHistogram();
+      $("role-select").value = state.desiredRole;
+      setClock();
+      setInterval(setClock, 1000);
+      state.exposureTicker = setInterval(renderExposureProgress, 200);
+      state.cameraTimer = setInterval(loadCameraStates, 3000);
+      startControlPolling();
+      refreshControlLease().catch(() => {});
+      syncCameraControlAvailability();
+      loadCameraStates();
+      loadImage(false);
+    }
+
+    boot().catch((error) => {
+      setStatus("ERR", error.message || String(error), "err");
+    });
+  </script>
+</body>
+</html>

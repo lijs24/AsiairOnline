@@ -1,0 +1,3167 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ASIAIR MONITOR // MINTERM OPS</title>
+  <script>
+    (() => {
+      try {
+        const savedTheme = localStorage.getItem("asiair-monitor-theme");
+        document.documentElement.dataset.theme = savedTheme === "light" ? "light" : "dark";
+        document.documentElement.style.colorScheme = savedTheme === "light" ? "light" : "dark";
+      } catch (error) {
+        document.documentElement.dataset.theme = "dark";
+      }
+    })();
+  </script>
+  <style>
+    :root,
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #000000;
+      --text: #ffffff;
+      --muted: #888888;
+      --quiet: #666666;
+      --line: #444444;
+      --line-dim: #222222;
+      --panel: #000000;
+      --cyan: #00f3ff;
+      --green: #00ff00;
+      --red: #ff5555;
+      --amber: #f59e0b;
+      --hover-cyan: rgba(0, 243, 255, 0.06);
+      --hover-red: rgba(255, 85, 85, 0.06);
+      --hover-amber: rgba(245, 158, 11, 0.06);
+      --scroll-rail: #000000;
+      --scroll-thumb: #111111;
+      --scroll-thumb-disabled: #050505;
+      --raw-bg: #000000;
+      --selection-text: #000000;
+    }
+
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg: #ffffff;
+      --text: #050505;
+      --muted: #666666;
+      --quiet: #969696;
+      --line: #8d8d8d;
+      --line-dim: #d7d7d7;
+      --panel: #ffffff;
+      --cyan: #007b83;
+      --green: #008000;
+      --red: #c81e2b;
+      --amber: #9a5b00;
+      --hover-cyan: rgba(0, 123, 131, 0.07);
+      --hover-red: rgba(200, 30, 43, 0.07);
+      --hover-amber: rgba(154, 91, 0, 0.08);
+      --scroll-rail: #f8f8f8;
+      --scroll-thumb: #d0d0d0;
+      --scroll-thumb-disabled: #eeeeee;
+      --raw-bg: #fbfbfb;
+      --selection-text: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      max-width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.6 "JetBrains Mono", "Consolas", "SFMono-Regular", "Menlo", "Monaco", monospace;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      padding: 0 13px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    button:hover,
+    button:focus-visible {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: var(--hover-cyan);
+      outline: none;
+    }
+
+    button.danger:hover,
+    button.danger:focus-visible {
+      border-color: var(--red);
+      color: var(--red);
+      background: var(--hover-red);
+    }
+
+    button.warn:hover,
+    button.warn:focus-visible {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: var(--hover-amber);
+    }
+
+    button:disabled {
+      color: var(--quiet);
+      border-color: var(--line-dim);
+      cursor: not-allowed;
+    }
+
+    ::selection {
+      background: var(--cyan);
+      color: var(--selection-text);
+    }
+
+    .app-shell {
+      width: 100vw;
+      max-width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 54px minmax(0, 1fr) 232px;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 210px minmax(0, 1fr) auto;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .brand {
+      color: var(--cyan);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 0 12px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .breadcrumbs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      height: 100%;
+      overflow: hidden;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .crumb {
+      display: inline-flex;
+      align-items: center;
+      color: var(--text);
+      border: 1px solid transparent;
+      background: transparent;
+      min-height: 34px;
+      padding: 0 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      text-decoration: none;
+      font-family: inherit;
+      font-size: inherit;
+    }
+
+    .crumb.is-active {
+      border-color: var(--line);
+      background: var(--panel);
+      color: var(--text);
+    }
+
+    .crumb:hover,
+    .crumb:focus-visible {
+      color: var(--cyan);
+      border-color: var(--cyan);
+      background: var(--hover-cyan);
+      outline: none;
+    }
+
+    .crumb-sep {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .clock {
+      color: var(--muted);
+      text-align: right;
+      white-space: nowrap;
+      text-transform: uppercase;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      height: 100%;
+      padding: 0 12px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .top-actions select {
+      min-height: 32px;
+      height: 32px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      padding: 0 10px;
+      min-width: 88px;
+      white-space: nowrap;
+    }
+
+    .top-actions select:hover,
+    .top-actions select:focus-visible {
+      border-color: var(--cyan);
+      outline: none;
+    }
+
+    .control-cluster {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .control-indicator {
+      display: inline-flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: transparent;
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    .control-indicator.self {
+      color: var(--green);
+      border-color: var(--green);
+    }
+
+    .control-indicator.busy {
+      color: var(--amber);
+      border-color: var(--amber);
+    }
+
+    .control-indicator.free {
+      color: var(--muted);
+    }
+
+    .top-icon-btn {
+      width: 32px;
+      height: 32px;
+      min-height: 32px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 32px;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .top-icon-btn[aria-pressed="true"] {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: var(--hover-cyan);
+    }
+
+    .top-icon-btn .icon-core {
+      display: inline-grid;
+      place-items: center;
+      width: 16px;
+      height: 16px;
+      position: relative;
+    }
+
+    .top-icon-btn .lang-core {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .top-icon-btn .theme-core {
+      border-radius: 50%;
+      border: 1.5px solid currentColor;
+    }
+
+    .top-icon-btn[data-mode="dark"] .theme-core::after {
+      content: "";
+      position: absolute;
+      inset: -1px 2px 2px -1px;
+      border-radius: 50%;
+      background: var(--bg);
+    }
+
+    .top-icon-btn[data-mode="light"] .theme-core::before {
+      content: "";
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      background:
+        linear-gradient(currentColor, currentColor) center top / 1px 3px no-repeat,
+        linear-gradient(currentColor, currentColor) center bottom / 1px 3px no-repeat,
+        linear-gradient(currentColor, currentColor) left center / 3px 1px no-repeat,
+        linear-gradient(currentColor, currentColor) right center / 3px 1px no-repeat;
+      opacity: 0.95;
+    }
+
+    .workbench {
+      min-width: 0;
+      max-width: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 382px;
+      border-bottom: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .pane {
+      min-width: 0;
+      max-width: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 42px 58px minmax(0, 1fr);
+      border-right: 1px solid var(--line);
+      overflow: hidden;
+    }
+
+    .inspector {
+      min-width: 0;
+      max-width: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 42px minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    .pane-head,
+    .stdout-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+      max-width: 100%;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      text-transform: uppercase;
+      overflow: hidden;
+    }
+
+    .pane-head strong,
+    .stdout-head strong {
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .pane-head span,
+    .stdout-head span {
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      overflow: hidden;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--line-dim);
+    }
+
+    .toolbar .spacer {
+      flex: 1 1 auto;
+    }
+
+    .stdout {
+      min-width: 0;
+      max-width: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 52px minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    .stdout-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .scroll-host {
+      position: relative;
+      min-height: 0;
+      min-width: 0;
+      max-width: 100%;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    .scroll-viewport {
+      position: absolute;
+      inset: 0 18px 0 0;
+      overflow: auto;
+      max-width: 100%;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .scroll-viewport::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    .retro-scrollbar {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 18px;
+      display: grid;
+      grid-template-rows: 18px minmax(0, 1fr) 18px;
+      border-left: 1px solid var(--line);
+      background: var(--scroll-rail);
+      user-select: none;
+    }
+
+    .scroll-btn {
+      width: 18px;
+      height: 18px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      padding: 0;
+      min-height: 18px;
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .scroll-btn.down {
+      border-top: 1px solid var(--line);
+      border-bottom: 0;
+    }
+
+    .scroll-track {
+      position: relative;
+      background: var(--scroll-rail);
+    }
+
+    .scroll-track::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 8px;
+      border-left: 1px dotted var(--line-dim);
+    }
+
+    .scroll-thumb {
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      top: 0;
+      min-height: 28px;
+      border: 1px solid var(--line);
+      background: var(--scroll-thumb);
+      cursor: grab;
+    }
+
+    .scroll-thumb:active {
+      cursor: grabbing;
+      border-color: var(--cyan);
+    }
+
+    .scroll-host.scroll-disabled .scroll-thumb {
+      border-color: var(--line-dim);
+      background: var(--scroll-thumb-disabled);
+    }
+
+    .scroll-host.scroll-disabled .scroll-btn {
+      color: var(--quiet);
+    }
+
+    .view {
+      padding: 12px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .terminal-block {
+      border: 1px solid var(--line);
+      margin-bottom: 14px;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .block-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--line);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .block-title span {
+      min-width: 0;
+    }
+
+    .block-title span:last-child {
+      color: var(--muted);
+      font-weight: 400;
+      letter-spacing: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-top: 0;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .stat {
+      min-width: 0;
+      padding: 10px 12px;
+      border-right: 1px solid var(--line-dim);
+    }
+
+    .stat:last-child {
+      border-right: 0;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      display: block;
+      margin-top: 1px;
+      color: var(--text);
+      font-size: 25px;
+      font-weight: 700;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+
+    .data-pairs {
+      padding: 8px 10px;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .pair {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      min-width: 0;
+      max-width: 100%;
+      padding: 3px 0;
+    }
+
+    .pair-key {
+      color: var(--muted);
+      text-transform: uppercase;
+      overflow-wrap: anywhere;
+      min-width: 0;
+      max-width: 28%;
+      flex: 0 1 auto;
+    }
+
+    .pair-dots {
+      border-bottom: 1px dotted var(--line);
+      transform: translateY(-4px);
+      min-width: 10px;
+      flex: 1 1 12px;
+    }
+
+    .pair-value {
+      color: var(--cyan);
+      text-align: right;
+      overflow-wrap: anywhere;
+      min-width: 0;
+      max-width: 64%;
+      flex: 0 1 auto;
+    }
+
+    .pair-value.ok {
+      color: var(--green);
+    }
+
+    .pair-value.warn {
+      color: var(--amber);
+    }
+
+    .pair-value.danger {
+      color: var(--red);
+    }
+
+    .terminal-table {
+      width: 100%;
+      max-width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .cell-label {
+      display: none;
+    }
+
+    .cell-value {
+      min-width: 0;
+    }
+
+    .action-cell .cell-value {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .terminal-table th,
+    .terminal-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line-dim);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    .terminal-table th {
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+    }
+
+    .terminal-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .terminal-table tbody tr {
+      cursor: default;
+    }
+
+    .terminal-table tbody tr.clickable {
+      cursor: pointer;
+    }
+
+    .terminal-table tbody tr.clickable:hover,
+    .terminal-table tbody tr.selected {
+      background: var(--hover-cyan);
+    }
+
+    .terminal-table tbody tr.clickable:focus-visible {
+      background: var(--hover-cyan);
+      outline: 1px solid var(--cyan);
+      outline-offset: -1px;
+    }
+
+    .terminal-table .prefix {
+      width: 26px;
+      color: var(--cyan);
+      text-align: center;
+    }
+
+    .terminal-table tbody tr:not(:hover):not(.selected) .prefix {
+      color: transparent;
+    }
+
+    .row-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      min-height: 28px;
+      margin-left: auto;
+      border: 1px solid var(--line);
+      color: var(--cyan);
+      text-transform: uppercase;
+      white-space: nowrap;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .terminal-table tbody tr.clickable:hover .row-action,
+    .terminal-table tbody tr.clickable:focus-visible .row-action {
+      border-color: var(--cyan);
+      background: var(--hover-cyan);
+      color: var(--text);
+    }
+
+    .row-action.active {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .device-rail {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-top: 1px solid var(--line-dim);
+    }
+
+    .device-node {
+      min-height: 58px;
+      border: 0;
+      border-right: 1px solid var(--line-dim);
+      padding: 8px 12px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      text-align: left;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .device-node:last-child {
+      border-right: 0;
+    }
+
+    .device-node.is-active {
+      background: var(--hover-cyan);
+      color: var(--cyan);
+      box-shadow: inset 0 -2px 0 var(--cyan);
+    }
+
+    .node-led {
+      width: 9px;
+      height: 9px;
+      border: 1px solid var(--green);
+      background: var(--green);
+      box-shadow: 0 0 0 2px var(--bg);
+    }
+
+    .node-led.off {
+      border-color: var(--quiet);
+      background: transparent;
+    }
+
+    .node-main {
+      min-width: 0;
+    }
+
+    .node-name {
+      display: block;
+      color: var(--text);
+      font-weight: 700;
+      text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .node-ip {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .node-caret {
+      color: var(--muted);
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .device-node:hover .node-caret,
+    .device-node:focus-visible .node-caret,
+    .device-node.is-active .node-caret {
+      color: var(--cyan);
+    }
+
+    .status {
+      font-weight: 700;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status-ok {
+      color: var(--green);
+    }
+
+    .status-info {
+      color: var(--cyan);
+    }
+
+    .status-warn {
+      color: var(--amber);
+    }
+
+    .status-danger {
+      color: var(--red);
+    }
+
+    .status-muted {
+      color: var(--muted);
+    }
+
+    .ascii {
+      color: var(--cyan);
+      white-space: nowrap;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .quiet {
+      color: var(--quiet);
+    }
+
+    .inline-code {
+      color: var(--text);
+      border: 1px solid var(--line-dim);
+      padding: 1px 4px;
+      white-space: nowrap;
+    }
+
+    .raw {
+      margin: 0;
+      padding: 10px;
+      color: var(--text);
+      background: var(--raw-bg);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      border-top: 1px solid var(--line-dim);
+      font: inherit;
+      font-size: 14px;
+      line-height: 1.55;
+      max-height: none;
+    }
+
+    .log-lines {
+      padding: 4px 0 0;
+      min-height: 100%;
+    }
+
+    .log-line {
+      display: grid;
+      grid-template-columns: 90px 76px minmax(0, 1fr);
+      gap: 8px;
+      padding: 2px 10px;
+      border-bottom: 1px solid var(--line-dim);
+      white-space: pre-wrap;
+    }
+
+    .log-time {
+      color: var(--muted);
+    }
+
+    .log-msg {
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+
+    .empty {
+      padding: 22px;
+      border: 1px dashed var(--line);
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .notice {
+      color: var(--muted);
+      padding: 8px 10px;
+      border-top: 1px dotted var(--line-dim);
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 1180px) {
+      .workbench {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .inspector {
+        display: none;
+      }
+
+      .topbar {
+        grid-template-columns: 180px minmax(0, 1fr) auto;
+      }
+
+      .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stat:nth-child(2n) {
+        border-right: 0;
+      }
+
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .device-rail {
+        grid-template-columns: 1fr;
+      }
+
+      .device-node {
+        border-right: 0;
+        border-bottom: 1px solid var(--line-dim);
+      }
+
+      .device-node:last-child {
+        border-bottom: 0;
+      }
+    }
+
+    @media (max-width: 760px) {
+      body {
+        font-size: 14px;
+      }
+
+      .app-shell {
+        height: 100dvh;
+        grid-template-rows: 46px minmax(0, 1fr);
+      }
+
+      .topbar {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .brand,
+      .clock {
+        display: none;
+      }
+
+      .breadcrumbs {
+        padding: 0 8px;
+        gap: 5px;
+        font-size: 13px;
+        overflow-x: auto;
+      }
+
+      .top-actions {
+        display: none;
+      }
+
+      .top-actions button {
+        min-height: 30px;
+        padding: 0 7px;
+        font-size: 12px;
+      }
+
+      .workbench {
+        border-bottom: 0;
+      }
+
+      .pane {
+        grid-template-rows: 40px auto minmax(0, 1fr);
+        border-right: 0;
+      }
+
+      .pane-head {
+        padding: 0 9px;
+        gap: 8px;
+      }
+
+      .pane-head strong {
+        font-size: 14px;
+      }
+
+      .pane-head span {
+        font-size: 12px;
+      }
+
+      .toolbar {
+        padding: 7px 8px;
+        gap: 6px;
+        overflow-x: auto;
+      }
+
+      .toolbar .spacer,
+      .toolbar .muted {
+        display: none;
+      }
+
+      .toolbar button {
+        min-height: 34px;
+        padding: 0 10px;
+        font-size: 12px;
+        flex: 0 0 auto;
+      }
+
+      .stdout {
+        display: none;
+      }
+
+      .view {
+        padding: 8px;
+      }
+
+      .scroll-viewport {
+        right: 0;
+      }
+
+      .retro-scrollbar {
+        display: none;
+      }
+
+      .terminal-block {
+        margin-bottom: 10px;
+      }
+
+      .block-title {
+        padding: 7px 8px;
+        gap: 8px;
+        font-size: 12px;
+      }
+
+      .block-title span:first-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .block-title span:last-child {
+        display: none;
+      }
+
+      .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stat {
+        padding: 8px 10px;
+      }
+
+      .stat-value {
+        font-size: 21px;
+      }
+
+      .data-pairs {
+        padding: 7px 8px;
+      }
+
+      .pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+        border-bottom: 1px dotted var(--line-dim);
+      }
+
+      .pair-dots {
+        display: none;
+      }
+
+      .pair-key {
+        max-width: 100%;
+      }
+
+      .pair-value {
+        text-align: left;
+        max-width: 100%;
+      }
+
+      .device-rail {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .device-node {
+        min-height: 44px;
+        border-right: 1px solid var(--line-dim);
+        border-bottom: 0;
+        padding: 7px 8px;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 7px;
+      }
+
+      .device-node:last-child {
+        border-right: 0;
+      }
+
+      .node-caret {
+        display: none;
+      }
+
+      .node-name {
+        font-size: 13px;
+      }
+
+      .node-ip {
+        display: none;
+      }
+
+      .terminal-table,
+      .terminal-table tbody,
+      .terminal-table tr,
+      .terminal-table td {
+        display: block;
+      }
+
+      .terminal-table colgroup,
+      .terminal-table thead,
+      .terminal-table .prefix {
+        display: none;
+      }
+
+      .terminal-table tbody tr {
+        border: 1px solid var(--line-dim);
+        margin-bottom: 8px;
+      }
+
+      .terminal-table tbody tr:last-child {
+        margin-bottom: 0;
+      }
+
+      .terminal-table tbody tr.clickable:hover,
+      .terminal-table tbody tr.selected,
+      .terminal-table tbody tr.clickable:focus-visible {
+        background: transparent;
+        border-color: var(--cyan);
+      }
+
+      .terminal-table th,
+      .terminal-table td {
+        padding: 0;
+        border-bottom: 0;
+      }
+
+      .terminal-table td:not(.action-cell) {
+        display: grid;
+        grid-template-columns: minmax(82px, 34%) minmax(0, 1fr);
+        gap: 8px;
+        padding: 6px 8px;
+        border-bottom: 1px dotted var(--line-dim);
+        align-items: start;
+      }
+
+      .terminal-table td:last-child {
+        border-bottom: 0;
+      }
+
+      .cell-label {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+
+      .action-cell {
+        padding: 6px 8px;
+      }
+
+      .action-cell .cell-label {
+        display: none;
+      }
+
+      .action-cell .cell-value {
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .row-action {
+        width: 30px;
+        min-height: 26px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">ASIAIR OPS</div>
+      <nav id="breadcrumbs" class="breadcrumbs" aria-label="page navigation"></nav>
+      <div class="top-actions" aria-label="top controls">
+        <div id="clock" class="clock">---- -- -- --:--:-- LOCAL</div>
+        <button id="btn-theme" class="top-icon-btn" type="button" aria-pressed="true" aria-label="切换主题" title="切换主题">
+          <span class="icon-core theme-core" aria-hidden="true"></span>
+        </button>
+        <button id="btn-top-lang" class="top-icon-btn" type="button" aria-label="切换语言" title="切换语言">
+          <span class="icon-core lang-core" aria-hidden="true">文</span>
+        </button>
+        <div class="control-cluster">
+          <span id="control-indicator" class="control-indicator free">主控空闲</span>
+          <select id="role-select" aria-label="协作模式">
+            <option value="monitor">监控</option>
+            <option value="controller">主控</option>
+          </select>
+        </div>
+        <select id="device-select" aria-label="设备"></select>
+      </div>
+    </header>
+
+    <main class="workbench">
+      <section class="pane">
+        <div class="pane-head">
+          <strong id="view-title">监控总览</strong>
+          <span id="view-subtitle">实时状态</span>
+        </div>
+        <div id="toolbar" class="toolbar"></div>
+        <div id="main-scroll" class="scroll-host">
+          <div class="scroll-viewport">
+            <div id="main-content" class="view"></div>
+          </div>
+          <div class="retro-scrollbar" aria-hidden="true">
+            <button class="scroll-btn up" type="button">▲</button>
+            <div class="scroll-track"><div class="scroll-thumb"></div></div>
+            <button class="scroll-btn down" type="button">▼</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="inspector">
+        <div class="pane-head">
+          <strong id="inspector-title">监控侧栏</strong>
+          <span id="inspector-path">总览 / 概况</span>
+        </div>
+        <div id="inspect-scroll" class="scroll-host">
+          <div class="scroll-viewport">
+            <div id="inspector-content" class="view"></div>
+          </div>
+          <div class="retro-scrollbar" aria-hidden="true">
+            <button class="scroll-btn up" type="button">▲</button>
+            <div class="scroll-track"><div class="scroll-thumb"></div></div>
+            <button class="scroll-btn down" type="button">▼</button>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="stdout">
+      <div class="stdout-head">
+        <strong id="stdout-title">日志</strong>
+        <div class="stdout-actions">
+          <button id="inject-log" type="button">INJECT TEST LOG</button>
+          <button id="clear-log" type="button">CLEAR BUFFER</button>
+        </div>
+      </div>
+      <div id="stdout-scroll" class="scroll-host">
+        <div class="scroll-viewport">
+          <div id="stdout-lines" class="log-lines"></div>
+        </div>
+        <div class="retro-scrollbar" aria-hidden="true">
+          <button class="scroll-btn up" type="button">▲</button>
+          <div class="scroll-track"><div class="scroll-thumb"></div></div>
+          <button class="scroll-btn down" type="button">▼</button>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const INITIAL_DATA = {"ok":true,"generated_at":"connecting","poll_interval_ms":1000,"refreshing":false,"refresh_progress":{"active":false,"total":0,"done":0,"ok":0,"fail":0,"current":""},"safety":{"mode":"read-only-live","notes":["读取后端缓存和只读监控 API。","写入类操作由相机页主控机制保护。"]},"device":{"name":"","ip":""},"devices":[],"summary":{"total_count":0,"ready_count":0,"ok_count":0,"fail_count":0},"highlights":{},"categories":[]};
+    const API_ENDPOINT = "/api/rpc-monitor";
+
+    const StorageBridge = {
+      get(key, fallback) {
+        try {
+          return window.localStorage.getItem(key) || fallback;
+        } catch (_) {
+          return fallback;
+        }
+      },
+      set(key, value) {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch (_) {
+          /* Persistence is optional for a static local preview. */
+        }
+      }
+    };
+
+    function initialLanguage() {
+      try {
+        const param = new URLSearchParams(window.location.search).get("lang");
+        if (param === "zh" || param === "en") return param;
+      } catch (_) {
+        /* Query parsing is optional for local preview links. */
+      }
+      return StorageBridge.get("asiair-monitor-lang", "zh");
+    }
+
+    function initialDeviceName() {
+      try {
+        const param = new URLSearchParams(window.location.search).get("device");
+        if (param) return param;
+      } catch (_) {
+        /* Query parsing is optional for local preview links. */
+      }
+      return INITIAL_DATA.device && INITIAL_DATA.device.name ? INITIAL_DATA.device.name : "";
+    }
+
+    function sessionStorageKey(name) {
+      return `asiair-monitor:${name}`;
+    }
+
+    function ensureSessionId() {
+      const key = sessionStorageKey("session-id");
+      let value = StorageBridge.get(key, "");
+      if (!value) {
+        value = (window.crypto && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `session-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+        StorageBridge.set(key, value);
+      }
+      return value;
+    }
+
+    function sessionLabelFromId(sessionId) {
+      return `Session ${String(sessionId).slice(0, 6)}`;
+    }
+
+    function normalizeRole(role) {
+      return role === "controller" ? "controller" : "monitor";
+    }
+
+    function readStoredRoleMap() {
+      try {
+        const raw = StorageBridge.get(sessionStorageKey("role-map"), "{}");
+        const parsed = JSON.parse(raw || "{}");
+        const mapped = {};
+        Object.keys(parsed || {}).forEach((deviceName) => {
+          mapped[deviceName] = normalizeRole(parsed[deviceName]);
+        });
+        return mapped;
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function writeStoredRoleMap(roleMap) {
+      StorageBridge.set(sessionStorageKey("role-map"), JSON.stringify(roleMap || {}));
+    }
+
+    function roleForDevice(deviceName) {
+      return normalizeRole((AppState.desiredRoleMap || {})[deviceName]);
+    }
+
+    function setRoleForDevice(deviceName, role) {
+      const next = { ...(AppState.desiredRoleMap || {}) };
+      next[deviceName] = normalizeRole(role);
+      AppState.desiredRoleMap = next;
+      AppState.desiredRole = roleForDevice(currentDeviceName());
+      writeStoredRoleMap(next);
+    }
+
+    function controllerDevices() {
+      return Object.keys(AppState.desiredRoleMap || {}).filter((deviceName) => roleForDevice(deviceName) === "controller");
+    }
+
+    const AppState = {
+      data: INITIAL_DATA,
+      view: "root",
+      categoryId: null,
+      itemKey: null,
+      deviceName: initialDeviceName(),
+      sessionId: ensureSessionId(),
+      sessionLabel: "",
+      desiredRoleMap: readStoredRoleMap(),
+      desiredRole: "monitor",
+      controlState: null,
+      controlTimer: null,
+      roleBusy: false,
+      paused: false,
+      rawMode: false,
+      failOnly: false,
+      logBufferLimit: 80,
+      logs: [],
+      refreshRun: null,
+      requestInFlight: false,
+      bootstrapped: false,
+      lastLiveError: null,
+      tickTimer: null,
+      clockTimer: null,
+      routeSerial: 0,
+      lang: initialLanguage(),
+      theme: StorageBridge.get("asiair-monitor-theme", "dark")
+    };
+
+    AppState.sessionLabel = sessionLabelFromId(AppState.sessionId);
+
+    const $ = (id) => document.getElementById(id);
+
+    const UI_TEXT = {
+      zh: {
+        appTitle: "ASIAIR 远程台监控",
+        root: "总览",
+        imagePreview: "相机",
+        materials: "素材库",
+        rootIndex: "监控总览",
+        controlResources: "实时状态",
+        local: "本地",
+        rescanRoot: "立即刷新",
+        refreshing: "刷新中",
+        pausePoll: "暂停轮询",
+        resumePoll: "继续轮询",
+        failOnly: "仅看失败",
+        showAll: "显示全部",
+        rawMode: "原始数据",
+        compactMode: "收起原始数据",
+        backCategory: "返回分类",
+        emitItemLog: "记录当前项",
+        languageButton: "语言: 中文",
+        themeButton: "主题: {mode}",
+        themeDark: "深色",
+        themeLight: "浅色",
+        deviceLabel: "设备",
+        injectLog: "测试日志",
+        clearBuffer: "清空日志",
+        indexSuffix: "列表",
+        endpointDetail: "监测项详情",
+        yesValue: "是",
+        noValue: "否",
+        noneValue: "无",
+        unknownValue: "未知",
+        itemNotFound: "监测项未找到",
+        categoryNotFound: "分类未找到",
+        noEndpointMatch: "当前筛选没有匹配的监测项",
+        routeMounted: "已进入：{path}",
+        logLangSwitched: "界面语言已切换: 中文",
+        logThemeSwitched: "界面主题已切换: {mode}",
+        logPollPaused: "实时轮询已暂停",
+        logPollResumed: "实时轮询已恢复",
+        logFilter: "分类筛选: {mode}",
+        logRenderMode: "分类显示模式: {mode}",
+        logItemReturn: "{method} 返回代码 {code}; {label}",
+        logDeviceFocus: "当前设备已切换: {device}",
+        logFullScanStart: "已开始刷新详情",
+        logCacheVerified: "{category}/{method} 已更新",
+        logFullScanDone: "刷新完成",
+        logPollTick: "实时状态已更新; 目标={target}; 状态={state}",
+        logSnapshotLoaded: "实时状态已加载; 已返回 {ready} 项",
+        logCaptureChannel: "拍摄通道 {state}; 目标 {target}; 进度 {progress}",
+        logFaultNonempty: "存在未成功返回; 失败={fail}",
+        logFaultNominal: "所有已返回项目正常",
+        logManualTest: "测试日志; {category}/{method}",
+        logBufferCleared: "日志已清空"
+      },
+      en: {
+        appTitle: "ASIAIR MONITOR // MINTERM OPS",
+        root: "OVERVIEW",
+        imagePreview: "CAMERA",
+        materials: "MATERIALS",
+        rootIndex: "OVERVIEW",
+        controlResources: "LIVE STATUS",
+        local: "LOCAL",
+        rescanRoot: "REFRESH",
+        refreshing: "REFRESHING",
+        pausePoll: "PAUSE",
+        resumePoll: "RESUME",
+        failOnly: "FAIL ONLY",
+        showAll: "SHOW ALL",
+        rawMode: "RAW MODE",
+        compactMode: "COMPACT MODE",
+        backCategory: "BACK CATEGORY",
+        emitItemLog: "EMIT ITEM LOG",
+        languageButton: "LANG: EN",
+        themeButton: "THEME: {mode}",
+        themeDark: "DARK",
+        themeLight: "LIGHT",
+        deviceLabel: "DEVICE",
+        injectLog: "TEST LOG",
+        clearBuffer: "CLEAR LOG",
+        indexSuffix: "INDEX",
+        endpointDetail: "ENDPOINT DETAIL",
+        yesValue: "YES",
+        noValue: "NO",
+        noneValue: "NONE",
+        unknownValue: "UNKNOWN",
+        itemNotFound: "ITEM NOT FOUND",
+        categoryNotFound: "CATEGORY NOT FOUND",
+        noEndpointMatch: "NO ENDPOINTS MATCH CURRENT FILTER",
+        routeMounted: "ROUTE MOUNTED: {path}",
+        logLangSwitched: "UI LANGUAGE SWITCHED: ENGLISH",
+        logThemeSwitched: "UI THEME SWITCHED: {mode}",
+        logPollPaused: "LIVE POLL PAUSED BY OPERATOR",
+        logPollResumed: "LIVE POLL RESUMED",
+        logFilter: "CATEGORY FILTER SET: {mode}",
+        logRenderMode: "CATEGORY RENDER MODE: {mode}",
+        logItemReturn: "{method} RETURN CODE {code}; {label}",
+        logDeviceFocus: "DEVICE FOCUS CHANGED: {device}",
+        logFullScanStart: "DETAIL REFRESH STARTED",
+        logCacheVerified: "{category}/{method} STATIC CACHE VERIFIED",
+        logFullScanDone: "DETAIL REFRESH COMPLETE",
+        logPollTick: "STATIC POLL TICK; TARGET={target}; STATE={state}",
+        logSnapshotLoaded: "STATIC SNAPSHOT LOADED; {ready} ITEMS RETURNED",
+        logCaptureChannel: "CAPTURE CHANNEL {state}; TARGET {target}; PROGRESS {progress}",
+        logFaultNonempty: "FAULT DOMAIN NONEMPTY; FAIL={fail}",
+        logFaultNominal: "FAULT DOMAIN NOMINAL",
+        logManualTest: "MANUAL TEST LOG; {category}/{method}",
+        logBufferCleared: "LOG BUFFER CLEARED BY OPERATOR"
+      }
+    };
+
+    const CATEGORY_LABELS = {
+      zh: {
+        app: "运行状态",
+        system: "系统",
+        camera: "相机",
+        storage: "存储",
+        files: "图像文件",
+        power: "电源",
+        network: "网络",
+        plans: "拍摄计划",
+        focuser: "调焦器",
+        filter_wheel: "滤轮",
+        guiding: "导星",
+        solve: "解算",
+        analysis: "星点 / 标注",
+        stacking: "叠加 / 校准",
+        polar_align: "极轴",
+        sky_data: "天体数据",
+        streaming: "直播",
+        settings: "设置"
+      },
+      en: {
+        app: "APP / RUN STATE",
+        system: "SYSTEM",
+        camera: "CAMERA",
+        storage: "STORAGE",
+        files: "FILES",
+        power: "POWER",
+        network: "NETWORK",
+        plans: "PLANS / SEQUENCES",
+        focuser: "FOCUSER",
+        filter_wheel: "FILTER WHEEL",
+        guiding: "GUIDING",
+        solve: "PLATE SOLVE",
+        analysis: "STARS / ANNOTATION",
+        stacking: "STACK / CALIBRATION",
+        polar_align: "POLAR ALIGN",
+        sky_data: "SKY DATA",
+        streaming: "STREAMING",
+        settings: "SETTINGS"
+      }
+    };
+
+    const TEXT_EXACT = {
+      zh: {
+        "ROOT": "总览",
+        "CATEGORY": "分类",
+        "ITEM": "监测项",
+        "ROOT INDEX": "监控总览",
+        "CONTROL / RESOURCES": "实时状态",
+        "ROOT SUMMARY": "概况",
+        "LIVE API / READ ONLY": "只读实时监测",
+        "CAPTURE CHANNEL": "当前拍摄",
+        "CURRENT HIGHLIGHTS": "目标 / 序列",
+        "RESOURCE MAP": "设备与功能",
+        "CATEGORY TELEMETRY": "分类状态",
+        "GROUP SUMMARY": "返回情况",
+        "ENDPOINT TABLE": "监测项列表",
+        "RAW MODE ENABLED": "显示原始返回",
+        "CATEGORY RAW BUFFER": "分类原始数据",
+        "JSON SNAPSHOT": "JSON 数据",
+        "ENDPOINT STATUS": "监测项状态",
+        "DATA DICTIONARY": "关键字段",
+        "RAW RETURN BUFFER": "原始返回",
+        "JSON / READ ONLY": "JSON / 只读",
+        "NO DISPLAY ROWS PROVIDED; RAW RETURN VALUE IS AVAILABLE BELOW.": "未提供展示字段；下方可查看原始返回值。",
+        "TABLE": "表格",
+        "ROWS": "行",
+        "CONTROL BUS": "监控侧栏",
+        "ROOT / SUMMARY": "总览 / 概况",
+        "REFRESH BUS": "刷新",
+        "ASCII PROGRESS": "进度",
+        "LINK STATUS": "链路",
+        "ASIAIR LINK": "设备连通",
+        "TOTAL ENDPOINTS": "已展示状态",
+        "READY": "已返回",
+        "FAIL": "异常",
+        "ITEMS SHOWN": "当前显示项",
+        "RESOURCE": "功能",
+        "DETAILS": "明细",
+        "ACTION": "动作",
+        "OK / FAIL": "OK / 失败",
+        "CURRENT DEVICE": "当前设备",
+        "LABEL": "名称",
+        "STATUS": "状态",
+        "LOAD": "进度",
+        "ACCESS": "访问",
+        "NODE": "设备",
+        "IP": "IP",
+        "ENABLED": "可用",
+        "FOCUS": "当前",
+        "METHOD": "方法",
+        "VALUE": "数值",
+        "DETAIL": "详情",
+        "AGE": "距上次更新",
+        "INTERVAL": "刷新间隔",
+        "PORT": "端口",
+        "PARAMS": "参数",
+        "DISPLAY_VALUE": "主要值",
+        "DISPLAY_DETAIL": "补充信息",
+        "CODE": "代码",
+        "ELAPSED": "耗时",
+        "UPDATED_AT": "更新时间",
+        "RENDER_MODE": "界面模式",
+        "THEME": "主题",
+        "LIBRARIES": "依赖库",
+        "BORDER_SPEC": "边框规格",
+        "ROUNDING": "圆角",
+        "SHADOWS": "阴影",
+        "ACTIVE_VIEW": "视图",
+        "LOG_BUFFER": "日志",
+        "FAULT_DOMAIN": "异常",
+        "CATEGORY_ID": "分类 ID",
+        "CATEGORY_LABEL": "分类名称",
+        "CATEGORY_READY": "已返回",
+        "CATEGORY_OK": "分类正常",
+        "CATEGORY_FAIL": "分类异常",
+        "ITEM_METHOD": "方法名",
+        "ITEM_LABEL": "监测项",
+        "ITEM_STATUS": "返回状态",
+        "ITEM_PORT": "端口",
+        "ITEM_CODE": "返回代码",
+        "ITEM_INTERVAL": "刷新间隔",
+        "REFRESH_STATE": "状态",
+        "REFRESH_PROGRESS": "进度",
+        "CURRENT_ENDPOINT": "当前项",
+        "LINK_STATE": "状态",
+        "PING_MS": "Ping",
+        "RPC_MS": "RPC",
+        "SMB_PORT": "SMB",
+        "VPN_RX": "VPN 入站",
+        "VPN_TX": "VPN 出站",
+        "TRANSFER_STATE": "传输",
+        "DEVICE": "设备",
+        "GENERATED_AT": "更新时间",
+        "POLL_INTERVAL": "页面轮询",
+        "SAFETY_MODE": "访问模式",
+        "PAGE": "ASIAIR 页面",
+        "CAPTURE_STATE": "拍摄状态",
+        "TARGET": "目标",
+        "TARGET_PROGRESS": "目标进度",
+        "SEQUENCE": "序列",
+        "CAMERA": "相机",
+        "EXPOSURE_BIN": "曝光 / BIN",
+        "TEMP_COOLER": "温度 / 制冷",
+        "STORAGE": "存储",
+        "STATE_DRIVEN": "实时状态",
+        "NONE": "无",
+        "1PX_SOLID": "1PX 实线",
+        "NOMINAL": "正常",
+        "CRITICAL": "异常",
+        "ACTIVE": "运行中",
+        "IDLE": "空闲",
+        "OK": "正常",
+        "FAULT": "异常",
+        "PARTIAL": "部分返回",
+        "PENDING": "等待返回",
+        "FAIL": "失败",
+        "ENABLED": "可用",
+        "DISABLED": "停用",
+        "STANDBY": "待选",
+        "BOOTSTRAP": "初始化",
+        "ALL": "全部",
+        "FAIL_ONLY": "仅失败",
+        "RAW": "原始返回",
+        "COMPACT": "简洁",
+        "ENTER": "进入",
+        "FOCAL": "焦距",
+        "SENSOR": "传感器",
+        "NO ENDPOINTS MATCH CURRENT FILTER": "当前筛选没有匹配的监测项",
+        "CATEGORY NOT FOUND": "分类未找到",
+        "ITEM NOT FOUND": "监测项未找到",
+        "STDOUT": "日志",
+        "LIVE_API_ERROR": "实时连接异常",
+        "read-only": "只读",
+        "read-only-live": "只读实时监测",
+        "online": "在线",
+        "degraded": "波动",
+        "offline": "离线",
+        "transfer_active": "备份中",
+        "transfer_idle": "空闲",
+        "pending_sample": "待采样",
+        "Only verified read-only information calls are included.": "只读状态查询。",
+        "No set/start/stop/delete/clear/move/goto/power/network-write/image-download calls are used.": "不发控制类命令。",
+        "Browser polls the cache once per second; the backend refreshes all active-device categories by tiered intervals.": "读缓存，分频刷新。",
+        "expose": "曝光中",
+        "idle": "空闲",
+        "preview": "预览",
+        "focus": "对焦",
+        "plan": "计划",
+        "light": "Light",
+        "dark": "Dark",
+        "bias": "Bias",
+        "flat": "Flat"
+      },
+      en: {
+        "ROOT": "OVERVIEW",
+        "ROOT INDEX": "OVERVIEW",
+        "CONTROL / RESOURCES": "LIVE STATUS",
+        "ROOT SUMMARY": "SUMMARY",
+        "LIVE API / READ ONLY": "READ ONLY",
+        "CAPTURE CHANNEL": "CAPTURE",
+        "CURRENT HIGHLIGHTS": "CURRENT",
+        "RESOURCE MAP": "FUNCTIONS",
+        "CONTROL BUS": "MONITOR",
+        "ROOT / SUMMARY": "OVERVIEW",
+        "REFRESH BUS": "REFRESH",
+        "ASCII PROGRESS": "PROGRESS",
+        "LINK STATUS": "LINK",
+        "ASIAIR LINK": "DEVICE PATH",
+        "ACTIVE_VIEW": "VIEW",
+        "LOG_BUFFER": "LOG",
+        "FAULT_DOMAIN": "FAULT",
+        "TOTAL ENDPOINTS": "SHOWN",
+        "GENERATED_AT": "UPDATED",
+        "POLL_INTERVAL": "POLL",
+        "SAFETY_MODE": "MODE",
+        "REFRESH_STATE": "STATE",
+        "REFRESH_PROGRESS": "PROGRESS",
+        "CURRENT_ENDPOINT": "CURRENT",
+        "LINK_STATE": "STATE",
+        "PING_MS": "PING",
+        "RPC_MS": "RPC",
+        "SMB_PORT": "SMB",
+        "VPN_RX": "VPN RX",
+        "VPN_TX": "VPN TX",
+        "TRANSFER_STATE": "TRANSFER",
+        "CAPTURE_STATE": "STATE",
+        "TARGET_PROGRESS": "TARGET",
+        "EXPOSURE_BIN": "EXPOSURE / BIN",
+        "TEMP_COOLER": "TEMP / COOLER",
+        "NOMINAL": "OK",
+        "CRITICAL": "FAULT",
+        "online": "ONLINE",
+        "degraded": "DEGRADED",
+        "offline": "OFFLINE",
+        "transfer_active": "ACTIVE",
+        "transfer_idle": "IDLE",
+        "pending_sample": "PENDING",
+        "Only verified read-only information calls are included.": "Status only.",
+        "No set/start/stop/delete/clear/move/goto/power/network-write/image-download calls are used.": "No control commands.",
+        "Browser polls the cache once per second; the backend refreshes all active-device categories by tiered intervals.": "Cached, tiered.",
+        "App / 运行状态": "APP / RUN STATE",
+        "系统": "SYSTEM",
+        "相机": "CAMERA",
+        "存储": "STORAGE",
+        "文件浏览": "FILES",
+        "电源": "POWER",
+        "网络": "NETWORK",
+        "计划 / 序列": "PLANS / SEQUENCES",
+        "调焦器": "FOCUSER",
+        "滤轮": "FILTER WHEEL",
+        "导星": "GUIDING",
+        "解算": "PLATE SOLVE",
+        "星点 / 标注": "STARS / ANNOTATION",
+        "叠加 / 校准": "STACK / CALIBRATION",
+        "极轴": "POLAR ALIGN",
+        "天体数据": "SKY DATA",
+        "直播": "STREAMING",
+        "设置": "SETTINGS",
+        "当前页面、拍摄进度、目标/序列和工作流状态": "CURRENT PAGE, CAPTURE PROGRESS, TARGET / SEQUENCE AND WORKFLOW STATE",
+        "设备综合状态快照": "DEVICE COMPOSITE STATE SNAPSHOT",
+        "连接测试": "CONNECTION TEST",
+        "设备验证状态": "DEVICE VERIFICATION STATE",
+        "盒子系统信息": "BOX SYSTEM INFO",
+        "盒子系统时间": "BOX SYSTEM TIME",
+        "是否需要重启": "REBOOT REQUIRED",
+        "降级状态": "DOWNGRADE STATE",
+        "主相机连接和工作状态": "MAIN CAMERA CONNECTION / WORK STATE",
+        "曝光和 Bin": "EXPOSURE / BIN",
+        "传感器温度": "SENSOR TEMPERATURE",
+        "制冷功率": "COOLER POWER",
+        "制冷开关": "COOLER SWITCH",
+        "已连接相机": "CONNECTED CAMERAS",
+        "相机规格": "CAMERA SPECIFICATION",
+        "相机控制项和范围": "CAMERA CONTROLS AND RANGES",
+        "Bin 状态": "BIN STATE",
+        "16-bit 状态": "16-BIT STATE",
+        "ROI / 子画幅": "ROI / SUBFRAME",
+        "增益段": "GAIN SEGMENTS",
+        "是否允许实时预览": "LIVEVIEW PERMITTED",
+        "是否允许中止曝光": "ABORT EXPOSURE PERMITTED",
+        "图像命名字段": "IMAGE NAME FIELDS",
+        "目标温度": "TARGET TEMPERATURE",
+        "防结露加热": "DEW HEATER",
+        "硬件 Bin 标志": "HARDWARE BIN FLAG",
+        "画幅模式": "FRAME MODE",
+        "USB 带宽": "USB BANDWIDTH",
+        "半速风扇": "HALF-SPEED FAN",
+        "指示灯": "INDICATOR LED",
+        "存储容量": "STORAGE VOLUME",
+        "图像保存路径": "IMAGE SAVE PATH",
+        "已挂载存储设备": "MOUNTED STORAGE DEVICES",
+        "eMMC 格式化能力查询": "eMMC FORMAT CAPABILITY QUERY",
+        "图像浏览器页数": "IMAGE BROWSER PAGE COUNT",
+        "供电输入状态": "POWER INPUT STATE",
+        "电源输出状态": "POWER OUTPUT STATE",
+        "旧版电源输出状态": "LEGACY POWER OUTPUT STATE",
+        "热点/AP 状态": "HOTSPOT / AP STATE",
+        "Wi-Fi station 状态": "WI-FI STATION STATE",
+        "Wi-Fi station 列表": "WI-FI STATION LIST",
+        "以太网状态": "ETHERNET STATE",
+        "序列数量": "SEQUENCE COUNT",
+        "当前序列槽位 0": "CURRENT SEQUENCE SLOT 0",
+        "序列设置": "SEQUENCE SETTINGS",
+        "当前目标序列": "CURRENT TARGET SEQUENCE",
+        "计划内容": "PLAN CONTENT",
+        "启用中的计划": "ENABLED PLAN",
+        "计划列表": "PLAN LIST",
+        "已连接调焦器": "CONNECTED FOCUSER",
+        "调焦器状态": "FOCUSER STATE",
+        "调焦器位置": "FOCUSER POSITION",
+        "调焦器能力": "FOCUSER CAPABILITIES",
+        "调焦器温度": "FOCUSER TEMPERATURE",
+        "调焦器设置": "FOCUSER SETTINGS",
+        "已连接滤轮": "CONNECTED FILTER WHEEL",
+        "滤轮状态": "FILTER WHEEL STATE",
+        "滤轮位置": "FILTER WHEEL POSITION",
+        "滤轮槽位名称": "FILTER WHEEL SLOT NAMES",
+        "滤轮设置": "FILTER WHEEL SETTINGS",
+        "Dither 设置": "DITHER SETTINGS",
+        "翻转校准状态": "MERIDIAN FLIP CALIBRATION STATE",
+        "当前解算结果": "CURRENT SOLVE RESULT",
+        "最近解算结果": "LAST SOLVE RESULT",
+        "解算对象": "SOLVE OBJECTS",
+        "星点检测结果": "STAR DETECTION RESULT",
+        "标注结果": "ANNOTATION RESULT",
+        "叠加信息": "STACK INFO",
+        "叠加设置": "STACK SETTINGS",
+        "批量叠加设置": "BATCH STACK SETTINGS",
+        "校准帧配置": "CALIBRATION FRAME CONFIG",
+        "Dark 校准参数": "DARK CALIBRATION PARAM",
+        "三点极轴设置": "THREE-POINT POLAR ALIGN SETTINGS",
+        "三点极轴状态": "THREE-POINT POLAR ALIGN STATE",
+        "极轴对齐图像状态": "POLAR ALIGN IMAGE STATE",
+        "天体列表": "OBJECT LIST",
+        "星座数据": "CONSTELLATION DATA",
+        "彗星位置": "COMET POSITION",
+        "行星位置": "PLANET POSITION",
+        "My Favorites 对象": "MY FAVORITES OBJECTS",
+        "RTMP 配置": "RTMP CONFIG",
+        "App 设置": "APP SETTINGS",
+        "测试设置": "TEST SETTINGS",
+        "page": "PAGE",
+        "capture · 状态": "CAPTURE · STATE",
+        "capture · working": "CAPTURE · WORKING",
+        "device · 名称": "DEVICE · NAME",
+        "device · firmware_ver_string": "DEVICE · FIRMWARE_VER_STRING",
+        "device · 焦距": "DEVICE · FOCAL LENGTH",
+        "camera": "CAMERA",
+        "model": "MODEL",
+        "temp": "TEMP",
+        "uname": "UNAME",
+        "year": "YEAR",
+        "mon": "MONTH",
+        "day": "DAY",
+        "hour": "HOUR",
+        "min": "MIN",
+        "sec": "SEC",
+        "time_zone": "TIME_ZONE",
+        "名称": "NAME",
+        "状态": "STATE",
+        "value": "VALUE",
+        "项目数量": "ITEM COUNT",
+        "chip_size": "CHIP_SIZE",
+        "pixel_size_um": "PIXEL_SIZE_UM",
+        "is_color": "IS_COLOR",
+        "x": "X",
+        "y": "Y",
+        "width": "WIDTH",
+        "height": "HEIGHT",
+        "启用字段": "ENABLED FIELDS",
+        "自定义后缀": "CUSTOM SUFFIX",
+        "相机名": "CAMERA NAME",
+        "日期时间": "DATE_TIME",
+        "温度": "TEMPERATURE",
+        "旋转角": "ROTATION ANGLE",
+        "剩余": "FREE",
+        "总量": "TOTAL",
+        "当前存储": "CURRENT STORAGE",
+        "已连接存储": "CONNECTED STORAGE",
+        "Type-C": "TYPE-C",
+        "存储项": "STORAGE ITEMS",
+        "usb2": "USB2",
+        "usb3": "USB3",
+        "序号": "INDEX",
+        "值 1": "VALUE 1",
+        "值 2": "VALUE 2",
+        "输出 1": "OUTPUT 1",
+        "输出 2": "OUTPUT 2",
+        "输出 3": "OUTPUT 3",
+        "总开关": "MASTER SWITCH",
+        "ssid": "SSID",
+        "ip": "IP",
+        "group_name": "GROUP_NAME",
+        "target_name": "TARGET_NAME",
+        "slots": "SLOTS",
+        "ID": "ID",
+        "类型": "TYPE",
+        "滤镜": "FILTER",
+        "后缀": "SUFFIX",
+        "曝光": "EXPOSURE",
+        "重复次数": "REPEAT",
+        "已完成": "DONE",
+        "启用": "ENABLED",
+        "自动曝光": "AUTO EXPOSURE",
+        "拍摄序号": "CAPTURE INDEX",
+        "槽位": "SLOT",
+        "AF 曝光": "AF EXPOSURE",
+        "AF 初始步长": "AF INITIAL STEP",
+        "AF Bin": "AF BIN",
+        "仅一次 AF": "AF ONLY ONCE",
+        "细调步长": "FINE STEP",
+        "粗调步长": "COARSE STEP",
+        "自动保存 AF": "AUTOSAVE AF",
+        "叠加 AF · 温差触发": "STACK AF · TEMP SPAN",
+        "叠加 AF · 间隔小时": "STACK AF · INTERVAL HOURS",
+        "叠加 AF · 叠加前 AF": "STACK AF · BEFORE STACK",
+        "三点极轴": "THREE-POINT PA",
+        "状态码": "STATE CODE",
+        "自动移动": "AUTO MOVE",
+        "自动更新": "AUTO UPDATE",
+        "暂停": "PAUSED",
+        "图像 ID": "IMAGE ID",
+        "RA / DEC": "RA / DEC",
+        "视场": "FOV",
+        "焦距": "FOCAL LENGTH",
+        "星点数": "STAR COUNT",
+        "耗时": "DURATION",
+        "图像尺寸": "IMAGE SIZE",
+        "标注数量": "ANNOTATION COUNT",
+        "星点数量": "STAR COUNT",
+        "像素尺度": "PIXEL SCALE",
+        "半径": "RADIUS",
+        "模拟模式": "SIMULATION MODE",
+        "启用帧": "ENABLED FRAMES",
+        "保存单帧": "SAVE DISCRETE FRAME",
+        "Light 时长": "LIGHT DURATION",
+        "太阳": "SUN",
+        "月亮": "MOON",
+        "分辨率 · cur": "RESOLUTION · CUR",
+        "录制格式": "RECORD FORMAT",
+        "背景音乐": "BGM",
+        "水平镜像": "MIRROR HORIZONTAL",
+        "垂直镜像": "MIRROR VERTICAL",
+        "自动 Goto 曝光": "AUTO GOTO EXPOSURE",
+        "连续预览": "CONTINUOUS PREVIEW",
+        "自动 Goto": "AUTO GOTO",
+        "Flat 自动曝光": "FLAT AUTO EXPOSURE",
+        "其余字段": "REMAINING FIELDS",
+        "新版解算": "NEW SOLVE EXEC",
+        "自动 Goto 阈值": "AUTO GOTO THRESHOLD",
+        "自动开加热": "AUTO OPEN HEATER",
+        "自动开制冷": "AUTO OPEN COOLER",
+        "Station 5G": "STATION 5G",
+        "计划模拟": "PLAN SIMULATE",
+        "Goto 模拟": "GOTO SIMULATE",
+        "仅 RA": "RA ONLY",
+        "幅度": "AMOUNT",
+        "稳定超时": "SETTLE TIMEOUT",
+        "稳定阈值": "SETTLE ARCSEC",
+        "稳定时间": "SETTLE TIME",
+        "间隔": "INTERVAL",
+        "超时停止": "TIMEOUT STOP",
+        "等待导星稳定": "WAIT GUIDE SETTLE",
+        "尺寸": "SIZE",
+        "帧名称": "FRAME NAME",
+        "磁盘大小": "DISK SIZE",
+        "曝光(s)": "EXPOSURE(S)",
+        "值": "VALUE",
+        "列表": "LIST",
+        "列表前 8 项": "FIRST 8 ITEMS",
+        "存储卷": "STORAGE VOLUME",
+        "星点前 8 项": "FIRST 8 STARS",
+        "标注前 8 项": "FIRST 8 ANNOTATIONS",
+        "校准帧": "CALIBRATION FRAMES",
+        "滤轮槽位": "FILTER WHEEL SLOTS",
+        "解算对象前 10 项": "FIRST 10 SOLVE OBJECTS",
+        "连接正常": "CONNECTED",
+        "是": "YES",
+        "否": "NO",
+        "开启": "ON",
+        "关闭": "OFF",
+        "无": "NONE",
+        "未连接": "DISCONNECTED",
+        "黑白": "MONO",
+        "当前 emmc": "CURRENT emmc",
+        "相机名、日期时间、Gain、Bin、温度、旋转角": "CAMERA NAME, DATE_TIME, GAIN, BIN, TEMPERATURE, ROTATION ANGLE",
+        "焦距 449 mm · 传感器 9576×6388": "FOCAL 449 MM · SENSOR 9576×6388",
+        "状态 expose": "STATE expose",
+        "曝光与 Bin": "EXPOSURE / BIN",
+        "16-bit 模式": "16-BIT MODE",
+        "命名字段": "NAME FIELDS",
+        "剩余 18.3%": "FREE 18.3%",
+        "最大电流 2.54 A · 5 路": "MAX CURRENT 2.54 A · 5 CHANNELS",
+        "电源输出": "POWER OUTPUT",
+        "旧版输出": "LEGACY OUTPUT",
+        "敏感字段已脱敏": "SENSITIVE FIELDS MASKED",
+        "导星相关只读状态": "GUIDING READ-ONLY STATE",
+        "分析结果": "ANALYSIS RESULT",
+        "极轴状态": "POLAR ALIGN STATE",
+        "直播配置": "STREAMING CONFIG"
+      }
+    };
+
+    const TEXT_REPLACE = {
+      zh: [],
+      en: [
+        [/^(\d+)\s*项（另有\s*(\d+)\s*项未展开）$/g, "$1 ITEMS ($2 TRUNCATED)"],
+        [/^(\d+)\/(\d+)\s*开启$/g, "$1/$2 ON"],
+        [/^(\d+)\s*个字段$/g, "$1 FIELDS"],
+        [/^(\d+)\s*个调焦器$/g, "$1 FOCUSER(S)"],
+        [/^(\d+)\s*个天体$/g, "$1 OBJECTS"],
+        [/^(\d+)\s*台$/g, "$1 DEVICES"],
+        [/^(\d+)\s*路$/g, "$1 CHANNELS"],
+        [/^(\d+)\s*槽位$/g, "$1 SLOTS"],
+        [/^(\d+)\s*项启用$/g, "$1 ENABLED"],
+        [/^(\d+)\s*项$/g, "$1 ITEMS"],
+        [/^(\d+)\s*个$/g, "$1 ITEMS"],
+        [/^(\d+)\s*星$/g, "$1 STARS"],
+        [/项目\s*(\d+)/g, "ITEM_$1"],
+        [/剩余\s*([0-9.]+)%/g, "FREE $1%"],
+        [/焦距\s*([0-9.]+)\s*mm\s*·\s*传感器\s*([0-9×]+)/gi, "FOCAL $1 MM · SENSOR $2"],
+        [/状态\s+([A-Za-z0-9_-]+)/g, "STATE $1"],
+        [/当前\s+/g, "CURRENT "],
+        [/已连接/g, "CONNECTED"],
+        [/未成功/g, "FAIL"],
+        [/成功/g, "OK"],
+        [/启用/g, "ENABLED"],
+        [/关闭/g, "OFF"],
+        [/开启/g, "ON"],
+        [/是/g, "YES"],
+        [/否/g, "NO"]
+      ]
+    };
+
+    function t(key, vars = {}) {
+      const dict = UI_TEXT[AppState.lang] || UI_TEXT.en;
+      const fallback = (UI_TEXT.en && UI_TEXT.en[key]) || key;
+      return String(dict[key] || fallback).replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? "");
+    }
+
+    function localizeText(value) {
+      if (value === null || value === undefined) return value;
+      let text = String(value);
+      if (!text) return text;
+      const dict = TEXT_EXACT[AppState.lang] || {};
+      if (Object.prototype.hasOwnProperty.call(dict, text)) return dict[text];
+      for (const [pattern, replacement] of (TEXT_REPLACE[AppState.lang] || [])) {
+        text = text.replace(pattern, replacement);
+      }
+      return text;
+    }
+
+    function escapeText(value) {
+      return escapeHtml(localizeText(value));
+    }
+
+    function categoryLabel(category) {
+      if (!category) return t("unknownValue");
+      return (CATEGORY_LABELS[AppState.lang] && CATEGORY_LABELS[AppState.lang][category.id]) || localizeText(category.label);
+    }
+
+    function itemLabel(item) {
+      return item ? localizeText(item.label) : t("unknownValue");
+    }
+
+    function displayText(value) {
+      return localizeText(fmt(value));
+    }
+
+    function themeModeLabel() {
+      return AppState.theme === "light" ? t("themeLight") : t("themeDark");
+    }
+
+    function applyTheme() {
+      AppState.theme = AppState.theme === "light" ? "light" : "dark";
+      document.documentElement.dataset.theme = AppState.theme;
+      document.documentElement.style.colorScheme = AppState.theme;
+    }
+
+    function renderStaticChrome() {
+      document.documentElement.lang = AppState.lang === "zh" ? "zh-CN" : "en";
+      document.title = t("appTitle");
+      const inject = $("inject-log");
+      const clear = $("clear-log");
+      const lang = $("btn-top-lang");
+      const theme = $("btn-theme");
+      const inspectorTitle = $("inspector-title");
+      const stdoutTitle = $("stdout-title");
+      if (inject) inject.textContent = t("injectLog");
+      if (clear) clear.textContent = t("clearBuffer");
+      if (inspectorTitle) inspectorTitle.textContent = localizeText("CONTROL BUS");
+      if (stdoutTitle) stdoutTitle.textContent = localizeText("STDOUT");
+      if (lang) {
+        const langCore = lang.querySelector(".lang-core");
+        if (langCore) langCore.textContent = AppState.lang === "zh" ? "文" : "A";
+        lang.setAttribute("title", AppState.lang === "zh" ? "切换到 English" : "Switch to 中文");
+        lang.setAttribute("aria-label", AppState.lang === "zh" ? "切换到 English" : "Switch to 中文");
+      }
+      if (theme) {
+        theme.dataset.mode = AppState.theme;
+        theme.setAttribute("aria-pressed", AppState.theme === "dark" ? "true" : "false");
+        theme.setAttribute("title", AppState.theme === "dark" ? "切换到浅色主题" : "切换到深色主题");
+        theme.setAttribute("aria-label", AppState.theme === "dark" ? "切换到浅色主题" : "切换到深色主题");
+      }
+    }
+
+    function renderTopDeviceSelect() {
+      const select = $("device-select");
+      if (!select) return;
+      const devices = (AppState.data && Array.isArray(AppState.data.devices) ? AppState.data.devices : []).slice();
+      const current = currentDeviceName();
+      if (current && !devices.some((device) => device.name === current)) {
+        devices.push({ name: current, ip: "", enabled: true });
+      }
+      select.innerHTML = devices.map((device) => {
+        const selected = device.name === current ? " selected" : "";
+        return `<option value="${escapeHtml(device.name)}"${selected}>${escapeHtml(device.name)}</option>`;
+      }).join("");
+    }
+
+    function renderControlState(payload) {
+      AppState.controlState = payload || null;
+      const indicator = $("control-indicator");
+      const roleSelect = $("role-select");
+      if (!indicator || !roleSelect) return;
+      const holder = payload && payload.controller ? payload.controller : null;
+      const heldBySelf = Boolean(payload && payload.held_by_self);
+      const desiredRole = roleForDevice(currentDeviceName());
+      indicator.className = "control-indicator";
+      if (!holder) {
+        indicator.textContent = AppState.lang === "zh" ? "主控空闲" : "FREE";
+        indicator.classList.add("free");
+      } else if (heldBySelf) {
+        indicator.textContent = AppState.lang === "zh" ? "当前主控" : "CONTROL";
+        indicator.classList.add("self");
+      } else {
+        indicator.textContent = AppState.lang === "zh"
+          ? `主控中 · ${holder.display_name || holder.client_ip || "其他会话"}`
+          : `LOCKED · ${holder.display_name || holder.client_ip || "OTHER"}`;
+        indicator.classList.add("busy");
+      }
+      roleSelect.value = heldBySelf ? "controller" : desiredRole;
+      roleSelect.disabled = !!AppState.roleBusy;
+    }
+
+    async function fetchControlState() {
+      const params = new URLSearchParams({
+        device: currentDeviceName(),
+        session_id: AppState.sessionId,
+      });
+      const response = await fetch(`/api/control-role?${params.toString()}`, { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+      renderControlState(payload);
+      return payload;
+    }
+
+    async function syncRole(role, silent = false, deviceName = currentDeviceName()) {
+      AppState.roleBusy = true;
+      renderControlState(AppState.controlState);
+      try {
+        const response = await fetch("/api/control-role", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            device: deviceName,
+            session_id: AppState.sessionId,
+            session_label: AppState.sessionLabel,
+            role,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+        setRoleForDevice(deviceName, payload.held_by_self ? "controller" : "monitor");
+        if (deviceName === currentDeviceName()) renderControlState(payload);
+        if (!silent) {
+          addLog(
+            payload.held_by_self ? "OK" : "WARN",
+            payload.held_by_self
+              ? (AppState.lang === "zh" ? `${deviceName} 已进入主控` : `${deviceName} CONTROLLER GRANTED`)
+              : (AppState.lang === "zh" ? `${deviceName} 已切回监控` : `${deviceName} RETURNED TO MONITOR`)
+          );
+        }
+        return payload;
+      } catch (error) {
+        setRoleForDevice(deviceName, "monitor");
+        if (deviceName === currentDeviceName()) await fetchControlState().catch(() => {});
+        if (!silent) addLog("WARN", String(error.message || error));
+        throw error;
+      } finally {
+        AppState.roleBusy = false;
+        renderControlState(AppState.controlState);
+      }
+    }
+
+    async function refreshControlLease() {
+      if (!currentDeviceName()) return;
+      for (const deviceName of controllerDevices()) {
+        try {
+          await syncRole("controller", true, deviceName);
+        } catch (_) {}
+      }
+      await fetchControlState().catch(() => {});
+    }
+
+    function startControlPolling() {
+      if (AppState.controlTimer) clearInterval(AppState.controlTimer);
+      AppState.controlTimer = setInterval(() => {
+        refreshControlLease().catch(() => {});
+      }, 10000);
+    }
+
+    function releaseControlBeacon(deviceName) {
+      if (!navigator.sendBeacon || roleForDevice(deviceName) !== "controller" || !deviceName) return;
+      const blob = new Blob([JSON.stringify({
+        device: deviceName,
+        session_id: AppState.sessionId,
+        session_label: AppState.sessionLabel,
+        role: "monitor",
+      })], { type: "application/json" });
+      navigator.sendBeacon("/api/control-role", blob);
+    }
+
+    function releaseAllControlBeacons() {
+      controllerDevices().forEach((deviceName) => releaseControlBeacon(deviceName));
+    }
+
+    function switchLanguage() {
+      AppState.lang = AppState.lang === "zh" ? "en" : "zh";
+      StorageBridge.set("asiair-monitor-lang", AppState.lang);
+      setClock();
+      renderApp();
+      renderLogs(false);
+      addLog("INFO", t("logLangSwitched"));
+    }
+
+    function switchTheme() {
+      AppState.theme = AppState.theme === "dark" ? "light" : "dark";
+      StorageBridge.set("asiair-monitor-theme", AppState.theme);
+      applyTheme();
+      renderApp();
+      renderLogs(false);
+      addLog("INFO", t("logThemeSwitched", { mode: themeModeLabel() }));
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function fmt(value, fallback = "—") {
+      if (value === null || value === undefined || value === "") return fallback;
+      if (typeof value === "boolean") return value ? t("yesValue") : t("noValue");
+      if (Array.isArray(value)) return value.join(", ");
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
+    }
+
+    function fmtLatency(value) {
+      if (value === null || value === undefined || value === "") return "—";
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "—";
+      return `${Math.round(n)} ms`;
+    }
+
+    function fmtRate(value) {
+      if (value === null || value === undefined || value === "") return localizeText("pending_sample");
+      const n = Number(value);
+      if (!Number.isFinite(n)) return localizeText("pending_sample");
+      const units = ["B/s", "KB/s", "MB/s", "GB/s"];
+      let scaled = Math.max(n, 0);
+      let index = 0;
+      while (scaled >= 1024 && index < units.length - 1) {
+        scaled /= 1024;
+        index += 1;
+      }
+      const digits = index === 0 ? 0 : scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2;
+      return `${scaled.toFixed(digits)} ${units[index]}`;
+    }
+
+    function nowStamp() {
+      return new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    }
+
+    function setClock() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      $("clock").textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${t("local")}`;
+    }
+
+    function addLog(level, message) {
+      AppState.logs.push({ time: nowStamp(), level, message });
+      if (AppState.logs.length > AppState.logBufferLimit) {
+        AppState.logs.splice(0, AppState.logs.length - AppState.logBufferLimit);
+      }
+      renderLogs(true);
+    }
+
+    function renderLogs(scrollBottom = false) {
+      const target = $("stdout-lines");
+      target.innerHTML = AppState.logs.map((line) => `
+        <div class="log-line">
+          <span class="log-time">${escapeHtml(line.time)}</span>
+          <span class="${levelClass(line.level)}">[${escapeHtml(line.level)}]</span>
+          <span class="log-msg">${escapeHtml(line.message)}</span>
+        </div>
+      `).join("");
+
+      requestAnimationFrame(() => {
+        updateRetroScrollbars();
+        if (scrollBottom) {
+          const viewport = document.querySelector("#stdout-scroll .scroll-viewport");
+          if (viewport) viewport.scrollTop = viewport.scrollHeight;
+        }
+      });
+    }
+
+    function levelClass(level) {
+      if (level === "OK") return "status status-ok";
+      if (level === "INFO") return "status status-info";
+      if (level === "WARN") return "status status-warn";
+      if (level === "ERR" || level === "DANGER") return "status status-danger";
+      return "status status-muted";
+    }
+
+    function statusTag(type, label) {
+      const cls = {
+        ok: "status-ok",
+        active: "status-info",
+        info: "status-info",
+        warn: "status-warn",
+        danger: "status-danger",
+        err: "status-danger",
+        standby: "status-muted",
+        muted: "status-muted"
+      }[type] || "status-muted";
+      const rawLabel = String(label).toUpperCase();
+      const text = localizeText(rawLabel);
+      return `<span class="status ${cls}">[ ${escapeHtml(text)} ]</span>`;
+    }
+
+    function rowAction(active = false) {
+      return `<span class="row-action${active ? " active" : ""}" aria-hidden="true">&rsaquo;</span>`;
+    }
+
+    function itemKey(item) {
+      return `${item.category}|${item.port}|${item.method}|${JSON.stringify(item.params)}`;
+    }
+
+    function allItems() {
+      return AppState.data.categories.flatMap((category) => category.items.map((item) => ({ category, item })));
+    }
+
+    function getCategory(id = AppState.categoryId) {
+      return AppState.data.categories.find((category) => category.id === id) || null;
+    }
+
+    function getItem(key = AppState.itemKey) {
+      return allItems().find((entry) => itemKey(entry.item) === key) || null;
+    }
+
+    function categoryHealth(category) {
+      if (!category) return { type: "standby", label: "UNKNOWN" };
+      if (category.fail_count > 0) return { type: "danger", label: "FAULT" };
+      if (category.ready_count <= 0) return { type: "standby", label: "PENDING" };
+      return { type: "ok", label: "OK" };
+    }
+
+    function itemHealth(item) {
+      if (!item) return { type: "standby", label: "UNKNOWN" };
+      if (item.pending) return { type: "warn", label: "PENDING" };
+      if (item.ok) return { type: "ok", label: "OK" };
+      return { type: "danger", label: "FAIL" };
+    }
+
+    function asciiBar(done, total, width = 14) {
+      const d = Number(done);
+      const t = Number(total);
+      if (!Number.isFinite(d) || !Number.isFinite(t) || t <= 0) {
+        return "[------------] --%";
+      }
+      const ratio = Math.max(0, Math.min(1, d / t));
+      const filled = Math.max(0, Math.min(width, Math.round(ratio * width)));
+      const body = "=".repeat(Math.max(0, filled - 1)) + (filled > 0 && filled < width ? ">" : filled >= width ? "=" : ">") + " ".repeat(Math.max(0, width - filled));
+      return `[${body}] ${Math.round(ratio * 100)}%`;
+    }
+
+    function percentFromMb(free, total) {
+      const f = Number(free);
+      const t = Number(total);
+      if (!Number.isFinite(f) || !Number.isFinite(t) || t <= 0) return "—";
+      return `${Math.round((f / t) * 100)}%`;
+    }
+
+    function progressText(pair) {
+      if (!pair) return "—";
+      return `${fmt(pair.done)}/${fmt(pair.total)}`;
+    }
+
+    function buildPairs(rows) {
+      return `<div class="data-pairs">${rows.map((row) => `
+        <div class="pair">
+          <span class="pair-key">${escapeText(row[0])}</span>
+          <span class="pair-dots"></span>
+          <span class="pair-value ${row[2] || ""}">${escapeText(fmt(row[1]))}</span>
+        </div>
+      `).join("")}</div>`;
+    }
+
+    function renderBlock(title, hint, body, extraClass = "") {
+      return `<section class="terminal-block ${extraClass}">
+        <div class="block-title"><span>${escapeText(title)}</span><span>${escapeText(hint || "")}</span></div>
+        ${body}
+      </section>`;
+    }
+
+    function renderDeviceRail(devices) {
+      return `<div class="device-rail">${devices.map((device) => {
+        const active = device.name === AppState.deviceName;
+        return `<button class="device-node${active ? " is-active" : ""}" type="button" data-device="${escapeHtml(device.name)}" aria-pressed="${active ? "true" : "false"}">
+          <span class="node-led${device.enabled ? "" : " off"}" aria-hidden="true"></span>
+          <span class="node-main">
+            <span class="node-name">${escapeHtml(device.name)}</span>
+            <span class="node-ip">${escapeHtml(device.ip)}</span>
+          </span>
+          <span class="node-caret" aria-hidden="true">&rsaquo;</span>
+        </button>`;
+      }).join("")}</div>`;
+    }
+
+    function renderStats(stats) {
+      return `<div class="stat-grid">${stats.map((stat) => `
+        <div class="stat">
+          <span class="stat-label">${escapeText(stat[0])}</span>
+          <strong class="stat-value">${escapeText(fmt(stat[1]))}</strong>
+        </div>
+      `).join("")}</div>`;
+    }
+
+    function renderTable(columns, rows, options = {}) {
+      const widths = options.widths || [];
+      const colgroup = widths.length ? `<colgroup>${widths.map((w) => `<col style="width:${w}">`).join("")}</colgroup>` : "";
+      const body = rows.map((row) => {
+        const attrs = [];
+        if (row.key) attrs.push(`data-key="${escapeHtml(row.key)}"`);
+        if (row.cat) attrs.push(`data-cat="${escapeHtml(row.cat)}"`);
+        if (row.clickable) {
+          attrs.push(`class="clickable${row.selected ? " selected" : ""}"`);
+          attrs.push('tabindex="0"');
+          attrs.push('role="button"');
+          if (row.ariaLabel) attrs.push(`aria-label="${escapeHtml(row.ariaLabel)}"`);
+        } else if (row.selected) attrs.push(`class="selected"`);
+        return `<tr ${attrs.join(" ")}>
+          <td class="prefix">&gt;</td>
+          ${row.cells.map((cell, index) => {
+            const label = columns[index] || "";
+            const cls = label ? "" : ' class="action-cell"';
+            return `<td${cls}><span class="cell-label">${escapeText(label)}</span><span class="cell-value">${cell}</span></td>`;
+          }).join("")}
+        </tr>`;
+      }).join("");
+
+      return `<table class="terminal-table">
+        ${colgroup}
+        <thead><tr><th class="prefix"></th>${columns.map((col) => `<th>${escapeText(col)}</th>`).join("")}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>`;
+    }
+
+    function bindRowActivation(selector, handler) {
+      document.querySelectorAll(selector).forEach((row) => {
+        const activate = () => handler(row);
+        row.addEventListener("click", activate);
+        row.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          activate();
+        });
+      });
+    }
+
+    function setRoute(view, categoryId = null, itemKeyValue = null, silent = false) {
+      AppState.view = view;
+      AppState.categoryId = categoryId;
+      AppState.itemKey = itemKeyValue;
+      AppState.routeSerial += 1;
+      renderApp();
+      if (!silent) {
+        const path = routeLabel().replaceAll(" // ", "/").replaceAll(" / ", "/");
+        addLog("INFO", t("routeMounted", { path }));
+      }
+    }
+
+    function routeLabel() {
+      const root = t("root");
+      if (AppState.view === "category") {
+        const category = getCategory(AppState.categoryId);
+        return `${root} // ${category ? categoryLabel(category) : localizeText("CATEGORY")}`;
+      }
+      if (AppState.view === "item") {
+        const entry = getItem();
+        const categoryName = entry ? categoryLabel(entry.category) : localizeText("CATEGORY");
+        const itemName = entry ? itemLabel(entry.item) : localizeText("ITEM");
+        return `${root} // ${categoryName} / ${itemName}`;
+      }
+      return root;
+    }
+
+    function renderBreadcrumbs() {
+      $("breadcrumbs").innerHTML = `
+        <a class="crumb is-active" href="/monitor-minterm?device=${encodeURIComponent(AppState.deviceName || "")}" data-nav="overview">${escapeHtml(t("root"))}</a>
+        <a class="crumb" href="/camera?device=${encodeURIComponent(AppState.deviceName || "")}">${escapeHtml(t("imagePreview"))}</a>
+        <a class="crumb" href="/materials?device=${encodeURIComponent(AppState.deviceName || "")}">${escapeHtml(t("materials"))}</a>
+      `;
+      const overview = $("breadcrumbs").querySelector("[data-nav='overview']");
+      if (overview) {
+        overview.addEventListener("click", (event) => {
+          event.preventDefault();
+          setRoute("root");
+        });
+      }
+    }
+
+    function renderToolbar() {
+      const refreshLabel = AppState.refreshRun ? t("refreshing") : t("rescanRoot");
+      let html = `
+        <button id="btn-refresh" type="button" ${AppState.refreshRun ? "disabled" : ""}>${refreshLabel}</button>
+        <button id="btn-pause" type="button">${AppState.paused ? t("resumePoll") : t("pausePoll")}</button>
+      `;
+
+      if (AppState.view === "category") {
+        html += `
+          <button id="btn-fail-only" class="warn" type="button">${AppState.failOnly ? t("showAll") : t("failOnly")}</button>
+          <button id="btn-raw-mode" type="button">${AppState.rawMode ? t("compactMode") : t("rawMode")}</button>
+        `;
+      }
+
+      if (AppState.view === "item") {
+        html += `
+          <button id="btn-category" type="button">${t("backCategory")}</button>
+          <button id="btn-emit-item" type="button">${t("emitItemLog")}</button>
+        `;
+      }
+
+      html += `<span class="spacer"></span><span class="muted">${t("deviceLabel").toUpperCase()}=${escapeHtml(AppState.deviceName || "UNKNOWN")}</span>`;
+      $("toolbar").innerHTML = html;
+
+      $("btn-refresh").addEventListener("click", requestFullRefresh);
+      $("btn-pause").addEventListener("click", () => {
+        AppState.paused = !AppState.paused;
+        addLog(AppState.paused ? "WARN" : "OK", AppState.paused ? t("logPollPaused") : t("logPollResumed"));
+        renderApp();
+        if (!AppState.paused) loadLiveData({ log: false });
+      });
+
+      const failBtn = $("btn-fail-only");
+      if (failBtn) failBtn.addEventListener("click", () => {
+        AppState.failOnly = !AppState.failOnly;
+        renderApp();
+        addLog("INFO", t("logFilter", { mode: AppState.failOnly ? "FAIL_ONLY" : "ALL" }));
+      });
+
+      const rawBtn = $("btn-raw-mode");
+      if (rawBtn) rawBtn.addEventListener("click", () => {
+        AppState.rawMode = !AppState.rawMode;
+        renderApp();
+        addLog("INFO", t("logRenderMode", { mode: AppState.rawMode ? "RAW" : "COMPACT" }));
+      });
+
+      const catBtn = $("btn-category");
+      if (catBtn) catBtn.addEventListener("click", () => {
+        const entry = getItem();
+        setRoute("category", entry ? entry.category.id : AppState.categoryId);
+      });
+
+      const emitBtn = $("btn-emit-item");
+      if (emitBtn) emitBtn.addEventListener("click", () => {
+        const entry = getItem();
+        if (entry) addLog(entry.item.ok ? "OK" : "ERR", t("logItemReturn", {
+          method: entry.item.method,
+          code: fmt(entry.item.code),
+          label: itemLabel(entry.item)
+        }));
+      });
+    }
+
+    function renderRoot() {
+      const d = AppState.data;
+      const h = d.highlights || {};
+      const s = d.summary || {};
+      const storage = h.storage_free_mb && h.storage_total_mb
+        ? `${Math.round(h.storage_free_mb / 1024)}GB FREE / ${Math.round(h.storage_total_mb / 1024)}GB TOTAL`
+        : "—";
+
+      $("view-title").textContent = t("rootIndex");
+      $("view-subtitle").textContent = t("controlResources");
+
+      const summary = renderBlock("ROOT SUMMARY", "LIVE API / READ ONLY",
+        renderStats([
+          ["ITEMS SHOWN", s.ready_count],
+          ["OK", s.ok_count],
+          ["FAIL", s.fail_count]
+        ]) +
+        buildPairs([
+          ["DEVICE", `${d.device.name} · ${d.device.ip}`, "ok"],
+          ["GENERATED_AT", d.generated_at],
+          ["POLL_INTERVAL", `${d.poll_interval_ms} MS`],
+          ["SAFETY_MODE", d.safety && d.safety.mode ? d.safety.mode : "read-only-live", "warn"]
+        ]));
+
+      const capture = renderBlock("CAPTURE CHANNEL", "CURRENT HIGHLIGHTS",
+        buildPairs([
+          ["PAGE", h.page || "—"],
+          ["CAPTURE_STATE", h.capture_state || "—", h.capture_state === "expose" ? "ok" : ""],
+          ["TARGET", h.target_name || "—", "ok"],
+          ["TARGET_PROGRESS", `${progressText(h.target_progress)}  ${asciiBar(h.target_progress && h.target_progress.done, h.target_progress && h.target_progress.total)}`],
+          ["SEQUENCE", `${fmt(h.sequence_type)}  ${progressText(h.sequence_progress)}  ${asciiBar(h.sequence_progress && h.sequence_progress.done, h.sequence_progress && h.sequence_progress.total)}`],
+          ["CAMERA", `${fmt(h.camera_name)} · ${fmt(h.camera_state)}`],
+          ["EXPOSURE_BIN", `${fmt(h.exposure_seconds)}S · BIN ${fmt(h.bin)}`],
+          ["TEMP_COOLER", `${fmt(h.temperature_c)}°C · ${fmt(h.cooler_power_percent)}%`],
+          ["STORAGE", `${storage} · FREE ${percentFromMb(h.storage_free_mb, h.storage_total_mb)}`]
+        ]));
+
+      const rows = d.categories.map((cat) => {
+        const health = categoryHealth(cat);
+        return {
+          cat: cat.id,
+          clickable: true,
+          ariaLabel: categoryLabel(cat),
+          cells: [
+            escapeHtml(cat.id),
+            escapeText(categoryLabel(cat)),
+            statusTag(health.type, health.label),
+            escapeHtml(`${cat.ready_count} 项`),
+            escapeHtml(String(cat.ok_count)),
+            escapeHtml(String(cat.fail_count)),
+            `<span class="ascii">${asciiBar(cat.ok_count, Math.max(cat.ready_count, 1), 10)}</span>`,
+            rowAction()
+          ]
+        };
+      });
+
+      const categoryCount = AppState.lang === "zh" ? `${d.categories.length} 个分类` : `${d.categories.length} GROUPS`;
+      const resourceMap = renderBlock("RESOURCE MAP", categoryCount,
+        renderTable(["RESOURCE", "LABEL", "STATUS", "READY", "OK", "FAIL", "LOAD", ""], rows, {
+          widths: ["26px", "12%", "21%", "12%", "9%", "7%", "7%", "16%", "14%"]
+        }));
+
+      const deviceRegistry = renderBlock("DEVICE", `${d.device.name} · ${d.device.ip}`, renderDeviceRail(d.devices));
+
+      $("main-content").innerHTML = `${deviceRegistry}<div class="two-col">${summary}${capture}</div>${resourceMap}`;
+
+      bindRowActivation("tr[data-cat]", (row) => setRoute("category", row.dataset.cat));
+
+      document.querySelectorAll("[data-device]").forEach((button) => {
+        button.addEventListener("click", () => requestDeviceFocus(button.dataset.device));
+      });
+    }
+
+    function renderCategory() {
+      const cat = getCategory();
+      if (!cat) {
+        $("main-content").innerHTML = `<div class="empty">${escapeText(t("categoryNotFound"))}</div>`;
+        return;
+      }
+
+      $("view-title").textContent = categoryLabel(cat);
+      $("view-subtitle").textContent = `已返回 ${cat.ready_count} 项`;
+
+      const items = AppState.failOnly ? cat.items.filter((item) => !item.ok || item.pending) : cat.items;
+      const rows = items.map((item) => {
+        const health = itemHealth(item);
+        const params = item.params === null || item.params === undefined ? t("noneValue").toUpperCase() : JSON.stringify(item.params);
+        const age = item.age_seconds === null || item.age_seconds === undefined ? "—" : `${item.age_seconds}S`;
+        return {
+          key: itemKey(item),
+          clickable: true,
+          ariaLabel: itemLabel(item),
+          cells: [
+            statusTag(health.type, health.label),
+            escapeText(itemLabel(item)),
+            `<span class="inline-code">${escapeHtml(item.method)}</span>`,
+            escapeText(displayText(item.display_value)),
+            escapeText(displayText(item.display_detail || "")),
+            escapeHtml(age),
+            escapeHtml(`${item.interval_seconds}S`),
+            escapeHtml(String(item.port)),
+            escapeHtml(params),
+            rowAction()
+          ]
+        };
+      });
+
+      const stats = renderBlock("CATEGORY TELEMETRY", "GROUP SUMMARY",
+        renderStats([
+          ["READY", cat.ready_count],
+          ["OK", cat.ok_count],
+          ["FAIL", cat.fail_count],
+          ["ITEMS SHOWN", items.length]
+        ]));
+
+      const itemCount = AppState.lang === "zh" ? `${items.length} 个监测项` : `${items.length} ITEMS`;
+      const itemMap = renderBlock("ENDPOINT TABLE", AppState.rawMode ? "RAW MODE ENABLED" : itemCount,
+        rows.length
+          ? renderTable(["STATUS", "LABEL", "METHOD", "VALUE", "DETAIL", "AGE", "INTERVAL", "PORT", "PARAMS", ""], rows, {
+              widths: ["26px", "9%", "17%", "15%", "14%", "14%", "7%", "7%", "5%", "10%", "6%"]
+            })
+          : `<div class="empty">${escapeText(t("noEndpointMatch"))}</div>`);
+
+      let rawDump = "";
+      if (AppState.rawMode) {
+        rawDump = renderBlock("CATEGORY RAW BUFFER", "JSON SNAPSHOT",
+          `<pre class="raw">${escapeHtml(JSON.stringify(cat, null, 2))}</pre>`);
+      }
+
+      $("main-content").innerHTML = `${stats}${itemMap}${rawDump}`;
+
+      bindRowActivation("tr[data-key]", (row) => setRoute("item", cat.id, row.dataset.key));
+    }
+
+    function renderDisplayTable(table) {
+      if (!table || !Array.isArray(table.columns) || !Array.isArray(table.rows) || !table.rows.length) {
+        return "";
+      }
+      const rows = table.rows.map((row) => ({
+        cells: table.columns.map((_, index) => escapeText(fmt(row[index], "")))
+      }));
+      const rowCount = AppState.lang === "zh" ? `${table.rows.length} 行` : `${table.rows.length} ROWS`;
+      return renderBlock(table.caption || "TABLE", rowCount,
+        renderTable(table.columns, rows));
+    }
+
+    function renderItem() {
+      const entry = getItem();
+      if (!entry) {
+        $("main-content").innerHTML = `<div class="empty">${escapeText(t("itemNotFound"))}</div>`;
+        return;
+      }
+
+      const { category, item } = entry;
+      const health = itemHealth(item);
+      const params = item.params === null || item.params === undefined ? t("noneValue").toUpperCase() : JSON.stringify(item.params);
+      $("view-title").textContent = item.method;
+      $("view-subtitle").textContent = `${categoryLabel(category)} / ${t("endpointDetail")}`;
+
+      const rows = Array.isArray(item.display_rows) ? item.display_rows : [];
+      const visibleRows = rows.length
+        ? buildPairs(rows.map((row) => [row.label, row.value]))
+        : `<div class="notice">${escapeText("NO DISPLAY ROWS PROVIDED; RAW RETURN VALUE IS AVAILABLE BELOW.")}</div>`;
+
+      const overview = renderBlock("ENDPOINT STATUS", item.label,
+        buildPairs([
+          ["STATUS", `[ ${health.label} ]`, health.type === "danger" ? "danger" : health.type === "warn" ? "warn" : "ok"],
+          ["DISPLAY_VALUE", item.display_value],
+          ["DISPLAY_DETAIL", item.display_detail || "—"],
+          ["CATEGORY", `${category.id} · ${categoryLabel(category)}`],
+          ["METHOD", item.method],
+          ["PARAMS", params],
+          ["PORT", item.port],
+          ["CODE", item.code],
+          ["ELAPSED", `${fmt(item.seconds)}S`],
+          ["INTERVAL", `${fmt(item.interval_seconds)}S`],
+          ["UPDATED_AT", item.updated_at || "—"],
+          ["DEVICE", `${item.device} · ${item.ip}`]
+        ]));
+
+      const pairCount = AppState.lang === "zh" ? `${rows.length} 个字段` : `${rows.length} PAIRS`;
+      const dict = renderBlock("DATA DICTIONARY", pairCount, visibleRows);
+      const table = renderDisplayTable(item.display_table);
+      const raw = renderBlock("RAW RETURN BUFFER", "JSON / READ ONLY",
+        `<pre class="raw">${escapeHtml(JSON.stringify(item.result !== undefined ? item.result : item.error, null, 2))}</pre>`);
+
+      $("main-content").innerHTML = `${overview}${dict}${table}${raw}`;
+    }
+
+    function renderInspector() {
+      const d = AppState.data;
+      const s = d.summary || {};
+      const category = AppState.view === "category" ? getCategory() : (AppState.view === "item" && getItem() ? getItem().category : null);
+      const entry = AppState.view === "item" ? getItem() : null;
+      const fault = s.fail_count > 0 ? "CRITICAL" : "NOMINAL";
+      const faultClass = s.fail_count > 0 ? "danger" : "ok";
+      $("inspector-path").textContent = routeLabel().replace(" // ", " / ");
+
+      let pairs = [
+        ["ACTIVE_VIEW", AppState.view.toUpperCase(), "ok"],
+        ["DEVICE", AppState.deviceName || d.device.name, "ok"],
+        ["LOG_BUFFER", `${AppState.logs.length}/${AppState.logBufferLimit}`],
+        ["FAULT_DOMAIN", fault, faultClass]
+      ];
+
+      if (AppState.lastLiveError) {
+        pairs.push(["LIVE_API_ERROR", AppState.lastLiveError, "danger"]);
+      }
+
+      if (category) {
+        pairs = pairs.concat([
+          ["CATEGORY_ID", category.id, "ok"],
+          ["CATEGORY_LABEL", categoryLabel(category)],
+          ["CATEGORY_READY", category.ready_count],
+          ["CATEGORY_OK", category.ok_count, "ok"],
+          ["CATEGORY_FAIL", category.fail_count, category.fail_count > 0 ? "danger" : "ok"]
+        ]);
+      }
+
+      if (entry) {
+        pairs = pairs.concat([
+          ["ITEM_METHOD", entry.item.method],
+          ["ITEM_LABEL", itemLabel(entry.item)],
+          ["ITEM_STATUS", entry.item.ok ? "OK" : "FAIL", entry.item.ok ? "ok" : "danger"],
+          ["ITEM_PORT", entry.item.port],
+          ["ITEM_CODE", entry.item.code],
+          ["ITEM_INTERVAL", `${entry.item.interval_seconds}S`]
+        ]);
+      }
+
+      const refresh = AppState.refreshRun;
+      const refreshPairs = refresh
+        ? [
+            ["REFRESH_STATE", "ACTIVE", "warn"],
+            ["REFRESH_PROGRESS", `已尝试 ${refresh.done} 项  ${asciiBar(refresh.done, refresh.total)}`, "warn"],
+            ["CURRENT_ENDPOINT", refresh.current || "—"]
+          ]
+        : [
+            ["REFRESH_STATE", "IDLE", "ok"],
+            ["REFRESH_PROGRESS", asciiBar(1, 1), "ok"]
+          ];
+
+      const link = d.link || {};
+      const ping = link.ping || {};
+      const rpc = link.rpc || {};
+      const smb = link.smb || {};
+      const transfer = link.transfer || {};
+      const tailscale = link.tailscale || {};
+      const linkClass = link.quality === "danger" ? "danger" : link.quality === "warn" ? "warn" : "ok";
+      const linkPairs = [
+        ["LINK_STATE", link.status || "—", linkClass],
+        ["PING_MS", fmtLatency(ping.latency_ms), ping.ok ? "ok" : "danger"],
+        ["RPC_MS", fmtLatency(rpc.latency_ms), rpc.ok ? "ok" : "warn"],
+        ["SMB_PORT", smb.ok ? `${fmt(smb.port)} OK` : `${fmt(smb.port)} --`, smb.ok ? "ok" : "warn"],
+        ["VPN_RX", fmtRate(tailscale.receive_bytes_per_second), tailscale.ok ? "ok" : "warn"],
+        ["VPN_TX", fmtRate(tailscale.send_bytes_per_second), tailscale.ok ? "ok" : "warn"],
+        ["TRANSFER_STATE", transfer.active ? "transfer_active" : "transfer_idle", transfer.active ? "warn" : "ok"]
+      ];
+
+      $("inspector-content").innerHTML =
+        renderBlock("CONTROL BUS", "ROOT / SUMMARY", buildPairs(pairs)) +
+        renderBlock("REFRESH BUS", "ASCII PROGRESS", buildPairs(refreshPairs)) +
+        renderBlock("LINK STATUS", "ASIAIR LINK", buildPairs(linkPairs));
+    }
+
+    function renderApp() {
+      renderStaticChrome();
+      renderBreadcrumbs();
+      renderTopDeviceSelect();
+      renderControlState(AppState.controlState);
+      renderToolbar();
+      if (AppState.view === "category") renderCategory();
+      else if (AppState.view === "item") renderItem();
+      else renderRoot();
+      renderInspector();
+      requestAnimationFrame(updateRetroScrollbars);
+    }
+
+    function currentDeviceName() {
+      return AppState.deviceName || (AppState.data && AppState.data.device && AppState.data.device.name) || "";
+    }
+
+    function syncRefreshRun(progress, refreshing = false) {
+      const dataProgress = progress || {};
+      const total = Number(dataProgress.total || 0) || allItems().length || 1;
+      const done = Number(dataProgress.done || 0) || 0;
+      const active = Boolean(dataProgress.active);
+      AppState.refreshRun = active ? {
+        total,
+        done,
+        current: dataProgress.current || "BACKEND_REFRESH"
+      } : null;
+    }
+
+    function pruneRouteSelection() {
+      if (AppState.view === "category" && !getCategory(AppState.categoryId)) {
+        setRoute("root", null, null, true);
+      }
+      if (AppState.view === "item" && !getItem(AppState.itemKey)) {
+        if (getCategory(AppState.categoryId)) setRoute("category", AppState.categoryId, null, true);
+        else setRoute("root", null, null, true);
+      }
+    }
+
+    function liveApiUrl(force = false) {
+      const params = new URLSearchParams();
+      const device = currentDeviceName();
+      if (device) params.set("device", device);
+      if (force) params.set("force", "1");
+      const query = params.toString();
+      return query ? `${API_ENDPOINT}?${query}` : API_ENDPOINT;
+    }
+
+    async function loadLiveData(options = {}) {
+      const force = Boolean(options.force);
+      const log = options.log !== false;
+      if (AppState.requestInFlight) return;
+      if (AppState.paused && !force) return;
+      AppState.requestInFlight = true;
+      try {
+        const response = await fetch(liveApiUrl(force), { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok || payload.ok === false) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        AppState.data = payload;
+        AppState.deviceName = payload.device && payload.device.name ? payload.device.name : AppState.deviceName;
+        AppState.lastLiveError = null;
+        syncRefreshRun(payload.refresh_progress, payload.refreshing);
+        pruneRouteSelection();
+        renderApp();
+        if (!AppState.bootstrapped) {
+          AppState.bootstrapped = true;
+          initLogs();
+        } else if (log && force) {
+          addLog("OK", t("logSnapshotLoaded", {
+            ready: payload.summary ? payload.summary.ready_count : 0,
+            total: payload.summary ? payload.summary.total_count : 0
+          }));
+        }
+      } catch (error) {
+        AppState.lastLiveError = error && error.message ? error.message : String(error);
+        AppState.refreshRun = null;
+        renderApp();
+        addLog("ERR", `LIVE API ERROR: ${AppState.lastLiveError}`);
+      } finally {
+        AppState.requestInFlight = false;
+      }
+    }
+
+    function requestFullRefresh() {
+      if (AppState.requestInFlight || AppState.refreshRun) return;
+      const count = allItems().length || (AppState.data.summary && AppState.data.summary.total_count) || 0;
+      AppState.refreshRun = { total: Math.max(1, count), done: 0, current: "REQUEST_SENT" };
+      addLog("INFO", t("logFullScanStart", { count }));
+      renderApp();
+      loadLiveData({ force: true, log: false });
+    }
+
+    async function requestDeviceFocus(deviceName) {
+      if (!deviceName || deviceName === AppState.deviceName) return;
+      AppState.deviceName = deviceName;
+      AppState.desiredRole = roleForDevice(deviceName);
+      AppState.view = "root";
+      AppState.categoryId = null;
+      AppState.itemKey = null;
+      AppState.bootstrapped = false;
+      history.replaceState(null, "", `/monitor-minterm?device=${encodeURIComponent(AppState.deviceName)}`);
+      addLog("INFO", t("logDeviceFocus", { device: AppState.deviceName }));
+      loadLiveData({ force: false, log: false });
+      fetchControlState().catch(() => {});
+      renderApp();
+    }
+
+    function startLivePoll() {
+      if (AppState.tickTimer) clearInterval(AppState.tickTimer);
+      AppState.tickTimer = setInterval(() => {
+        loadLiveData({ log: false });
+      }, Math.max(1000, Number(AppState.data.poll_interval_ms || 1000)));
+    }
+
+    function initLogs() {
+      const d = AppState.data;
+      const h = d.highlights || {};
+      const s = d.summary || {};
+      addLog("OK", t("logSnapshotLoaded", { ready: s.ready_count || 0, total: s.total_count || 0 }));
+      addLog("INFO", `${t("deviceLabel").toUpperCase()} FOCUS ${d.device.name} @ ${d.device.ip}`);
+      addLog("INFO", t("logCaptureChannel", { state: fmt(h.capture_state), target: fmt(h.target_name), progress: progressText(h.target_progress) }));
+      if ((d.summary.fail_count || 0) > 0) addLog("ERR", t("logFaultNonempty", { fail: d.summary.fail_count }));
+      else addLog("OK", t("logFaultNominal"));
+    }
+
+    function initRetroScrollbars() {
+      document.querySelectorAll(".scroll-host").forEach((host) => {
+        if (host.dataset.scrollBound === "1") return;
+        host.dataset.scrollBound = "1";
+
+        const viewport = host.querySelector(".scroll-viewport");
+        const track = host.querySelector(".scroll-track");
+        const thumb = host.querySelector(".scroll-thumb");
+        const up = host.querySelector(".scroll-btn.up");
+        const down = host.querySelector(".scroll-btn.down");
+        let dragging = false;
+        let startY = 0;
+        let startScroll = 0;
+
+        const update = () => {
+          const scrollHeight = viewport.scrollHeight;
+          const clientHeight = viewport.clientHeight;
+          const maxScroll = Math.max(0, scrollHeight - clientHeight);
+          const trackHeight = track.clientHeight;
+          const ratio = scrollHeight > 0 ? clientHeight / scrollHeight : 1;
+          const disabled = maxScroll <= 1 || ratio >= 0.999;
+
+          host.classList.toggle("scroll-disabled", disabled);
+
+          const thumbHeight = disabled ? Math.max(28, trackHeight) : Math.max(28, Math.floor(trackHeight * ratio));
+          const maxTop = Math.max(0, trackHeight - thumbHeight);
+          const top = disabled ? 0 : Math.round((viewport.scrollTop / maxScroll) * maxTop);
+
+          thumb.style.height = `${thumbHeight}px`;
+          thumb.style.transform = `translateY(${top}px)`;
+        };
+
+        viewport.addEventListener("scroll", update);
+        up.addEventListener("click", () => viewport.scrollBy({ top: -64, behavior: "auto" }));
+        down.addEventListener("click", () => viewport.scrollBy({ top: 64, behavior: "auto" }));
+
+        track.addEventListener("click", (event) => {
+          if (event.target === thumb) return;
+          const rect = track.getBoundingClientRect();
+          const y = event.clientY - rect.top;
+          const thumbRect = thumb.getBoundingClientRect();
+          if (event.clientY < thumbRect.top) viewport.scrollBy({ top: -viewport.clientHeight * 0.85, behavior: "auto" });
+          else if (event.clientY > thumbRect.bottom) viewport.scrollBy({ top: viewport.clientHeight * 0.85, behavior: "auto" });
+          else if (y <= 0) viewport.scrollTop = 0;
+        });
+
+        thumb.addEventListener("mousedown", (event) => {
+          dragging = true;
+          startY = event.clientY;
+          startScroll = viewport.scrollTop;
+          document.body.style.userSelect = "none";
+          event.preventDefault();
+        });
+
+        window.addEventListener("mousemove", (event) => {
+          if (!dragging) return;
+          const scrollHeight = viewport.scrollHeight;
+          const clientHeight = viewport.clientHeight;
+          const maxScroll = Math.max(0, scrollHeight - clientHeight);
+          const trackHeight = track.clientHeight;
+          const thumbHeight = thumb.offsetHeight;
+          const maxTop = Math.max(1, trackHeight - thumbHeight);
+          const delta = event.clientY - startY;
+          viewport.scrollTop = startScroll + delta * (maxScroll / maxTop);
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (!dragging) return;
+          dragging = false;
+          document.body.style.userSelect = "";
+        });
+
+        if ("ResizeObserver" in window) {
+          const observer = new ResizeObserver(update);
+          observer.observe(viewport);
+          observer.observe(viewport.firstElementChild || viewport);
+        }
+
+        host._retroUpdate = update;
+        update();
+      });
+    }
+
+    function updateRetroScrollbars() {
+      document.querySelectorAll(".scroll-host").forEach((host) => {
+        if (host._retroUpdate) host._retroUpdate();
+      });
+    }
+
+    function bindGlobalActions() {
+      $("btn-top-lang").addEventListener("click", switchLanguage);
+      $("btn-theme").addEventListener("click", switchTheme);
+      $("role-select").addEventListener("change", async () => {
+        const requestedRole = $("role-select").value === "controller" ? "controller" : "monitor";
+        try {
+          await syncRole(requestedRole);
+        } catch (_) {
+          $("role-select").value = AppState.controlState && AppState.controlState.held_by_self ? "controller" : roleForDevice(currentDeviceName());
+        }
+      });
+      $("device-select").addEventListener("change", () => {
+        requestDeviceFocus($("device-select").value);
+      });
+
+      $("inject-log").addEventListener("click", () => {
+        const levels = ["INFO", "OK", "WARN"];
+        const level = levels[Math.floor(Math.random() * levels.length)];
+        const endpoints = allItems();
+        const endpoint = endpoints[Math.floor(Math.random() * endpoints.length)];
+        if (!endpoint) {
+          addLog("WARN", t("noEndpointMatch"));
+          return;
+        }
+        addLog(level, t("logManualTest", { category: endpoint.category.id, method: endpoint.item.method }));
+      });
+
+      $("clear-log").addEventListener("click", () => {
+        AppState.logs = [];
+        renderLogs(false);
+        addLog("WARN", t("logBufferCleared"));
+      });
+
+      window.addEventListener("resize", updateRetroScrollbars);
+      window.addEventListener("pagehide", releaseAllControlBeacons);
+      window.addEventListener("beforeunload", releaseAllControlBeacons);
+    }
+
+    function boot() {
+      applyTheme();
+      setClock();
+      AppState.clockTimer = setInterval(setClock, 1000);
+      AppState.desiredRole = roleForDevice(AppState.deviceName);
+      bindGlobalActions();
+      initRetroScrollbars();
+      renderApp();
+      startControlPolling();
+      refreshControlLease().catch(() => {});
+      loadLiveData({ log: false });
+      startLivePoll();
+      requestAnimationFrame(updateRetroScrollbars);
+    }
+
+    boot();
+  </script>
+</body>
+</html>
