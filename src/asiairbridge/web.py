@@ -126,6 +126,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.server.config.root / "docs" / "asiair-mount.html",
                     "text/html; charset=utf-8",
                 )
+            elif parsed.path == "/mount-3d":
+                self._send_file(
+                    self.server.config.root / "docs" / "asiair-mount-3d.html",
+                    "text/html; charset=utf-8",
+                )
             elif parsed.path == "/static/asiair-monitor-static-preview.html":
                 self._send_file(
                     self.server.config.root / "docs" / "asiair-monitor-static-preview.html",
@@ -188,7 +193,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(mount_status_response(self.server.config, device))
             elif parsed.path == "/api/mount-render":
                 query = parse_qs(parsed.query)
-                params = {k: query.get(k, [None])[0] for k in ("ra", "dec", "lst", "lat", "pier", "size")}
+                params = {k: query.get(k, [None])[0] for k in ("ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha")}
                 self._send_bytes(render_cached(params, str(self.server.config.root)), "image/png")
             elif parsed.path == "/api/current-image":
                 query = parse_qs(parsed.query)

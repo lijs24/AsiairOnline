@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ASIAIR 赤道仪 3D 查看</title>
+<style>
+  :root{
+    --bg:#070909; --panel:#0c1011; --line:#1d2426; --text:#cfd8d6; --muted:#5f6c6a;
+    --accent:#39d98a; --warn:#e8b339; --bad:#e05d4f; --mono:"SF Mono",Consolas,Menlo,monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:var(--mono); min-height:100vh;}
+  header{display:flex; align-items:center; gap:18px; padding:14px 22px; border-bottom:1px solid var(--line);}
+  header h1{font-size:15px; letter-spacing:2px; font-weight:600;}
+  nav{display:flex; gap:14px; margin-left:auto;}
+  nav a{color:var(--muted); text-decoration:none; font-size:12px; letter-spacing:1px;}
+  nav a:hover{color:var(--text);}
+  nav a.active{color:var(--accent);}
+  .wrap{display:flex; gap:16px; padding:16px 22px; flex-wrap:wrap;}
+  .stage{flex:1 1 560px; min-width:340px; background:var(--panel); border:1px solid var(--line); border-radius:6px;
+         display:flex; align-items:center; justify-content:center; position:relative; min-height:560px; overflow:hidden;}
+  .stage img{max-width:100%; max-height:80vh; cursor:grab; user-select:none; -webkit-user-drag:none; touch-action:none;}
+  .stage img.dragging{cursor:grabbing;}
+  .stage .hud{position:absolute; left:10px; top:8px; font-size:11px; color:var(--muted); letter-spacing:1px;}
+  .stage .busy{position:absolute; right:12px; top:8px; font-size:11px; color:var(--warn); display:none;}
+  .side{flex:0 0 300px; display:flex; flex-direction:column; gap:12px;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:12px 14px;}
+  .panel h2{font-size:12px; color:var(--muted); letter-spacing:2px; margin-bottom:10px; font-weight:600;}
+  .row{display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:12px;}
+  .row label{flex:0 0 64px; color:var(--muted);}
+  .row input[type=range]{flex:1; accent-color:var(--accent);}
+  .row .val{flex:0 0 64px; text-align:right; color:var(--text);}
+  .btns{display:flex; gap:8px; flex-wrap:wrap;}
+  button{background:#101617; color:var(--text); border:1px solid var(--line); border-radius:4px;
+         padding:6px 10px; font-family:var(--mono); font-size:12px; cursor:pointer; letter-spacing:1px;}
+  button:hover{border-color:var(--accent); color:var(--accent);}
+  button.on{border-color:var(--accent); color:var(--accent);}
+  .hint{font-size:11px; color:var(--muted); line-height:1.7;}
+  select{background:#101617; color:var(--text); border:1px solid var(--line); border-radius:4px;
+         padding:5px 8px; font-family:var(--mono); font-size:12px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>赤道仪 3D 查看</h1>
+  <nav>
+    <a href="/">总览</a>
+    <a href="/camera">相机</a>
+    <a href="/mount">赤道仪</a>
+    <a href="/mount-3d" class="active">3D 查看</a>
+    <a href="/materials">素材库</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="stage" id="stage">
+    <img id="view" alt="赤道仪 3D" draggable="false" />
+    <div class="hud" id="hud">az -90° · el 8°</div>
+    <div class="busy" id="busy">渲染中…</div>
+  </div>
+
+  <div class="side">
+    <div class="panel">
+      <h2>视角(拖拽图像旋转 · 滚轮缩放)</h2>
+      <div class="row"><label>方位 az</label><input type="range" id="az" min="-180" max="180" step="1" value="-90"><span class="val" id="azv">-90°</span></div>
+      <div class="row"><label>俯仰 el</label><input type="range" id="el" min="-5" max="80" step="1" value="8"><span class="val" id="elv">8°</span></div>
+      <div class="btns">
+        <button data-view="-90,8">正西</button>
+        <button data-view="90,8">正东</button>
+        <button data-view="180,8">正南</button>
+        <button data-view="0,8">正北</button>
+        <button data-view="-55,25">西南俯视</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>姿态</h2>
+      <div class="row"><label>模式</label>
+        <button id="mode-live" class="on">实时指向</button>
+        <button id="mode-manual">手动</button>
+      </div>
+      <div class="row"><label>设备</label><select id="device"></select></div>
+      <div class="row"><label>赤纬 dec</label><input type="range" id="dec" min="-30" max="90" step="1" value="90" disabled><span class="val" id="decv">90°</span></div>
+      <div class="row"><label>时角 ha</label><input type="range" id="ha" min="0" max="360" step="2" value="270" disabled><span class="val" id="hav">270°</span></div>
+      <div class="hint" id="livehint">实时模式:每 5s 拉取真实指向并重渲。切到手动可用滑杆摆任意姿态来检查模型。</div>
+    </div>
+
+    <div class="panel">
+      <h2>说明</h2>
+      <div class="hint">
+        后端 GPU 渲染(RTX PRO 6000),前端零依赖。<br>
+        运动链:纬度座(静)→ <b>赤经轴</b> → 方形本体 → <b>赤纬轴</b> → 鞍座+镜筒+相机。<br>
+        发现穿模/比例/结构问题,直接截图指正。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const img = $("view"), busy = $("busy"), hud = $("hud");
+  let az = -90, el = 8, size = 640;
+  let live = true, dec = 89.96, ha = 270, ra = null, lst = null, pier = "pier_east", lat = 40;
+  let timer = null, inflight = false, pendingUrl = null;
+
+  function url() {
+    const p = new URLSearchParams({ size: size, az: az.toFixed(1), el: el.toFixed(1) });
+    if (live && ra != null) { p.set("ra", ra); p.set("lst", lst != null ? lst : ""); }
+    p.set("dec", dec); p.set("pier", pier); p.set("lat", lat);
+    if (!live) p.set("ha", ha);
+    return "/api/mount-render?" + p.toString();
+  }
+
+  function render(now) {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const u = url();
+      if (inflight) { pendingUrl = u; return; }
+      inflight = true; busy.style.display = "block";
+      const probe = new Image();
+      probe.onload = () => { img.src = u; done(); };
+      probe.onerror = done;
+      function done() {
+        inflight = false; busy.style.display = "none";
+        if (pendingUrl && pendingUrl !== u) { const n = pendingUrl; pendingUrl = null; loadUrl(n); }
+        else pendingUrl = null;
+      }
+      function loadUrl(u2) {
+        inflight = true; busy.style.display = "block";
+        const p2 = new Image();
+        p2.onload = () => { img.src = u2; inflight = false; busy.style.display = "none"; };
+        p2.onerror = () => { inflight = false; busy.style.display = "none"; };
+        p2.src = u2;
+      }
+      probe.src = u;
+      hud.textContent = `az ${az.toFixed(0)}° · el ${el.toFixed(0)}°` + (live ? " · 实时" : ` · dec ${dec}° ha ${ha}°`);
+    }, now ? 0 : 160);
+  }
+
+  // drag orbit
+  let drag = null;
+  img.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, az, el }; img.classList.add("dragging"); img.setPointerCapture(e.pointerId); });
+  img.addEventListener("pointermove", e => {
+    if (!drag) return;
+    az = drag.az + (e.clientX - drag.x) * 0.45;
+    el = Math.max(-5, Math.min(80, drag.el + (e.clientY - drag.y) * 0.3));
+    az = ((az + 180) % 360 + 360) % 360 - 180;
+    $("az").value = Math.round(az); $("el").value = Math.round(el);
+    $("azv").textContent = az.toFixed(0) + "°"; $("elv").textContent = el.toFixed(0) + "°";
+    render();
+  });
+  img.addEventListener("pointerup", e => { drag = null; img.classList.remove("dragging"); });
+  $("stage").addEventListener("wheel", e => { e.preventDefault(); size = Math.max(360, Math.min(900, size + (e.deltaY < 0 ? 60 : -60))); render(); }, { passive: false });
+
+  for (const [id, vid, fn] of [["az","azv",v=>{az=+v;}],["el","elv",v=>{el=+v;}],["dec","decv",v=>{dec=+v;}],["ha","hav",v=>{ha=+v;}]]) {
+    $(id).addEventListener("input", e => { fn(e.target.value); $(vid).textContent = e.target.value + "°"; render(); });
+  }
+  document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => {
+    const [a, e2] = b.dataset.view.split(",").map(Number);
+    az = a; el = e2; $("az").value = a; $("el").value = e2;
+    $("azv").textContent = a + "°"; $("elv").textContent = e2 + "°"; render(true);
+  }));
+
+  function setMode(m) {
+    live = m;
+    $("mode-live").classList.toggle("on", m);
+    $("mode-manual").classList.toggle("on", !m);
+    $("dec").disabled = m; $("ha").disabled = m;
+    render(true);
+  }
+  $("mode-live").addEventListener("click", () => setMode(true));
+  $("mode-manual").addEventListener("click", () => setMode(false));
+
+  async function loadDevices() {
+    try {
+      const r = await fetch("/api/status"); const d = await r.json();
+      const sel = $("device");
+      (d.devices || []).forEach(dv => { const o = document.createElement("option"); o.value = o.textContent = dv.name; sel.appendChild(o); });
+      sel.addEventListener("change", pollLive);
+    } catch (e) {}
+  }
+  async function pollLive() {
+    if (!live) return;
+    try {
+      const dev = $("device").value;
+      const r = await fetch("/api/mount-state" + (dev ? "?device=" + encodeURIComponent(dev) : ""));
+      const d = await r.json();
+      const p = d.position || {};
+      if (d.connected && p.ra_hours != null) {
+        ra = p.ra_hours; lst = p.lst_hours; dec = p.dec_degrees;
+        pier = d.pier_side || "pier_east";
+        const s = d.site || {}; if (s.lat != null) lat = s.lat;
+        $("dec").value = Math.round(dec); $("decv").textContent = Number(dec).toFixed(1) + "°";
+        render();
+      }
+    } catch (e) {}
+  }
+  loadDevices().then(pollLive);
+  setInterval(pollLive, 5000);
+  render(true);
+})();
+</script>
+</body>
+</html>

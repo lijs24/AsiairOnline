@@ -40,7 +40,8 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
             return default
 
     key = (round(f("ra"), 3), round(f("dec", 90.0), 2), round(f("lst"), 3),
-           str(params.get("pier")), round(f("lat", 40.0), 2), int(f("size", 560)))
+           str(params.get("pier")), round(f("lat", 40.0), 2), int(f("size", 560)),
+           round(f("az", -999.0), 1), round(f("el", -999.0), 1), round(f("ha", -999.0), 1))
     with _RENDER_LOCK:
         hit = _RENDER_CACHE.get(key)
     if hit is not None:
@@ -55,7 +56,7 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
 
 def _render_subprocess(params: dict, root: str) -> bytes:
     args = [sys.executable, "-B", "-m", "asiairbridge.mount_render"]
-    for k in ("ra", "dec", "lst", "lat", "pier", "size"):
+    for k in ("ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha"):
         v = params.get(k)
         if v not in (None, ""):
             args += [f"--{k}", str(v)]
@@ -229,47 +230,43 @@ def build_mount(C):
     #    A cradle/wedge whose tripod bottom face is tilted ~50deg about X.
     #    Altitude knob points -Y, curved altitude scale faces +X.
     # =================================================================
-    LAT = 50.0
-    Rfoot = rotmat('x', -LAT)   # tilt bottom face about X
+    # The base is designed in the HORIZONTAL (tripod) frame — z straight up,
+    # platform flat on the tripod hub — then pre-rotated by +TILT about X so
+    # that the scene's polar tilt (rotmat x, lat-90) brings it back level.
+    TILT = 50.0                      # = 90 - design latitude (40)
+    RB = rotmat('x', TILT)
 
-    # -- tripod mounting foot: a wide slab whose underside is tilted ~50 deg.
-    add(box(7.4, 5.0, 1.3), RED, R=Rfoot, t=(0.0, 0.4, -1.2))
-    # bright machined ring on top of the foot (azimuth bearing seat)
-    add(cylinder(2.7, 2.7, 0.32, seg=SEG), BODY2, R=Rfoot, t=(0.0, 0.4, -0.6))
-    # three black rubber feet on the underside corners
-    for (fx, fy) in [(0.0, -1.9), (-2.4, 1.6), (2.4, 1.6)]:
-        add(cylinder(0.50, 0.50, 0.28, seg=22), BLACK, R=Rfoot, t=(fx, fy + 0.4, -1.35))
+    def addH(geom, col, R=None, t=(0.0, 0.0, 0.0)):
+        Rh = RB if R is None else (RB @ R)
+        th = RB @ np.asarray(t, dtype=np.float32)
+        add(geom, col, R=Rh, t=tuple(float(v) for v in th))
 
-    # -- two upright RED cheeks of the latitude cradle; the body pivots between.
-    for sx in (-3.0, 3.0):
-        add(box(1.0, 5.4, 4.4), RED, t=(sx, -0.5, -2.0))
-    # rear web tying the cheeks together (where altitude screw pushes)
-    add(box(5.2, 1.3, 2.8), RED2, t=(0.0, -2.8, -2.0))
-    # front low web
-    add(box(5.2, 1.0, 1.6), RED, t=(0.0, 2.4, -2.0))
+    # flat azimuth platform resting on the tripod hub (top of hub = z_H 0)
+    addH(box(7.6, 6.8, 1.1), RED, t=(0.0, 0.6, 0.0))
+    addH(cylinder(2.9, 2.9, 0.45, seg=SEG), BODY2, t=(0.0, 0.6, 1.1))   # azimuth bearing ring
+    # wedge block carrying the cradle
+    addH(box(6.2, 5.2, 2.0), RED2, t=(0.0, 0.4, 1.55))
 
-    # -- curved ALTITUDE scale on the +X cheek (curved red plate + white ticks).
-    #    Centered up at z~0.6 so the ring stays within z>=-3; ticks face +X.
-    Rsc = rotmat('y', 90)  # tube axis -> +X (annulus lies facing +X)
-    SC_CY, SC_CZ, SC_R = -0.3, 0.7, 3.3
-    add(tube(SC_R, SC_R - 0.55, 0.85, seg=SEG), RED2, R=Rsc, t=(3.55, SC_CY, SC_CZ))
-    for k in range(11):
-        ang = math.radians(-50 + k*10.0)
-        ty = SC_CY + (SC_R - 0.05)*math.cos(ang)
-        tz = SC_CZ + (SC_R - 0.05)*math.sin(ang)
-        add(box(0.12, 0.10, 0.45), WHITE, R=rotmat('x', math.degrees(ang)), t=(3.95, ty, tz))
+    # two cradle cheeks hugging the body's lower end (lean with the polar axis)
+    for sx in (-3.55, 3.55):
+        add(box(0.9, 5.2, 5.0), RED, t=(sx, -0.3, 2.6))
 
-    # -- big knurled ALTITUDE adjustment bolt at BACK, pointing -Y.
-    Ralt = rotmat('x', -90)  # cylinder +Z -> -Y
-    add(cylinder(0.35, 0.35, 1.6, seg=24), METAL, R=Ralt, t=(0.0, -3.0, 0.2))   # threaded shaft
-    add(cylinder(0.95, 0.95, 1.6, seg=32), BLACK, R=Ralt, t=(0.0, -3.6, 0.2))   # knurled body
-    add(cylinder(1.06, 1.06, 0.45, seg=32), BLACK, R=Ralt, t=(0.0, -5.2, 0.2))  # outer knurl flange
-    add(tube(0.55, 0.36, 0.30, seg=24), RED, R=Ralt, t=(0.0, -2.95, 0.2))       # red collar
+    # curved ALTITUDE scale on the +X cheek (red arc + white ticks)
+    add(tube(3.1, 2.55, 0.6, seg=SEG), RED2, R=rotmat('y', 90), t=(4.05, -0.3, 4.6))
+    for k in range(9):
+        ang = math.radians(-40 + k * 10.0)
+        add(box(0.12, 0.10, 0.4), WHITE, R=rotmat('x', math.degrees(ang)),
+            t=(4.15, -0.3 + 2.85 * math.cos(ang), 4.6 + 2.85 * math.sin(ang)))
 
-    # -- azimuth-adjust bolts flanking the altitude screw, pointing -Y (push-pull pair)
-    for sx in (-1.4, 1.4):
-        add(cylinder(0.40, 0.40, 0.55, seg=24), BLACK, R=Ralt, t=(sx, -2.7, -0.7))
-        add(cylinder(0.16, 0.16, 0.9, seg=16), METAL, R=Ralt, t=(sx, -2.5, -0.7))
+    # big knurled ALTITUDE bolt at the back (south, horizontal) + azimuth pair
+    RaltH = rotmat('x', 90)          # cylinder +Z -> -Y (south)
+    addH(cylinder(0.32, 0.32, 1.5, seg=20), METAL, R=RaltH, t=(0.0, -2.8, 1.4))
+    addH(cylinder(0.95, 0.95, 1.6, seg=32), BLACK, R=RaltH, t=(0.0, -3.0, 1.4))
+    addH(cylinder(1.06, 1.06, 0.45, seg=32), BLACK, R=RaltH, t=(0.0, -4.6, 1.4))
+    addH(tube(0.55, 0.36, 0.30, seg=24), RED, R=RaltH, t=(0.0, -2.95, 1.4))
+    for sx in (-1.5, 1.5):
+        addH(cylinder(0.38, 0.38, 0.6, seg=20), BLACK, R=RaltH, t=(sx, -2.9, 0.55))
+        addH(cylinder(0.16, 0.16, 0.9, seg=14), METAL, R=RaltH, t=(sx, -2.7, 0.55))
 
     _base_end = len(parts)  # parts so far = latitude base -> 'static' group
 
@@ -278,7 +275,7 @@ def build_mount(C):
     #    Rounded-rectangular housing running along +Z, z in [3, 17].
     # =================================================================
     BW, BD = 6.4, 6.0       # body cross-section (x, y)
-    Z0, Z1 = 3.0, 17.0
+    Z0, Z1 = 4.0, 17.0
     BL = Z1 - Z0
 
     # core housing
@@ -343,11 +340,9 @@ def build_mount(C):
     add(cylinder(2.55, 2.55, 6.6, seg=60), BODY, R=Rdec, t=(1.4, 0.0, DECZ))   # Dec barrel
     add(tube(2.62, 2.3, 0.9, seg=60), BODY2, R=Rdec, t=(1.6, 0.0, DECZ))       # machined band (body side)
     add(tube(2.6, 2.25, 0.6, seg=60), RED, R=Rdec, t=(5.2, 0.0, DECZ))         # red accent ring (outboard)
-    # Dec end hub (lighter) + outboard end cap + 6-bolt circle facing +X
+    # Dec end hub (lighter) + outboard output flange facing +X (saddle bolts on it)
     add(cylinder(2.35, 2.35, 0.9, seg=60), BODY2, R=Rdec, t=(8.0, 0.0, DECZ))
     add(disk(2.3, seg=60, up=1.0), BODY2, R=Rdec, t=(8.9, 0.0, DECZ))
-    ring_of_bolts(6, 1.5, (8.55, 0.0, DECZ), 'x', br=0.15, bh=0.2, col=BOLT)
-    add(cylinder(0.42, 0.42, 0.22, seg=20), BOLT, R=Rdec, t=(8.55, 0.0, DECZ))  # center bolt
 
     # =================================================================
     # 4) SADDLE / DOVETAIL CLAMP (鞍座) — RED, on the Dec axis at +X end (~x=6.5).
@@ -357,37 +352,35 @@ def build_mount(C):
     # =================================================================
     _saddle_start = len(parts)  # parts from here = saddle on the Dec output -> 'dec' group
 
-    SX, SY, SZ = 6.5, 0.0, 15.3       # saddle reference (center of the dec mount face region)
-    SLOT_LEN = 6.0                    # slot length along +Z
-    Zs = SZ - SLOT_LEN/2.0            # slot z-start
+    # Saddle bolted flat on the Dec OUTPUT flange (x = 8.9): plate normal +X,
+    # dovetail slot runs along +Z and OPENS toward +X (outboard along the Dec
+    # axis). The scope's underside dovetail drops on from +X, so the OTA
+    # centerline sits ON the Dec axis line (y=0, z=DECZ) — like the real AM5.
+    SXP = 8.9                         # Dec output flange plane
+    SLOT_LEN = 7.0
+    Zs = DECZ - SLOT_LEN / 2.0        # slot z-start
 
-    # -- saddle base block (red): bolts onto the Dec hub, body of the clamp.
-    #    Spans X (width across slot), Y (height up to the +Y opening), Z (slot length).
-    add(box(3.4, 2.2, SLOT_LEN), RED, t=(SX, SY - 0.5, Zs))           # main red saddle body
-    add(box(3.1, 1.0, SLOT_LEN - 0.2), BODY2, t=(SX, SY - 1.4, Zs + 0.1))  # darker mounting base under it
+    # red mounting plate on the output flange
+    add(box(1.0, 6.4, SLOT_LEN), RED, t=(SXP + 0.5, 0.0, Zs))
+    # two jaw rails flanking the dovetail bar (bar is 4.4 wide -> jaws at |y|>=2.2)
+    for sy in (-1, 1):
+        add(box(1.15, 1.0, SLOT_LEN), RED, t=(SXP + 1.0 + 0.575, sy * 2.7, Zs))
+    # angled dovetail lips leaning inward over the bar's top edges
+    for sy in (-1, 1):
+        add(box(0.5, 0.75, SLOT_LEN - 0.4), BODY2, R=rotmat('z', -sy * 24), t=(SXP + 1.85, sy * 2.35, Zs + 0.2))
 
-    # -- two jaw rails forming the Vixen/Losmandy slot; slot opens +Y, runs +Z.
-    #    Jaws sit on +/-X sides; the dovetail channel is the +Y-open gap between them.
-    for sx in (-1, 1):
-        add(box(0.85, 1.9, SLOT_LEN), RED, t=(SX + sx*1.15, SY + 1.05, Zs))
-    # angled dovetail lips (machined) leaning inward over the slot
-    for sx in (-1, 1):
-        add(box(0.7, 0.45, SLOT_LEN - 0.4), BODY2, R=rotmat('z', -sx*24), t=(SX + sx*0.9, SY + 1.75, Zs + 0.2))
-    # slot floor strip (recessed machined surface at the bottom of the channel)
-    add(box(1.5, 0.18, SLOT_LEN - 0.6), BODY2, t=(SX, SY + 0.65, Zs + 0.3))
+    # big clamp KNOB on the +Y jaw, pointing +Y
+    Rkn = rotmat('x', -90)            # cylinder +Z -> +Y
+    add(cylinder(0.30, 0.30, 1.2, seg=20), METAL, R=Rkn, t=(SXP + 1.6, 3.2, DECZ - 1.5))
+    add(cylinder(0.92, 0.92, 1.5, seg=32), BLACK, R=Rkn, t=(SXP + 1.6, 3.6, DECZ - 1.5))
+    add(cylinder(1.04, 1.04, 0.45, seg=32), BLACK, R=Rkn, t=(SXP + 1.6, 5.1, DECZ - 1.5))
+    add(tube(0.6, 0.32, 0.3, seg=24), RED2, R=Rkn, t=(SXP + 1.6, 3.62, DECZ - 1.5))
 
-    # -- big clamp KNOB on the side (-X), pointing -X (graspable handle).
-    Rknob = rotmat('y', -90)  # +Z -> -X
-    add(cylinder(0.30, 0.30, 1.0, seg=20), METAL, R=Rknob, t=(SX - 1.7, SY + 0.4, SZ - 0.2))   # shaft
-    add(cylinder(0.92, 0.92, 1.5, seg=32), BLACK, R=Rknob, t=(SX - 1.8, SY + 0.4, SZ - 0.2))   # knob body
-    add(cylinder(1.04, 1.04, 0.45, seg=32), BLACK, R=Rknob, t=(SX - 3.3, SY + 0.4, SZ - 0.2))  # knurl flange
-    add(tube(0.6, 0.32, 0.3, seg=24), RED2, R=Rknob, t=(SX - 1.78, SY + 0.4, SZ - 0.2))        # red collar
-
-    # -- safety screw (small bright bolt, top of the +X jaw, pointing +Y).
-    add(cylinder(0.26, 0.26, 0.85, seg=16), BOLT, R=rotmat('x', -90), t=(SX + 1.15, SY + 2.0, SZ - 1.8))
-    add(cylinder(0.40, 0.40, 0.25, seg=16), BLACK, R=rotmat('x', -90), t=(SX + 1.15, SY + 2.7, SZ - 1.8))
-    # -- a second safety stop at the -Z end of the slot
-    add(box(1.4, 0.7, 0.4), BOLT, t=(SX, SY + 0.9, Zs - 0.4))
+    # safety screw on the -Y jaw, pointing -Y
+    add(cylinder(0.26, 0.26, 0.85, seg=16), BOLT, R=rotmat('x', 90), t=(SXP + 1.6, -3.2, DECZ + 1.6))
+    add(cylinder(0.40, 0.40, 0.25, seg=16), BLACK, R=rotmat('x', 90), t=(SXP + 1.6, -3.95, DECZ + 1.6))
+    # safety stop at the -Z end of the slot
+    add(box(1.0, 2.3, 0.45), BOLT, t=(SXP + 1.5, 0.0, Zs - 0.45))
 
     # Tag the kinematic group of every part: the latitude base is static, the
     # square body (RA element) turns about the polar axis, the saddle rides the
@@ -843,7 +836,7 @@ def build_camera(C):
     return parts
 
 
-def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", latitude=40.0):
+def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", latitude=40.0, ha_override=None):
     C = PALETTE
     parts = []
     apex = np.array([0, 0, 22.0])
@@ -854,17 +847,19 @@ def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", la
         R = _align_z(d / L)
         p, n = cylinder(1.3, 0.9, L, seg=14)
         parts.append((*transform(p, n, R, foot), C["metal"]))
-    p, n = cylinder(4.6, 4.6, 2.2, seg=36)
+    p, n = cylinder(2.5, 2.5, 1.4, seg=32)
     parts.append((*transform(p, n, None, apex), C["dark"]))
 
     R_polar = rotmat("x", latitude - 90.0)
-    head_base = apex + np.array([0, 0, 2.2])
+    head_base = apex + np.array([0, 0, 1.6])
 
     ha_deg = 0.0
     if ra_hours is not None and lst_hours is not None:
         ha_deg = ((lst_hours - ra_hours) % 24) * 15.0
     dec = dec_degrees if dec_degrees is not None else 90.0
-    if dec >= 88.5:
+    if ha_override is not None:
+        ha_deg = float(ha_override)
+    elif dec >= 88.5:
         ha_deg = float(os.environ.get("MV_HA", "270"))
     side = -1.0 if str(pier_side) == "pier_west" else 1.0
     R_ha = rotmat("z", ha_deg)
@@ -891,14 +886,17 @@ def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", la
     for P, N, col, grp in build_mount(C):
         place(P, N, col, grp)
 
-    # scope + camera: one rigid OTA whose dovetail sits in the saddle slot
-    # (slot center (6.5,0.65,15.3) along +Z, opens +Y) — Dec group.
-    SADDLE = np.array([6.5, 7.85, 16.3])
+    # scope + camera: one rigid OTA. Rolled -90 about its optical axis so its
+    # underside dovetail faces -X (inboard), then dropped onto the saddle plate
+    # at x=9.9 — the OTA centerline lands ON the Dec axis line (y=0), so at the
+    # home pose it stands directly above the body, like the real AM5.
+    R_roll = rotmat("z", -90.0)
+    OTA_T = np.array([17.1, 0.0, 16.3])
     optics = list(build_scope(C))
     for P, N, col in build_camera(C):
         optics.append((*transform(P, N, None, (0, 0, -32.5)), col))
     for P, N, col in optics:
-        P1, N1 = transform(P, N, None, SADDLE)
+        P1, N1 = transform(P, N, R_roll, OTA_T)
         place(P1, N1, col, "dec")
     return parts
 
@@ -971,7 +969,7 @@ void main(){
 """
 
 
-def render_png(parts, size=560, bg=(0.027, 0.035, 0.035)):
+def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=None):
     import moderngl
     ctx = moderngl.create_standalone_context()
     P = np.concatenate([p[0] for p in parts])
@@ -989,7 +987,11 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035)):
     center = (lo + hi) / 2.0
     radius = float(np.linalg.norm(hi - lo)) / 2.0
     dist = radius * 2.6
-    az, el = math.radians(float(os.environ.get('MV_AZ','-90'))), math.radians(float(os.environ.get('MV_EL','8')))
+    if view_az is None:
+        view_az = float(os.environ.get("MV_AZ", "-90"))
+    if view_el is None:
+        view_el = float(os.environ.get("MV_EL", "8"))
+    az, el = math.radians(view_az), math.radians(max(-10.0, min(85.0, view_el)))
     eye = center + dist * np.array([math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), math.sin(el)])
     mvp = _perspective(35, 1.0, 0.5, dist * 4) @ _look_at(eye, center, (0, 0, 1))
     prog["u_mvp"].write(np.ascontiguousarray(mvp.T).tobytes())
@@ -1017,9 +1019,10 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035)):
     return buf.getvalue()
 
 
-def render_mount_png(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", latitude=40.0, size=560):
-    parts = build_scene(ra_hours, dec_degrees, lst_hours, pier_side, latitude)
-    return render_png(parts, size=size)
+def render_mount_png(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", latitude=40.0, size=560,
+                     view_az=None, view_el=None, ha_override=None):
+    parts = build_scene(ra_hours, dec_degrees, lst_hours, pier_side, latitude, ha_override=ha_override)
+    return render_png(parts, size=size, view_az=view_az, view_el=view_el)
 
 
 def main(argv=None):
@@ -1030,9 +1033,13 @@ def main(argv=None):
     ap.add_argument("--pier", default="pier_east")
     ap.add_argument("--lat", type=float, default=40.0)
     ap.add_argument("--size", type=int, default=560)
+    ap.add_argument("--az", type=float, default=None)
+    ap.add_argument("--el", type=float, default=None)
+    ap.add_argument("--ha", type=float, default=None)
     ap.add_argument("--out", default=None)
     a = ap.parse_args(argv)
-    png = render_mount_png(a.ra, a.dec, a.lst, a.pier, a.lat, a.size)
+    png = render_mount_png(a.ra, a.dec, a.lst, a.pier, a.lat, a.size,
+                           view_az=a.az, view_el=a.el, ha_override=a.ha)
     if a.out:
         with open(a.out, "wb") as fh:
             fh.write(png)
