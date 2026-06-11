@@ -438,7 +438,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def _require_actions_allowed(self) -> None:
         if not self._actions_allowed():
-            raise PermissionError("Remote dashboard access is read-only")
+            raise PermissionError("此入口不允许远程操作 — 请使用可操作入口(端口 8794)")
 
     def _require_scan_allowed(self) -> None:
         if not self._scan_allowed():
@@ -446,10 +446,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def _require_controller_for_device(self, device_name: str, session_id: str) -> None:
         if self.server.read_only:
-            raise PermissionError("Web server is running in read-only mode")
+            raise PermissionError("只读入口禁止拍摄/写入 — 请使用可操作入口(端口 8794)")
         lease = control_state(self.server.config, device_name, session_id=session_id)
         if not lease.get("held_by_self"):
-            raise PermissionError(f"{device_name} requires controller mode")
+            raise PermissionError(f"{device_name} 需要主控模式 — 请在顶栏将 监控 切换为 主控")
 
     def _read_json_body(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length") or 0)

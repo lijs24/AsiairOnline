@@ -544,7 +544,7 @@
       min-width: 0;
       overflow: hidden;
       display: grid;
-      grid-template-columns: 60px 190px;
+      grid-template-columns: 60px minmax(0, 320px);
       gap: 14px;
       align-items: center;
       padding: 0 10px;
@@ -695,6 +695,9 @@
         <section class="panel">
           <div class="panel-head"><span>主控</span><span id="control-mode-head">监控</span></div>
           <div class="controls">
+            <div id="access-note" style="display:none; margin-bottom:8px; padding:8px 10px; border:1px solid var(--warn); color:var(--warn); font:700 12px var(--mono); line-height:1.6;">
+              当前为只读入口,无法拍摄。<a id="access-note-link" href="#" style="color:var(--cyan);">点此打开可操作入口 →</a>
+            </div>
             <button class="primary" id="shutter-btn" type="button">拍摄一张</button>
             <button id="refresh-btn" type="button">拉取最新图像</button>
             <button id="auto-btn" type="button">自动刷新</button>
@@ -1450,6 +1453,7 @@
       $("status-kind").textContent = `[${kind}]`;
       $("status-kind").className = cls === "err" ? "value err" : cls === "warn" ? "value warn" : "value ok";
       $("status-text").textContent = text;
+      $("status-text").title = text;
     }
 
     function renderOperationProgress(operation) {
@@ -2301,6 +2305,17 @@
     }
 
     async function boot() {
+      try {
+        const st = await fetch("/api/status").then((r) => r.json());
+        const w = st.web || {};
+        if (w.read_only || w.actions_allowed === false) {
+          const note = $("access-note");
+          const link = $("access-note-link");
+          const dev = new URLSearchParams(location.search).get("device");
+          link.href = `http://${location.hostname}:8794/camera${dev ? `?device=${encodeURIComponent(dev)}` : ""}`;
+          note.style.display = "";
+        }
+      } catch (e) {}
       state.sessionId = ensureSessionId();
       state.sessionLabel = sessionLabelFromId(state.sessionId);
       state.desiredRoleMap = readStoredRoleMap();
