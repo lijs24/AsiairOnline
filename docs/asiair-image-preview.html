@@ -665,7 +665,7 @@
       grid-column: 2;
       grid-row: 1;
       display: grid;
-      grid-template-columns: 60px 220px 90px;
+      grid-template-columns: 60px 220px 130px;
       gap: 10px;
       align-items: center;
       padding: 0 14px;
@@ -1928,8 +1928,10 @@
         fill.classList.toggle("indeterminate", operation.state === "running" && step <= 0);
         fill.style.transform = "";
         fill.style.width = `${percent}%`;
-        label.textContent = `${operation.label || "正在执行"} ${step}/${total}`;
-        value.textContent = operation.state === "error" ? "异常" : operation.state === "done" ? "完成" : "进行中";
+        if (operation.state === "error") { label.textContent = "异常"; label.style.color = "#ff4f5e"; }
+        else if (operation.state === "done") { label.textContent = "完成"; label.style.color = "#35ff4f"; }
+        else { label.textContent = "执行中"; label.style.color = "#00f5ff"; }
+        value.textContent = `${step}/${total}`;
         return;
       }
       const track = state.exposureTrack;
