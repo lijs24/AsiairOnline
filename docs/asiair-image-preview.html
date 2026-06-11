@@ -619,7 +619,7 @@
     .footer {
       border-top: 1px solid var(--line);
       display: grid;
-      grid-template-columns: 400px auto minmax(0, 1fr) auto;
+      grid-template-columns: auto auto auto minmax(0, 1fr) auto;
       align-items: center;
       min-width: 0;
       background: #020303;
@@ -631,7 +631,7 @@
       min-width: 0;
       overflow: hidden;
       display: grid;
-      grid-template-columns: 60px minmax(0, 1fr) 100px;
+      grid-template-columns: 60px 190px;
       gap: 14px;
       align-items: center;
       padding: 0 10px;
@@ -641,12 +641,19 @@
     }
 
     #status-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-    #status-age { text-align: right; }
+    #status-age {
+      grid-column: 3;
+      grid-row: 1;
+      font: 700 12px var(--mono);
+      color: var(--muted);
+      white-space: nowrap;
+      padding: 0 12px;
+    }
 
     .logline strong { color: var(--green); }
 
     .footer-actions {
-      grid-column: 4;
+      grid-column: 5;
       grid-row: 1;
       display: flex;
       align-items: center;
@@ -662,7 +669,7 @@
       gap: 10px;
       align-items: center;
       padding: 0 14px;
-      margin-left: 40px;
+      margin-left: 16px;
       min-width: 0;
     }
 
@@ -869,7 +876,6 @@
       <div class="logline">
         <span id="status-kind">[READY]</span>
         <strong id="status-text">等待取图或手动拉取</strong>
-        <span id="status-age">--</span>
       </div>
       <div class="footer-actions">
         <button id="open-monitor" type="button">返回总览</button>
@@ -879,6 +885,7 @@
         <div class="progress-track"><div class="progress-fill" id="exposure-progress-fill"></div></div>
         <span class="progress-value" id="exposure-progress-value">--</span>
       </div>
+      <span id="status-age">--</span>
     </footer>
   </main>
 
