@@ -1876,7 +1876,9 @@
       try {
         const response = await fetch(`/api/capture-progress?device=${encodeURIComponent(state.device)}`, { cache: "no-store" });
         const payload = await response.json();
-        state.captureProgress = payload && payload.ok ? payload : null;
+        if (payload && payload.ok) state.captureProgress = payload;
+        // On a failed/empty poll keep the last known value, so a transient RPC
+        // timeout does not flicker the bar back to 待机 mid-exposure.
       } catch (err) {
         /* transient network/RPC hiccup; keep last known value */
       }

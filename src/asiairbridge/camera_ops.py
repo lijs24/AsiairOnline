@@ -212,7 +212,15 @@ def capture_progress_response(
             "device": {"name": device.name, "ip": device.ip},
             "error": str(exc),
         }
-    result = response.get("result") if response.get("code") == 0 else None
+    if response.get("code") != 0:
+        # A non-zero code is a failed read, not an idle device; report it as not-ok
+        # so the client keeps its last known state instead of flickering to idle.
+        return {
+            "ok": False,
+            "device": {"name": device.name, "ip": device.ip},
+            "error": f"get_app_state returned code {response.get('code')}",
+        }
+    result = response.get("result")
     capture = result.get("capture") if isinstance(result, dict) else {}
     if not isinstance(capture, dict):
         capture = {}
