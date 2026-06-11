@@ -980,7 +980,7 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035)):
     center = (lo + hi) / 2.0
     radius = float(np.linalg.norm(hi - lo)) / 2.0
     dist = radius * 2.6
-    az, el = math.radians(-58), math.radians(22)
+    az, el = math.radians(float(os.environ.get('MV_AZ','-85'))), math.radians(float(os.environ.get('MV_EL','9')))
     eye = center + dist * np.array([math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), math.sin(el)])
     mvp = _perspective(35, 1.0, 0.5, dist * 4) @ _look_at(eye, center, (0, 0, 1))
     prog["u_mvp"].write(np.ascontiguousarray(mvp.T).tobytes())
