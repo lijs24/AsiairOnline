@@ -840,15 +840,25 @@ def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", la
     C = PALETTE
     parts = []
     apex = np.array([0, 0, 22.0])
-    for az in (90, 210, 330):
-        foot = np.array([24 * math.cos(math.radians(az)), 24 * math.sin(math.radians(az)), 0.0])
-        d = apex - foot
-        L = float(np.linalg.norm(d))
-        R = _align_z(d / L)
-        p, n = cylinder(1.3, 0.9, L, seg=14)
-        parts.append((*transform(p, n, R, foot), C["metal"]))
+    # vertical pier column (立柱) — fixed observatory pier instead of a tripod
+    PIER = (0.30, 0.32, 0.35)
+
+    def _add(geom, col, t):
+        p0, n0 = geom
+        parts.append((*transform(p0, n0, None, t), col))
+
+    _add(cylinder(8.0, 8.0, 0.9, seg=56), C["dark"], (0, 0, 0.0))            # ground base plate
+    _add(tube(8.0, 6.6, 0.35, seg=56), (0.19, 0.20, 0.21), (0, 0, 0.9))      # machined bevel ring
+    for k in range(6):                                                        # anchor bolts
+        a = math.radians(60 * k + 30)
+        _add(cylinder(0.35, 0.35, 0.4, seg=14), C["black"], (7.1 * math.cos(a), 7.1 * math.sin(a), 0.9))
+    _add(cylinder(4.6, 3.4, 1.6, seg=48), C["dark"], (0, 0, 0.9))            # tapered column root
+    _add(cylinder(3.4, 3.4, 17.5, seg=48), PIER, (0, 0, 2.5))                # main column
+    _add(tube(3.52, 3.1, 0.5, seg=48), (0.80, 0.16, 0.13), (0, 0, 19.4))     # red accent ring
+    _add(cylinder(4.2, 4.2, 1.0, seg=48), C["dark"], (0, 0, 20.0))           # top flange
+    _add(cylinder(2.8, 2.8, 1.0, seg=36), (0.19, 0.20, 0.21), (0, 0, 21.0))  # neck
     p, n = cylinder(2.5, 2.5, 1.4, seg=32)
-    parts.append((*transform(p, n, None, apex), C["dark"]))
+    parts.append((*transform(p, n, None, apex), C["dark"]))                   # mount adapter hub
 
     R_polar = rotmat("x", latitude - 90.0)
     head_base = apex + np.array([0, 0, 1.6])
