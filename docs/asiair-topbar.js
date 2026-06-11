@@ -26,7 +26,7 @@
 .ops-indicator.free{color:#8c9693;border-color:#2b3030;}
 .ops-indicator.self{color:#35ff4f;border-color:#35ff4f;}
 .ops-indicator.busy{color:#ffb300;border-color:#ffb300;}
-select.ops-select{background:#050707;color:#f2f6f4;border:1px solid #2b3030;border-radius:4px;font-weight:700;font-size:13px;padding:5px 8px;min-width:96px;}
+select.ops-select{background:#050707;color:#f2f6f4;border:1px solid #2b3030;border-radius:0;font-weight:700;font-size:13px;padding:5px 8px;min-width:96px;}
 `;
   const style = document.createElement("style");
   style.id = "ops-topbar-style";
@@ -78,6 +78,24 @@ select.ops-select{background:#050707;color:#f2f6f4;border:1px solid #2b3030;bord
   };
   window.OpsTopbar = API;
 
+  // Keep nav links + API.device synced with whatever the device select shows,
+  // whether the component or the page drives it.
+  const devSel = document.getElementById("ops-device");
+  const syncNav = () => {
+    const v = devSel.value || "";
+    if (!v) return;  // not populated yet — never sync an empty value
+    if (v === API.device && host.dataset.navDev === v) return;
+    API.device = v;
+    host.dataset.navDev = v;
+    host.querySelectorAll(".ops-nav a").forEach((a) => {
+      const u = new URL(a.getAttribute("href"), location.origin);
+      if (v) u.searchParams.set("device", v); else u.searchParams.delete("device");
+      a.setAttribute("href", u.pathname + (u.search || ""));
+    });
+  };
+  setInterval(syncNav, 1000);
+  devSel.addEventListener("change", syncNav);
+
   if (!DELEG.device) {
     fetch("/api/devices").then((r) => r.json()).then((d) => {
       const sel = document.getElementById("ops-device");
@@ -99,10 +117,16 @@ select.ops-select{background:#050707;color:#f2f6f4;border:1px solid #2b3030;bord
 
   if (!DELEG.role) {
     const sid = (() => {
-      let s = localStorage.getItem("ops-session-id");
+      // Same identity key as the camera/overview pages, so "当前主控" is
+      // recognized as the same session on every page.
+      const key = "asiair-ops:session-id";
+      let s = null;
+      try { s = localStorage.getItem(key); } catch (e) {}
       if (!s) {
-        s = Math.random().toString(36).slice(2) + Date.now().toString(36);
-        localStorage.setItem("ops-session-id", s);
+        s = (window.crypto && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `session-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+        try { localStorage.setItem(key, s); } catch (e) {}
       }
       return s;
     })();

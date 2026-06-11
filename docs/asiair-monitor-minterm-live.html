@@ -1173,7 +1173,7 @@
     }
 
     function ensureSessionId() {
-      const key = sessionStorageKey("session-id");
+      const key = "asiair-ops:session-id";  // shared identity across all pages
       let value = StorageBridge.get(key, "");
       if (!value) {
         value = (window.crypto && crypto.randomUUID)
