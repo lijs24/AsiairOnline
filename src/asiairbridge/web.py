@@ -127,11 +127,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.server.config.root / "docs" / "asiair-mount.html",
                     "text/html; charset=utf-8",
                 )
-            elif parsed.path == "/mount-3d":
-                self._send_file(
-                    self.server.config.root / "docs" / "asiair-mount-3d.html",
-                    "text/html; charset=utf-8",
-                )
             elif parsed.path == "/static/asiair-monitor-static-preview.html":
                 self._send_file(
                     self.server.config.root / "docs" / "asiair-monitor-static-preview.html",
