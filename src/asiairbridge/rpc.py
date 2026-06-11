@@ -16,6 +16,11 @@ from .config import AppConfig, Device
 IMAGER_PORT = 4700
 GUIDER_PORT = 4400
 
+# Hard cap on bytes buffered while waiting for a matching RPC reply, so a
+# misbehaving/malicious device that streams non-matching lines cannot grow the
+# buffer without bound over the whole timeout window.
+MAX_RPC_RESPONSE_BYTES = 16 * 1024 * 1024
+
 
 class _EndpointGate:
     def __init__(self) -> None:
@@ -374,12 +379,28 @@ def asiair_rpc(
         queue_timeout_seconds=queue_timeout_seconds,
     ):
         with socket.create_connection((ip, port), timeout=timeout_seconds) as sock:
-            sock.settimeout(timeout_seconds)
             sock.sendall(payload)
-            while time.monotonic() < deadline:
-                chunk = sock.recv(65536)
+            total_bytes = 0
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                # Bound each recv to the time left in the budget, so a slow
+                # device cannot make one recv() block for the full timeout and
+                # push total wall-clock past timeout_seconds.
+                sock.settimeout(remaining)
+                try:
+                    chunk = sock.recv(65536)
+                except socket.timeout:
+                    break
                 if not chunk:
                     break
+                total_bytes += len(chunk)
+                if total_bytes > MAX_RPC_RESPONSE_BYTES:
+                    raise ValueError(
+                        f"ASIAIR RPC response from {ip}:{port} {method} exceeded "
+                        f"{MAX_RPC_RESPONSE_BYTES} bytes without a matching reply"
+                    )
                 buffer += chunk
                 lines = buffer.split(b"\n")
                 buffer = lines.pop()
