@@ -271,6 +271,8 @@ def build_mount(C):
         add(cylinder(0.40, 0.40, 0.55, seg=24), BLACK, R=Ralt, t=(sx, -2.7, -0.7))
         add(cylinder(0.16, 0.16, 0.9, seg=16), METAL, R=Ralt, t=(sx, -2.5, -0.7))
 
+    _base_end = len(parts)  # parts so far = latitude base -> 'static' group
+
     # =================================================================
     # 2) MAIN BODY (方形本体) — RA / polar-axis strain-wave housing.
     #    Rounded-rectangular housing running along +Z, z in [3, 17].
@@ -353,6 +355,8 @@ def build_mount(C):
     #    A scope (optical axis +Z) with an underside dovetail drops in from +Y
     #    and ends up offset on the +Y side.
     # =================================================================
+    _saddle_start = len(parts)  # parts from here = saddle on the Dec output -> 'dec' group
+
     SX, SY, SZ = 6.5, 0.0, 15.3       # saddle reference (center of the dec mount face region)
     SLOT_LEN = 6.0                    # slot length along +Z
     Zs = SZ - SLOT_LEN/2.0            # slot z-start
@@ -385,7 +389,14 @@ def build_mount(C):
     # -- a second safety stop at the -Z end of the slot
     add(box(1.4, 0.7, 0.4), BOLT, t=(SX, SY + 0.9, Zs - 0.4))
 
-    return parts
+    # Tag the kinematic group of every part: the latitude base is static, the
+    # square body (RA element) turns about the polar axis, the saddle rides the
+    # Dec output and turns with the telescope.
+    tagged = []
+    for i, (P, N, col) in enumerate(parts):
+        grp = "static" if i < _base_end else ("dec" if i >= _saddle_start else "ra")
+        tagged.append((P, N, col, grp))
+    return tagged
 
 
 def build_scope(C):
@@ -858,30 +869,37 @@ def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", la
     side = -1.0 if str(pier_side) == "pier_west" else 1.0
     R_ha = rotmat("z", ha_deg)
 
-    # AM5: base (z<3) is RA-fixed; body + Dec head + saddle rotate about the RA axis (+Z) by HA.
-    BASE_TOP = 3.0
-    for P, N, col in build_mount(C):
-        if float(P[:, 2].mean()) < BASE_TOP:
-            parts.append((*transform(P, N, R_polar, head_base), col))
-        else:
-            P2, N2 = transform(P, N, R_ha)
-            parts.append((*transform(P2, N2, R_polar, head_base), col))
-
-    # scope + camera seated in the saddle (slot center (6.5,0.65,15.3) along +Z, opens +Y)
-    optics = list(build_scope(C))
-    for P, N, col in build_camera(C):
-        optics.append((*transform(P, N, None, (0, 0, -32.5)), col))
-    SADDLE = np.array([6.5, 7.85, 16.3])   # scope center: underside dovetail seats in the slot
+    # Kinematic chain — exactly two moving joints:
+    #   RA axis: latitude base (static) <-> square body. The whole body, with the
+    #     Dec gearbox on top, turns about the polar axis (+Z) by the hour angle.
+    #   Dec axis: square body <-> telescope. The saddle + scope + camera form one
+    #     rigid unit turning about the Dec axis (the X line at z=DECZ), and that
+    #     unit also follows the body's RA rotation.
     DECZ = 15.3
     off = np.array([0.0, 0.0, DECZ])
     R_dec = rotmat("x", side * (90.0 - dec))
+
+    def place(P, N, col, grp):
+        if grp == "dec":
+            P = (P - off).astype("f4")
+            P, N = transform(P, N, R_dec)
+            P = (P + off).astype("f4")
+        if grp in ("dec", "ra"):
+            P, N = transform(P, N, R_ha)
+        parts.append((*transform(P, N, R_polar, head_base), col))
+
+    for P, N, col, grp in build_mount(C):
+        place(P, N, col, grp)
+
+    # scope + camera: one rigid OTA whose dovetail sits in the saddle slot
+    # (slot center (6.5,0.65,15.3) along +Z, opens +Y) — Dec group.
+    SADDLE = np.array([6.5, 7.85, 16.3])
+    optics = list(build_scope(C))
+    for P, N, col in build_camera(C):
+        optics.append((*transform(P, N, None, (0, 0, -32.5)), col))
     for P, N, col in optics:
         P1, N1 = transform(P, N, None, SADDLE)
-        P1 = (P1 - off).astype("f4")
-        P1, N1 = transform(P1, N1, R_dec)
-        P1 = (P1 + off).astype("f4")
-        P2, N2 = transform(P1, N1, R_ha)
-        parts.append((*transform(P2, N2, R_polar, head_base), col))
+        place(P1, N1, col, "dec")
     return parts
 
 
