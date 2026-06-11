@@ -645,7 +645,7 @@
       grid-column: 3;
       grid-row: 1;
       font: 700 12px var(--mono);
-      color: var(--muted);
+      color: var(--text);
       white-space: nowrap;
       padding: 0 12px;
     }
@@ -665,7 +665,7 @@
       grid-column: 2;
       grid-row: 1;
       display: grid;
-      grid-template-columns: auto 220px auto;
+      grid-template-columns: 60px 220px 90px;
       gap: 10px;
       align-items: center;
       padding: 0 14px;
@@ -2188,6 +2188,7 @@
 
       const ageText = fmtAge(payload.age_seconds);
       $("status-age").textContent = ageText === "--" ? "--" : ageText + "前刷新";
+      $("status-age").style.color = (payload.age_seconds != null && payload.age_seconds > 60) ? "#ffb300" : "";
       setStatus(payload.refreshed ? "OK" : "CACHE", payload.refreshed ? "已从设备拉取最新图像" : "显示上次取图结果", payload.refreshed ? "ok" : "warn");
     }
 
