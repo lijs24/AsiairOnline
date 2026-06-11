@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .camera_cache import CameraStateCache
 from .camera_ops import camera_action_response, camera_status_response, capture_progress_response
+from .mount_ops import mount_status_response
 from .config import AppConfig, load_config
 from .image_preview import cached_image_path, cached_raw_path, current_image_response
 from .materials import MaterialLibrary
@@ -119,6 +120,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.server.config.root / "docs" / "asiair-materials.html",
                     "text/html; charset=utf-8",
                 )
+            elif parsed.path == "/mount":
+                self._send_file(
+                    self.server.config.root / "docs" / "asiair-mount.html",
+                    "text/html; charset=utf-8",
+                )
             elif parsed.path == "/static/asiair-monitor-static-preview.html":
                 self._send_file(
                     self.server.config.root / "docs" / "asiair-monitor-static-preview.html",
@@ -175,6 +181,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 query = parse_qs(parsed.query)
                 device = query.get("device", [None])[0]
                 self._send_json(capture_progress_response(self.server.config, device))
+            elif parsed.path == "/api/mount-state":
+                query = parse_qs(parsed.query)
+                device = query.get("device", [None])[0]
+                self._send_json(mount_status_response(self.server.config, device))
             elif parsed.path == "/api/current-image":
                 query = parse_qs(parsed.query)
                 device = query.get("device", [None])[0]
