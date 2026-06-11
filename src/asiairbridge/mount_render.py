@@ -853,15 +853,32 @@ def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", la
     R_polar = rotmat("x", latitude - 90.0)
     head_base = apex + np.array([0, 0, 1.6])
 
-    ha_deg = 0.0
+    # Hour angle of the pointing, normalized to (-180, 180] (positive = west)
+    H = 0.0
     if ra_hours is not None and lst_hours is not None:
-        ha_deg = ((lst_hours - ra_hours) % 24) * 15.0
+        H = ((lst_hours - ra_hours) % 24.0) * 15.0
+        if H > 180.0:
+            H -= 360.0
     dec = dec_degrees if dec_degrees is not None else 90.0
+    side = -1.0 if str(pier_side) == "pier_west" else 1.0
+
+    # GEM geometry: one sky pointing has two mechanical solutions —
+    #   pier east: body angle = -H  (dec sense +1)
+    #   pier west: body angle = 180 - H  (dec sense -1)
+    # and, like a real mount, the body angle is LIMITED: at most LIM_OVER of
+    # meridian overlap and LIM_SWING of total swing, so inconsistent inputs
+    # can never render a physically unreachable/colliding pose.
+    LIM_OVER, LIM_SWING = 25.0, 115.0
+    u = -H
+    if side > 0:
+        u = max(min(u, LIM_OVER), -LIM_SWING)
+    else:
+        u = min(max(u, -LIM_OVER), LIM_SWING)
+    ha_deg = u if side > 0 else u + 180.0
     if ha_override is not None:
         ha_deg = float(ha_override)
     elif dec >= 88.5:
         ha_deg = float(os.environ.get("MV_HA", "270"))
-    side = -1.0 if str(pier_side) == "pier_west" else 1.0
     R_ha = rotmat("z", ha_deg)
 
     # Kinematic chain — exactly two moving joints:
