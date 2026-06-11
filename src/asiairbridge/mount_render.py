@@ -854,27 +854,43 @@ def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", la
 
     R_polar = rotmat("x", latitude - 90.0)
     head_base = apex + np.array([0, 0, 2.2])
-    for P, N, col in build_mount(C):
-        parts.append((*transform(P, N, R_polar, head_base), col))
-
-    optics = list(build_scope(C))
-    for P, N, col in build_camera(C):
-        optics.append((*transform(P, N, None, (0, 0, -32.5)), col))
 
     ha_deg = 0.0
     if ra_hours is not None and lst_hours is not None:
         ha_deg = ((lst_hours - ra_hours) % 24) * 15.0
     dec = dec_degrees if dec_degrees is not None else 90.0
+    # Parked at/near the pole: RA/HA is undefined there, so show the clean home pose.
+    if dec >= 88.5:
+        ha_deg = 0.0
     side = -1.0 if str(pier_side) == "pier_west" else 1.0
-
-    R_dec = rotmat("x", side * (90.0 - dec))
-    saddle = np.array([7.35, 6.40, 23.51])
-    lift = np.array([0.0, 7.2, 0.0])
     R_ha = rotmat("z", ha_deg)
-    M = R_polar @ R_ha
+
+    def place_fixed(P, N, col):
+        parts.append((*transform(P, N, R_polar, head_base), col))
+
+    def place_rotating(P, N, col):
+        P2, N2 = transform(P, N, R_ha)
+        parts.append((*transform(P2, N2, R_polar, head_base), col))
+
+    RA_TOP = 15.4
+    for P, N, col in build_mount(C):
+        (place_fixed if float(P[:, 2].mean()) < RA_TOP else place_rotating)(P, N, col)
+
+    optics = list(build_scope(C))
+    for P, N, col in build_camera(C):
+        optics.append((*transform(P, N, None, (0, 0, -32.5)), col))
+
+    DEC_AXIS_Z = 22.01
+    seat_t = np.array([7.35, 6.40, DEC_AXIS_Z + 18.0])
+    off = np.array([0.0, 0.0, DEC_AXIS_Z])
+    R_dec = rotmat("x", side * (90.0 - dec))
     for P, N, col in optics:
-        P2, N2 = transform(P, N, R_dec, saddle + lift)
-        parts.append((*transform(P2, N2, M, head_base), col))
+        P1, N1 = transform(P, N, None, seat_t)
+        P1 = (P1 - off).astype("f4")
+        P1, N1 = transform(P1, N1, R_dec)
+        P1 = (P1 + off).astype("f4")
+        P2, N2 = transform(P1, N1, R_ha)
+        parts.append((*transform(P2, N2, R_polar, head_base), col))
     return parts
 
 
