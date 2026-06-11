@@ -168,7 +168,7 @@ def _parse_project(raw: dict[str, Any], root: Path) -> ProjectSettings:
         logs_dir=_resolve_path(root, raw.get("logs_dir", "logs")),
         state_dir=_resolve_path(root, raw.get("state_dir", "state")),
         lock_file=_resolve_path(root, raw.get("lock_file", "state/backup.lock")),
-        robocopy_threads=int(raw.get("robocopy_threads", 8)),
+        robocopy_threads=_int_in_range(raw, "robocopy_threads", 8, 1, 128),
         default_device=str(raw.get("default_device") or "") or None,
         private_path_prefixes=private_path_prefixes,
     )
@@ -182,9 +182,9 @@ def _parse_backup(raw: dict[str, Any]) -> BackupSettings:
     return BackupSettings(
         dry_run_default=bool(raw.get("dry_run_default", True)),
         copy_empty_dirs=bool(raw.get("copy_empty_dirs", True)),
-        retry_count=int(raw.get("retry_count", 2)),
-        retry_wait_seconds=int(raw.get("retry_wait_seconds", 5)),
-        smb_port=int(raw.get("smb_port", 445)),
+        retry_count=_int_in_range(raw, "retry_count", 2, 0, 1000),
+        retry_wait_seconds=_int_in_range(raw, "retry_wait_seconds", 5, 0, 86400),
+        smb_port=_int_in_range(raw, "smb_port", 445, 1, 65535),
         exclude_dirs=tuple(str(item) for item in raw.get("exclude_dirs", [])),
         exclude_files=tuple(str(item) for item in raw.get("exclude_files", [])),
         source_roots=source_roots,
@@ -211,9 +211,21 @@ def _parse_devices(raw: list[dict[str, Any]]) -> tuple[Device, ...]:
 
 
 def _parse_source_root(raw: dict[str, Any]) -> SourceRoot:
+    label = str(_required(raw, "label"))
+    path_template = str(_required(raw, "path_template"))
+    # Validate placeholders at load time so a bad template (unknown/positional
+    # field) fails as a clean ConfigError here rather than an opaque
+    # KeyError/IndexError deep inside build_jobs at backup/scan time.
+    try:
+        path_template.format(ip="0.0.0.0", name="_probe_")
+    except (KeyError, IndexError, ValueError) as exc:
+        raise ConfigError(
+            f"Invalid path_template for source '{label}': {path_template!r} "
+            f"(only {{ip}} and {{name}} placeholders are allowed) - {exc}"
+        ) from exc
     return SourceRoot(
-        label=str(_required(raw, "label")),
-        path_template=str(_required(raw, "path_template")),
+        label=label,
+        path_template=path_template,
         enabled=bool(raw.get("enabled", True)),
     )
 
@@ -222,6 +234,23 @@ def _required(raw: dict[str, Any], key: str) -> Any:
     if key not in raw or raw[key] in (None, ""):
         raise ConfigError(f"Missing required config key: {key}")
     return raw[key]
+
+
+def _int_in_range(
+    raw: dict[str, Any], key: str, default: int, low: int, high: int
+) -> int:
+    value = raw.get(key, default)
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(
+            f"Config key '{key}' must be an integer, got {value!r}"
+        ) from exc
+    if not low <= number <= high:
+        raise ConfigError(
+            f"Config key '{key}' must be between {low} and {high}, got {number}"
+        )
+    return number
 
 
 def _resolve_path(root: Path, value: str | Path) -> Path:

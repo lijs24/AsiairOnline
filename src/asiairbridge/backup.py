@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -96,7 +97,17 @@ def run_job(config: AppConfig, job: BackupJob, dry_run: bool) -> BackupResult:
         job.destination_path.mkdir(parents=True, exist_ok=True)
 
     cmd = _robocopy_command(config, robocopy, job, dry_run)
-    proc = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    # robocopy is a console program: on Windows its piped output is in the OEM
+    # code page, not UTF-8. Decode with "oem" so Chinese source/destination
+    # paths in the summary stay readable (Unicode-safe per project rules).
+    output_encoding = "oem" if os.name == "nt" else "utf-8"
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding=output_encoding,
+        errors="replace",
+    )
     finished_at = datetime.now().isoformat(timespec="seconds")
     ok = proc.returncode < 8
     detail = _summarize_process(proc)
