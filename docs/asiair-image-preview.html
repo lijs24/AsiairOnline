@@ -51,7 +51,7 @@
       height: 100dvh;
       min-height: 0;
       display: grid;
-      grid-template-rows: 54px minmax(0, 1fr) 42px;
+      grid-template-rows: 54px minmax(0, 1fr) auto;
       overflow: hidden;
     }
 
@@ -619,9 +619,8 @@
     .footer {
       border-top: 1px solid var(--line);
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-rows: auto 34px;
-      align-items: stretch;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
       min-width: 0;
       background: #020303;
     }
@@ -641,6 +640,7 @@
     .logline strong { color: var(--green); }
 
     .footer-actions {
+      grid-column: 3;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -648,13 +648,12 @@
     }
 
     .progress-row {
-      grid-column: 1 / -1;
+      grid-column: 2;
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
       gap: 10px;
       align-items: center;
-      padding: 0 10px 8px;
-      border-top: 1px solid var(--line-soft);
+      padding: 0 14px;
       min-width: 0;
     }
 
