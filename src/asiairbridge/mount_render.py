@@ -44,13 +44,16 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
            str(params.get("pier")), round(f("lat", 40.0), 2), int(f("size", 560)),
            round(f("az", -999.0), 1), round(f("el", -999.0), 1), round(f("ha", -999.0), 1),
            int(f("sky", 0)), int(f("eqgrid", 1)), int(f("altgrid", 0)),
-           round(f("tra", -999.0), 2), round(f("tdec", -999.0), 1),
+           round(f("tra", -999.0), 2), round(f("tdec", -999.0), 1), round(f("fov", 35.0), 0),
            _dt.now().strftime("%Y%m%d%H") if f("sky", 0) else "")
     with _RENDER_LOCK:
         hit = _RENDER_CACHE.get(key)
     if hit is not None:
         return hit
-    png = _render_subprocess(params, root)
+    try:
+        png = _worker_render(params, root)
+    except Exception:  # noqa: BLE001 — fall back to the one-shot subprocess
+        png = _render_subprocess(params, root)
     with _RENDER_LOCK:
         _RENDER_CACHE[key] = png
         while len(_RENDER_CACHE) > max_entries:
@@ -60,7 +63,7 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
 
 def _render_subprocess(params: dict, root: str) -> bytes:
     args = [sys.executable, "-B", "-m", "asiairbridge.mount_render"]
-    for k in ("ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha", "sky", "eqgrid", "altgrid", "tra", "tdec"):
+    for k in ("ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha", "sky", "eqgrid", "altgrid", "tra", "tdec", "fov"):
         v = params.get(k)
         if v not in (None, ""):
             args += [f"--{k}", str(v)]
@@ -1036,7 +1039,7 @@ void main(){
 
 
 def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=None,
-               sky_lines=None, sky_points=None, labels=None, frame=None):
+               sky_lines=None, sky_points=None, labels=None, frame=None, fov=35.0):
     import moderngl
     ctx = moderngl.create_standalone_context()
     P = np.concatenate([p[0] for p in parts])
@@ -1064,7 +1067,7 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=
         view_el = float(os.environ.get("MV_EL", "8"))
     az, el = math.radians(view_az), math.radians(max(-10.0, min(85.0, view_el)))
     eye = center + dist * np.array([math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), math.sin(el)])
-    mvp = _perspective(35, 1.0, 0.5, dist * 4) @ _look_at(eye, center, (0, 0, 1))
+    mvp = _perspective(max(10.0, min(80.0, fov)), 1.0, 0.5, dist * 4) @ _look_at(eye, center, (0, 0, 1))
     mvp_bytes = np.ascontiguousarray(mvp.T).tobytes()
     prog["u_mvp"].write(mvp_bytes)
     prog["u_eye"].value = tuple(float(x) for x in eye)
@@ -1295,7 +1298,7 @@ def build_sky(lst_hours, lat, ra_hours=None, dec_degrees=None,
 
 def render_mount_png(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", latitude=40.0, size=560,
                      view_az=None, view_el=None, ha_override=None,
-                     sky=False, eqgrid=True, altgrid=False, target_ra=None, target_dec=None):
+                     sky=False, eqgrid=True, altgrid=False, target_ra=None, target_dec=None, fov=35.0):
     parts, scope_center = build_scene(ra_hours, dec_degrees, lst_hours, pier_side, latitude, ha_override=ha_override)
     sky_lines = sky_points = labels = frame = None
     if sky:
@@ -1304,7 +1307,7 @@ def render_mount_png(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east
             bool(eqgrid), bool(altgrid), scope_center, size)
         frame = ((0.0, 0.0, SKY_RADIUS * 0.40), SKY_RADIUS * 1.02)
     return render_png(parts, size=size, view_az=view_az, view_el=view_el,
-                      sky_lines=sky_lines, sky_points=sky_points, labels=labels, frame=frame)
+                      sky_lines=sky_lines, sky_points=sky_points, labels=labels, frame=frame, fov=fov)
 
 
 def main(argv=None):
@@ -1323,18 +1326,246 @@ def main(argv=None):
     ap.add_argument("--altgrid", type=int, default=0)
     ap.add_argument("--tra", type=float, default=None)
     ap.add_argument("--tdec", type=float, default=None)
+    ap.add_argument("--fov", type=float, default=35.0)
+    ap.add_argument("--serve", action="store_true")
     ap.add_argument("--out", default=None)
     a = ap.parse_args(argv)
+    if a.serve:
+        return serve_loop()
     png = render_mount_png(a.ra, a.dec, a.lst, a.pier, a.lat, a.size,
                            view_az=a.az, view_el=a.el, ha_override=a.ha,
                            sky=bool(a.sky), eqgrid=bool(a.eqgrid), altgrid=bool(a.altgrid),
-                           target_ra=a.tra, target_dec=a.tdec)
+                           target_ra=a.tra, target_dec=a.tdec, fov=a.fov)
     if a.out:
         with open(a.out, "wb") as fh:
             fh.write(png)
     else:
         sys.stdout.buffer.write(png)
     return 0
+
+
+# --------------------------------------------------------------------------- #
+#  persistent GPU render worker: keeps the GL context + geometry caches warm  #
+#  so interactive orbiting costs ~20-40 ms/frame instead of ~500 ms           #
+# --------------------------------------------------------------------------- #
+_WORKER_LOCK = threading.Lock()
+_WORKER: dict = {"proc": None}
+
+
+def _worker_render(params: dict, root: str) -> bytes:
+    import json as _json
+    with _WORKER_LOCK:
+        proc = _WORKER.get("proc")
+        if proc is None or proc.poll() is not None:
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(Path(root) / "src")
+            env["PYTHONDONTWRITEBYTECODE"] = "1"
+            proc = subprocess.Popen(
+                [sys.executable, "-B", "-m", "asiairbridge.mount_render", "--serve"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=str(root), env=env, bufsize=0)
+            _WORKER["proc"] = proc
+        try:
+            proc.stdin.write((_json.dumps(params) + "\n").encode("utf-8"))
+            proc.stdin.flush()
+            header = proc.stdout.readline()
+            tag, _, num = header.strip().partition(b" ")
+            n = int(num)
+            data = b""
+            while len(data) < n:
+                chunk = proc.stdout.read(n - len(data))
+                if not chunk:
+                    raise RuntimeError("render worker closed the pipe")
+                data += chunk
+            if tag != b"OK":
+                raise RuntimeError(data.decode("utf-8", "replace"))
+            return data
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:  # noqa: BLE001
+                pass
+            _WORKER["proc"] = None
+            raise
+
+
+def serve_loop() -> int:
+    import json as _json
+
+    import moderngl
+    ctx = moderngl.create_standalone_context()
+    progs = {
+        "tri": ctx.program(vertex_shader=VERT, fragment_shader=FRAG),
+        "line": ctx.program(vertex_shader=SKY_VERT, fragment_shader=SKY_FRAG),
+        "pt": ctx.program(vertex_shader=PT_VERT, fragment_shader=PT_FRAG),
+    }
+    fbos: dict = {}
+    scene_cache: dict = {}
+    sky_cache: dict = {}
+    stdin = sys.stdin.buffer
+    stdout = sys.stdout.buffer
+    while True:
+        line = stdin.readline()
+        if not line:
+            return 0
+        try:
+            png = _serve_frame(ctx, progs, fbos, scene_cache, sky_cache, _json.loads(line))
+            stdout.write(b"OK %d\n" % len(png))
+            stdout.write(png)
+        except Exception as exc:  # noqa: BLE001
+            msg = repr(exc).encode("utf-8", "replace")[:400]
+            stdout.write(b"ERR %d\n" % len(msg))
+            stdout.write(msg)
+        stdout.flush()
+
+
+def _serve_frame(ctx, progs, fbos, scene_cache, sky_cache, q):
+    import moderngl
+
+    def f(name, default=None):
+        v = q.get(name)
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return default
+
+    ra = f("ra")
+    dec = f("dec", 90.0)
+    lst = f("lst")
+    lat = f("lat", 40.0)
+    pier = str(q.get("pier") or "pier_east")
+    size = int(f("size", 560.0))
+    ha = f("ha")
+    sky = bool(int(f("sky", 0.0)))
+    eqg = bool(int(f("eqgrid", 1.0)))
+    alg = bool(int(f("altgrid", 0.0)))
+    tra = f("tra")
+    tdec = f("tdec")
+    view_az = f("az")
+    view_el = f("el")
+    fov = f("fov", 35.0)
+
+    pkey = (ra, dec, lst, pier, lat, ha)
+    ent = scene_cache.get(pkey)
+    if ent is None:
+        parts, scope_center = build_scene(ra, dec, lst, pier, lat, ha_override=ha)
+        P = np.concatenate([p[0] for p in parts])
+        N = np.concatenate([p[1] for p in parts])
+        Cv = np.concatenate([np.broadcast_to(_arr(p[2]), (len(p[0]), 3)) for p in parts])
+        data = np.hstack([P, N, Cv]).astype("f4").tobytes()
+        lo = P.min(axis=0)
+        hi = P.max(axis=0)
+        ent = (data, scope_center, ((lo + hi) / 2.0, float(np.linalg.norm(hi - lo)) / 2.0))
+        if len(scene_cache) > 8:
+            scene_cache.clear()
+        scene_cache[pkey] = ent
+    tri_data, scope_center, bbox = ent
+
+    lines_data = pts_data = labels = None
+    if sky:
+        from datetime import datetime as _dt
+        skey = (pkey, eqg, alg, tra, tdec, size, _dt.now().strftime("%Y%m%d%H"))
+        sent = sky_cache.get(skey)
+        if sent is None:
+            sky_lines, sky_points, labels0 = build_sky(lst, lat, ra, dec, tra, tdec, eqg, alg, scope_center, size)
+            seg = []
+            cols = []
+            for pts0, rgba in sky_lines:
+                pts0 = np.asarray(pts0, "f4")
+                if len(pts0) < 2:
+                    continue
+                inter = np.empty((2 * (len(pts0) - 1), 3), "f4")
+                inter[0::2] = pts0[:-1]
+                inter[1::2] = pts0[1:]
+                seg.append(inter)
+                cols.append(np.tile(np.asarray(rgba, "f4"), (len(inter), 1)))
+            ld = np.hstack([np.concatenate(seg), np.concatenate(cols)]).astype("f4").tobytes() if seg else None
+            pp, ps, pc = sky_points
+            pd = np.hstack([np.asarray(pp, "f4"), np.asarray(ps, "f4").reshape(-1, 1),
+                            np.asarray(pc, "f4")]).astype("f4").tobytes() if len(pp) else None
+            sent = (ld, pd, labels0)
+            if len(sky_cache) > 6:
+                sky_cache.clear()
+            sky_cache[skey] = sent
+        lines_data, pts_data, labels = sent
+
+    if sky:
+        center = np.array([0.0, 0.0, SKY_RADIUS * 0.40], "f4")
+        radius = SKY_RADIUS * 1.02
+        dist = radius * 3.1
+    else:
+        center, radius = bbox
+        dist = radius * 2.6
+    if view_az is None:
+        view_az = float(os.environ.get("MV_AZ", "-90"))
+    if view_el is None:
+        view_el = float(os.environ.get("MV_EL", "8"))
+    azr = math.radians(view_az)
+    elr = math.radians(max(-10.0, min(85.0, view_el)))
+    eye = center + dist * np.array([math.cos(elr) * math.sin(azr), -math.cos(elr) * math.cos(azr), math.sin(elr)])
+    mvp = _perspective(max(10.0, min(80.0, fov or 35.0)), 1.0, 0.5, dist * 4) @ _look_at(eye, center, (0, 0, 1))
+    mvpb = np.ascontiguousarray(mvp.T).tobytes()
+
+    fb = fbos.get(size)
+    if fb is None:
+        cbo = ctx.renderbuffer((size, size), samples=8)
+        dbo = ctx.depth_renderbuffer((size, size), samples=8)
+        fb = (ctx.framebuffer(color_attachments=[cbo], depth_attachment=dbo), ctx.simple_framebuffer((size, size)))
+        fbos[size] = fb
+    msaa, outfb = fb
+    msaa.use()
+    ctx.enable(moderngl.DEPTH_TEST)
+    ctx.clear(0.027, 0.035, 0.035, 1.0)
+    tp = progs["tri"]
+    tp["u_mvp"].write(mvpb)
+    tp["u_eye"].value = tuple(float(x) for x in eye)
+    tp["u_l1"].value = (-0.5, -0.55, 0.8)
+    tp["u_l2"].value = (0.7, 0.3, 0.2)
+    vbo = ctx.buffer(tri_data)
+    vao = ctx.vertex_array(tp, [(vbo, "3f 3f 3f", "in_pos", "in_norm", "in_col")])
+    vao.render(moderngl.TRIANGLES)
+    vao.release()
+    vbo.release()
+    ctx.enable(moderngl.BLEND)
+    if lines_data:
+        lp = progs["line"]
+        lp["u_mvp"].write(mvpb)
+        lvbo = ctx.buffer(lines_data)
+        lvao = ctx.vertex_array(lp, [(lvbo, "3f 4f", "in_pos", "in_col")])
+        lvao.render(moderngl.LINES)
+        lvao.release()
+        lvbo.release()
+    if pts_data:
+        ppr = progs["pt"]
+        ppr["u_mvp"].write(mvpb)
+        ctx.enable(moderngl.PROGRAM_POINT_SIZE)
+        pvbo = ctx.buffer(pts_data)
+        pvao = ctx.vertex_array(ppr, [(pvbo, "3f 1f 4f", "in_pos", "in_size", "in_col")])
+        pvao.render(moderngl.POINTS)
+        pvao.release()
+        pvbo.release()
+    ctx.copy_framebuffer(outfb, msaa)
+    raw = outfb.read(components=3)
+
+    from PIL import Image
+    img = Image.frombytes("RGB", (size, size), raw).transpose(Image.FLIP_TOP_BOTTOM)
+    if labels:
+        from PIL import ImageDraw
+
+        from .sky_render import _font
+        dr = ImageDraw.Draw(img)
+        for pos, text, rgb, px in labels:
+            v = mvp @ np.array([pos[0], pos[1], pos[2], 1.0], "f4")
+            if v[3] <= 0:
+                continue
+            ndc = v[:3] / v[3]
+            if abs(ndc[0]) > 1.05 or abs(ndc[1]) > 1.05:
+                continue
+            x = float((ndc[0] * 0.5 + 0.5) * size)
+            y = float((1.0 - (ndc[1] * 0.5 + 0.5)) * size)
+            dr.text((x, y), text, fill=tuple(int(c) for c in rgb), font=_font(px), anchor="mm")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", compress_level=1)
+    return buf.getvalue()
 
 
 if __name__ == "__main__":

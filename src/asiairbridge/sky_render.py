@@ -59,6 +59,10 @@ def _sun_ra_dec() -> tuple[float, float]:
     return ra / 15.0, dec
 
 
+import functools
+
+
+@functools.lru_cache(maxsize=16)
 def _font(size: int):
     for path in (r"C:\Windows\Fonts\msyh.ttc", r"C:\Windows\Fonts\simhei.ttf",
                  "/System/Library/Fonts/PingFang.ttc"):

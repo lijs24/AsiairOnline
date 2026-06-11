@@ -62,7 +62,7 @@
 
   <div class="side">
     <div class="panel">
-      <h2>视角(拖拽图像旋转 · 滚轮缩放)</h2>
+      <h2>视角(拖拽旋转 · 滚轮变焦)</h2>
       <div class="row"><label>方位 az</label><input type="range" id="az" min="-180" max="180" step="1" value="-90"><span class="val" id="azv">-90°</span></div>
       <div class="row"><label>俯仰 el</label><input type="range" id="el" min="-5" max="80" step="1" value="8"><span class="val" id="elv">8°</span></div>
       <div class="btns">
@@ -110,7 +110,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const img = $("view"), busy = $("busy"), hud = $("hud");
-  let az = -90, el = 8, size = 640;
+  let az = -90, el = 8, size = 640, fov = 35;
   let live = true, dec = 89.96, ha = 270, ra = null, lst = null, pier = "pier_east", lat = 40;
   let timer = null, inflight = false, pendingUrl = null;
   let sky = 1, seq = 1, salt = 0;
@@ -120,7 +120,7 @@
     if (live && ra != null) { p.set("ra", ra); p.set("lst", lst != null ? lst : ""); }
     p.set("dec", dec); p.set("pier", pier); p.set("lat", lat);
     if (!live) p.set("ha", ha);
-    p.set("sky", sky); p.set("eqgrid", seq); p.set("altgrid", salt);
+    p.set("sky", sky); p.set("eqgrid", seq); p.set("altgrid", salt); p.set("fov", fov);
     return "/api/mount-render?" + p.toString();
   }
 
@@ -146,8 +146,8 @@
         p2.src = u2;
       }
       probe.src = u;
-      hud.textContent = `az ${az.toFixed(0)}° · el ${el.toFixed(0)}°` + (live ? " · 实时" : ` · dec ${dec}° ha ${ha}°`);
-    }, now ? 0 : 160);
+      hud.textContent = `az ${az.toFixed(0)}° · el ${el.toFixed(0)}° · fov ${fov}°` + (live ? " · 实时" : ` · dec ${dec}° ha ${ha}°`);
+    }, now ? 0 : 30);
   }
 
   // drag orbit
@@ -163,7 +163,7 @@
     render();
   });
   img.addEventListener("pointerup", e => { drag = null; img.classList.remove("dragging"); });
-  $("stage").addEventListener("wheel", e => { e.preventDefault(); size = Math.max(360, Math.min(900, size + (e.deltaY < 0 ? 60 : -60))); render(); }, { passive: false });
+  $("stage").addEventListener("wheel", e => { e.preventDefault(); fov = Math.max(12, Math.min(75, fov + (e.deltaY < 0 ? -4 : 4))); render(); }, { passive: false });
 
   for (const [id, vid, fn] of [["az","azv",v=>{az=+v;}],["el","elv",v=>{el=+v;}],["dec","decv",v=>{dec=+v;}],["ha","hav",v=>{ha=+v;}]]) {
     $(id).addEventListener("input", e => { fn(e.target.value); $(vid).textContent = e.target.value + "°"; render(); });
