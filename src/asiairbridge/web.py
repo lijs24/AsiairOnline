@@ -17,6 +17,7 @@ from .camera_cache import CameraStateCache
 from .camera_ops import camera_action_response, camera_status_response, capture_progress_response
 from .mount_ops import mount_status_response
 from .mount_render import render_cached
+from .sky_render import render_sky_cached
 from .config import AppConfig, load_config
 from .image_preview import cached_image_path, cached_raw_path, current_image_response
 from .materials import MaterialLibrary
@@ -193,8 +194,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(mount_status_response(self.server.config, device))
             elif parsed.path == "/api/mount-render":
                 query = parse_qs(parsed.query)
-                params = {k: query.get(k, [None])[0] for k in ("ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha")}
+                params = {k: query.get(k, [None])[0] for k in (
+                    "ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha",
+                    "sky", "eqgrid", "altgrid", "tra", "tdec")}
                 self._send_bytes(render_cached(params, str(self.server.config.root)), "image/png")
+            elif parsed.path == "/api/sky-render":
+                query = parse_qs(parsed.query)
+                params = {k: query.get(k, [None])[0] for k in ("ra", "dec", "lst", "lat", "tra", "tdec", "size")}
+                self._send_bytes(render_sky_cached(params), "image/png")
             elif parsed.path == "/api/current-image":
                 query = parse_qs(parsed.query)
                 device = query.get("device", [None])[0]

@@ -87,6 +87,15 @@
     </div>
 
     <div class="panel">
+      <h2>天球</h2>
+      <div class="btns">
+        <button id="sky-on" class="on">天球</button>
+        <button id="sky-eq" class="on">赤道网格</button>
+        <button id="sky-alt">地平网格</button>
+      </div>
+    </div>
+
+    <div class="panel">
       <h2>说明</h2>
       <div class="hint">
         后端 GPU 渲染(RTX PRO 6000),前端零依赖。<br>
@@ -104,12 +113,14 @@
   let az = -90, el = 8, size = 640;
   let live = true, dec = 89.96, ha = 270, ra = null, lst = null, pier = "pier_east", lat = 40;
   let timer = null, inflight = false, pendingUrl = null;
+  let sky = 1, seq = 1, salt = 0;
 
   function url() {
     const p = new URLSearchParams({ size: size, az: az.toFixed(1), el: el.toFixed(1) });
     if (live && ra != null) { p.set("ra", ra); p.set("lst", lst != null ? lst : ""); }
     p.set("dec", dec); p.set("pier", pier); p.set("lat", lat);
     if (!live) p.set("ha", ha);
+    p.set("sky", sky); p.set("eqgrid", seq); p.set("altgrid", salt);
     return "/api/mount-render?" + p.toString();
   }
 
@@ -172,6 +183,9 @@
   }
   $("mode-live").addEventListener("click", () => setMode(true));
   $("mode-manual").addEventListener("click", () => setMode(false));
+  $("sky-on").addEventListener("click", () => { sky = sky ? 0 : 1; $("sky-on").classList.toggle("on", !!sky); render(true); });
+  $("sky-eq").addEventListener("click", () => { seq = seq ? 0 : 1; $("sky-eq").classList.toggle("on", !!seq); render(true); });
+  $("sky-alt").addEventListener("click", () => { salt = salt ? 0 : 1; $("sky-alt").classList.toggle("on", !!salt); render(true); });
 
   async function loadDevices() {
     try {

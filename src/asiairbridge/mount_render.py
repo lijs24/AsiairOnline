@@ -39,9 +39,13 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
         except (TypeError, ValueError):
             return default
 
+    from datetime import datetime as _dt
     key = (round(f("ra"), 3), round(f("dec", 90.0), 2), round(f("lst"), 3),
            str(params.get("pier")), round(f("lat", 40.0), 2), int(f("size", 560)),
-           round(f("az", -999.0), 1), round(f("el", -999.0), 1), round(f("ha", -999.0), 1))
+           round(f("az", -999.0), 1), round(f("el", -999.0), 1), round(f("ha", -999.0), 1),
+           int(f("sky", 0)), int(f("eqgrid", 1)), int(f("altgrid", 0)),
+           round(f("tra", -999.0), 2), round(f("tdec", -999.0), 1),
+           _dt.now().strftime("%Y%m%d%H") if f("sky", 0) else "")
     with _RENDER_LOCK:
         hit = _RENDER_CACHE.get(key)
     if hit is not None:
@@ -56,7 +60,7 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
 
 def _render_subprocess(params: dict, root: str) -> bytes:
     args = [sys.executable, "-B", "-m", "asiairbridge.mount_render"]
-    for k in ("ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha"):
+    for k in ("ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha", "sky", "eqgrid", "altgrid", "tra", "tdec"):
         v = params.get(k)
         if v not in (None, ""):
             args += [f"--{k}", str(v)]
@@ -925,7 +929,11 @@ def build_scene(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", la
     for P, N, col in optics:
         P1, N1 = transform(P, N, R_roll, OTA_T)
         place(P1, N1, col, "dec")
-    return parts
+
+    p1 = np.asarray(OTA_T, "f4") - off
+    p1 = (R_dec @ p1) + off
+    scope_center = (R_polar @ (R_ha @ p1)) + head_base
+    return parts, scope_center
 
 
 def _align_z(target):
@@ -996,7 +1004,39 @@ void main(){
 """
 
 
-def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=None):
+SKY_VERT = """
+#version 330
+in vec3 in_pos; in vec4 in_col;
+uniform mat4 u_mvp;
+out vec4 v_col;
+void main(){ v_col=in_col; gl_Position=u_mvp*vec4(in_pos,1.0); }
+"""
+SKY_FRAG = """
+#version 330
+in vec4 v_col; out vec4 f_col;
+void main(){ f_col=v_col; }
+"""
+PT_VERT = """
+#version 330
+in vec3 in_pos; in float in_size; in vec4 in_col;
+uniform mat4 u_mvp;
+out vec4 v_col;
+void main(){ v_col=in_col; gl_Position=u_mvp*vec4(in_pos,1.0); gl_PointSize=in_size; }
+"""
+PT_FRAG = """
+#version 330
+in vec4 v_col; out vec4 f_col;
+void main(){
+  vec2 d = gl_PointCoord - vec2(0.5);
+  float r = length(d);
+  if (r > 0.5) discard;
+  f_col = vec4(v_col.rgb, v_col.a * smoothstep(0.5, 0.30, r));
+}
+"""
+
+
+def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=None,
+               sky_lines=None, sky_points=None, labels=None, frame=None):
     import moderngl
     ctx = moderngl.create_standalone_context()
     P = np.concatenate([p[0] for p in parts])
@@ -1008,12 +1048,16 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=
     vbo = ctx.buffer(data.tobytes())
     vao = ctx.vertex_array(prog, [(vbo, "3f 3f 3f", "in_pos", "in_norm", "in_col")])
 
-    # frame the model
-    lo = P.min(axis=0)
-    hi = P.max(axis=0)
-    center = (lo + hi) / 2.0
-    radius = float(np.linalg.norm(hi - lo)) / 2.0
-    dist = radius * 2.6
+    if frame is not None:
+        center = np.asarray(frame[0], "f4")
+        radius = float(frame[1])
+        dist = radius * 3.1
+    else:
+        lo = P.min(axis=0)
+        hi = P.max(axis=0)
+        center = (lo + hi) / 2.0
+        radius = float(np.linalg.norm(hi - lo)) / 2.0
+        dist = radius * 2.6
     if view_az is None:
         view_az = float(os.environ.get("MV_AZ", "-90"))
     if view_el is None:
@@ -1021,7 +1065,8 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=
     az, el = math.radians(view_az), math.radians(max(-10.0, min(85.0, view_el)))
     eye = center + dist * np.array([math.cos(el) * math.sin(az), -math.cos(el) * math.cos(az), math.sin(el)])
     mvp = _perspective(35, 1.0, 0.5, dist * 4) @ _look_at(eye, center, (0, 0, 1))
-    prog["u_mvp"].write(np.ascontiguousarray(mvp.T).tobytes())
+    mvp_bytes = np.ascontiguousarray(mvp.T).tobytes()
+    prog["u_mvp"].write(mvp_bytes)
     prog["u_eye"].value = tuple(float(x) for x in eye)
     prog["u_l1"].value = (-0.5, -0.55, 0.8)
     prog["u_l2"].value = (0.7, 0.3, 0.2)
@@ -1034,22 +1079,232 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=
     ctx.enable(moderngl.DEPTH_TEST)
     ctx.clear(*bg, 1.0)
     vao.render(moderngl.TRIANGLES)
+
+    ctx.enable(moderngl.BLEND)
+    if sky_lines:
+        lprog = ctx.program(vertex_shader=SKY_VERT, fragment_shader=SKY_FRAG)
+        seg = []
+        cols = []
+        for pts, rgba in sky_lines:
+            pts = np.asarray(pts, "f4")
+            if len(pts) < 2:
+                continue
+            inter = np.empty((2 * (len(pts) - 1), 3), "f4")
+            inter[0::2] = pts[:-1]
+            inter[1::2] = pts[1:]
+            seg.append(inter)
+            cols.append(np.tile(np.asarray(rgba, "f4"), (len(inter), 1)))
+        if seg:
+            LP = np.concatenate(seg)
+            LC = np.concatenate(cols)
+            lvbo = ctx.buffer(np.hstack([LP, LC]).astype("f4").tobytes())
+            lvao = ctx.vertex_array(lprog, [(lvbo, "3f 4f", "in_pos", "in_col")])
+            lprog["u_mvp"].write(mvp_bytes)
+            lvao.render(moderngl.LINES)
+    if sky_points is not None and len(sky_points[0]):
+        pprog = ctx.program(vertex_shader=PT_VERT, fragment_shader=PT_FRAG)
+        ctx.enable(moderngl.PROGRAM_POINT_SIZE)
+        pp, ps, pc = sky_points
+        pdata = np.hstack([np.asarray(pp, "f4"), np.asarray(ps, "f4").reshape(-1, 1),
+                           np.asarray(pc, "f4")]).astype("f4")
+        pvbo = ctx.buffer(pdata.tobytes())
+        pvao = ctx.vertex_array(pprog, [(pvbo, "3f 1f 4f", "in_pos", "in_size", "in_col")])
+        pprog["u_mvp"].write(mvp_bytes)
+        pvao.render(moderngl.POINTS)
+
     out = ctx.simple_framebuffer((size, size))
     ctx.copy_framebuffer(out, msaa)
     raw = out.read(components=3)
 
     from PIL import Image
     img = Image.frombytes("RGB", (size, size), raw).transpose(Image.FLIP_TOP_BOTTOM)
+    if labels:
+        from PIL import ImageDraw
+
+        from .sky_render import _font
+        dr = ImageDraw.Draw(img)
+        for pos, text, rgb, px in labels:
+            v = mvp @ np.array([pos[0], pos[1], pos[2], 1.0], "f4")
+            if v[3] <= 0:
+                continue
+            ndc = v[:3] / v[3]
+            if abs(ndc[0]) > 1.05 or abs(ndc[1]) > 1.05:
+                continue
+            x = float((ndc[0] * 0.5 + 0.5) * size)
+            y = float((1.0 - (ndc[1] * 0.5 + 0.5)) * size)
+            dr.text((x, y), text, fill=tuple(int(c) for c in rgb), font=_font(px), anchor="mm")
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     ctx.release()
     return buf.getvalue()
 
 
+SKY_RADIUS = 110.0
+
+
+def build_sky(lst_hours, lat, ra_hours=None, dec_degrees=None,
+              target_ra=None, target_dec=None, eqgrid=True, altgrid=False,
+              scope_center=None, size=560):
+    """Celestial dome centered on the rig's ground position: equatorial /
+    alt-az grids, mag<=5 stars, the milky way, the sun, the goto target and
+    the live pointing ray. Returns (lines, points, labels) for render_png."""
+    from .sky_render import _alt_az, _sun_ra_dec
+    from .sky_stars import NAMED, STARS
+    R = SKY_RADIUS
+    lst = lst_hours if lst_hours is not None else 0.0
+    s = size / 760.0
+
+    def dirv(alt, azd):
+        a = math.radians(azd)
+        e = math.radians(alt)
+        return np.array([math.sin(a) * math.cos(e), math.cos(a) * math.cos(e), math.sin(e)], "f4")
+
+    def eq_pos(ra_h, dec_d):
+        return _alt_az((lst - ra_h) * 15.0, dec_d, lat)
+
+    lines = []
+    labels = []
+
+    def eq_polyline(samples, rgba):
+        run = []
+        for ra_h, dec_d in samples:
+            alt, azd = eq_pos(ra_h, dec_d)
+            if alt > -0.2:
+                run.append(dirv(alt, azd) * R)
+            else:
+                if len(run) > 1:
+                    lines.append((np.array(run, "f4"), rgba))
+                run = []
+        if len(run) > 1:
+            lines.append((np.array(run, "f4"), rgba))
+
+    if eqgrid:
+        for dec_c in (-30, 0, 30, 60):
+            samp = [(h / 4.0, float(dec_c)) for h in range(0, 97)]
+            eq_polyline(samp, (0.25, 0.36, 0.37, 0.85) if dec_c == 0 else (0.16, 0.23, 0.24, 0.55))
+        for ra_c in range(0, 24, 2):
+            samp = [(float(ra_c), float(d)) for d in range(-60, 89)]
+            eq_polyline(samp, (0.16, 0.23, 0.24, 0.5))
+    if altgrid:
+        for alt_c in (30, 60):
+            pts = [dirv(alt_c, a) * R for a in range(0, 363, 3)]
+            lines.append((np.array(pts, "f4"), (0.36, 0.31, 0.20, 0.6)))
+        for az_c in range(0, 360, 45):
+            pts = [dirv(float(a), float(az_c)) * R for a in range(0, 87, 3)]
+            lines.append((np.array(pts, "f4"), (0.36, 0.31, 0.20, 0.5)))
+
+    pts = [dirv(0.0, a) * R for a in range(0, 362, 2)]
+    lines.append((np.array(pts, "f4"), (0.36, 0.44, 0.43, 0.95)))  # horizon ring
+
+    pos = []
+    sizes = []
+    cols = []
+    for ra_h, dec_d, mag in STARS:
+        alt, azd = eq_pos(ra_h, dec_d)
+        if alt <= 0:
+            continue
+        pos.append(dirv(alt, azd) * R * 0.995)
+        sizes.append(max(1.2, 4.8 - 0.78 * mag) * s)
+        cols.append((0.88, 0.92, 0.92, max(0.28, min(1.0, 1.04 - 0.13 * mag))))
+
+    # milky way: deterministic scatter along the galactic equator (J2000 matrix)
+    M = ((-0.0548755604, 0.4941094279, -0.8676661490),
+         (-0.8734370902, -0.4448296300, -0.1980763734),
+         (-0.4838350155, 0.7469822445, 0.4559837762))
+    for i in range(2600):
+        f1 = math.modf(math.sin(i * 12.9898) * 43758.5453)[0]
+        f2 = math.modf(math.sin(i * 78.233) * 12578.1459)[0]
+        gl = (i / 2600.0) * 360.0 + f1 * 3.0
+        w = 7.0 + 5.0 * max(0.0, math.cos(math.radians(gl)))
+        gb = (abs(f2) * 2.0 - 1.0) * w
+        lr, br = math.radians(gl), math.radians(gb)
+        vg = (math.cos(br) * math.cos(lr), math.cos(br) * math.sin(lr), math.sin(br))
+        vx = M[0][0] * vg[0] + M[0][1] * vg[1] + M[0][2] * vg[2]
+        vy = M[1][0] * vg[0] + M[1][1] * vg[1] + M[1][2] * vg[2]
+        vz = M[2][0] * vg[0] + M[2][1] * vg[1] + M[2][2] * vg[2]
+        ra_h = (math.degrees(math.atan2(vy, vx)) % 360.0) / 15.0
+        dec_d = math.degrees(math.asin(max(-1.0, min(1.0, vz))))
+        alt, azd = eq_pos(ra_h, dec_d)
+        if alt <= 0:
+            continue
+        pos.append(dirv(alt, azd) * R * 0.998)
+        sizes.append((1.6 + 1.4 * abs(f1)) * s)
+        cols.append((0.56, 0.63, 0.74, 0.17))
+
+    sra, sdec = _sun_ra_dec()
+    alt, azd = eq_pos(sra, sdec)
+    if alt > 0:
+        p = dirv(alt, azd) * R * 0.99
+        pos.append(p)
+        sizes.append(10.0 * s)
+        cols.append((0.91, 0.70, 0.22, 0.95))
+        labels.append((p * 1.05, "日", (232, 179, 57), max(11, int(13 * s))))
+
+    # Pointing/target markers are anchored to the SCOPE line (not the ground
+    # origin): with a finite dome the ~50cm scope height causes ~20 deg of
+    # parallax, which would draw the ray visibly non-parallel to the tube.
+    anchor = np.asarray(scope_center, "f4") if scope_center is not None else np.array([0, 0, 40.0], "f4")
+
+    def sphere_hit(start, d):
+        b = float(np.dot(start, d))
+        c = float(np.dot(start, start)) - (R * 0.992) ** 2
+        t = -b + math.sqrt(max(b * b - c, 1e-6))
+        return start + d * t
+
+    def ring_at(pt, nrm, ang_deg, rgba):
+        cd = np.asarray(nrm, "f4")
+        cd = cd / np.linalg.norm(cd)
+        ref = np.array([0, 0, 1.0], "f4") if abs(cd[2]) < 0.95 else np.array([1.0, 0, 0], "f4")
+        u = np.cross(cd, ref)
+        u = u / np.linalg.norm(u)
+        v = np.cross(cd, u)
+        rr = math.radians(ang_deg) * R
+        ring_pts = []
+        for k in range(38):
+            t = k / 37.0 * 2 * math.pi
+            ring_pts.append(pt + (u * math.cos(t) + v * math.sin(t)) * rr)
+        lines.append((np.array(ring_pts, "f4"), rgba))
+
+    if target_ra is not None and target_dec is not None:
+        alt, azd = eq_pos(float(target_ra), float(target_dec))
+        if alt > 0:
+            d = dirv(alt, azd)
+            ring_at(sphere_hit(anchor, d), d, 2.6, (0.22, 0.85, 0.54, 0.95))
+
+    if ra_hours is not None and dec_degrees is not None:
+        alt, azd = eq_pos(float(ra_hours), float(dec_degrees))
+        if alt > -5:
+            d = dirv(alt, azd)
+            hit = sphere_hit(anchor, d)
+            ring_at(hit, d, 2.0, (0.89, 0.29, 0.25, 0.95))
+            lines.append((np.array([anchor, hit], "f4"), (0.89, 0.29, 0.25, 0.55)))
+
+    for azd, name in ((0, "北"), (90, "东"), (180, "南"), (270, "西")):
+        labels.append((dirv(1.2, azd) * R * 1.03, name, (120, 138, 136), max(12, int(15 * s))))
+    for ra_h, dec_d, name in NAMED:
+        alt, azd = eq_pos(ra_h, dec_d)
+        if alt > 3:
+            labels.append((dirv(alt, azd) * R * 1.012, name, (95, 110, 108), max(10, int(11 * s))))
+
+    if pos:
+        points = (np.array(pos, "f4"), np.array(sizes, "f4"), np.array(cols, "f4"))
+    else:
+        points = (np.zeros((0, 3), "f4"), np.zeros((0,), "f4"), np.zeros((0, 4), "f4"))
+    return lines, points, labels
+
+
 def render_mount_png(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", latitude=40.0, size=560,
-                     view_az=None, view_el=None, ha_override=None):
-    parts = build_scene(ra_hours, dec_degrees, lst_hours, pier_side, latitude, ha_override=ha_override)
-    return render_png(parts, size=size, view_az=view_az, view_el=view_el)
+                     view_az=None, view_el=None, ha_override=None,
+                     sky=False, eqgrid=True, altgrid=False, target_ra=None, target_dec=None):
+    parts, scope_center = build_scene(ra_hours, dec_degrees, lst_hours, pier_side, latitude, ha_override=ha_override)
+    sky_lines = sky_points = labels = frame = None
+    if sky:
+        sky_lines, sky_points, labels = build_sky(
+            lst_hours, latitude, ra_hours, dec_degrees, target_ra, target_dec,
+            bool(eqgrid), bool(altgrid), scope_center, size)
+        frame = ((0.0, 0.0, SKY_RADIUS * 0.40), SKY_RADIUS * 1.02)
+    return render_png(parts, size=size, view_az=view_az, view_el=view_el,
+                      sky_lines=sky_lines, sky_points=sky_points, labels=labels, frame=frame)
 
 
 def main(argv=None):
@@ -1063,10 +1318,17 @@ def main(argv=None):
     ap.add_argument("--az", type=float, default=None)
     ap.add_argument("--el", type=float, default=None)
     ap.add_argument("--ha", type=float, default=None)
+    ap.add_argument("--sky", type=int, default=0)
+    ap.add_argument("--eqgrid", type=int, default=1)
+    ap.add_argument("--altgrid", type=int, default=0)
+    ap.add_argument("--tra", type=float, default=None)
+    ap.add_argument("--tdec", type=float, default=None)
     ap.add_argument("--out", default=None)
     a = ap.parse_args(argv)
     png = render_mount_png(a.ra, a.dec, a.lst, a.pier, a.lat, a.size,
-                           view_az=a.az, view_el=a.el, ha_override=a.ha)
+                           view_az=a.az, view_el=a.el, ha_override=a.ha,
+                           sky=bool(a.sky), eqgrid=bool(a.eqgrid), altgrid=bool(a.altgrid),
+                           target_ra=a.tra, target_dec=a.tdec)
     if a.out:
         with open(a.out, "wb") as fh:
             fh.write(png)

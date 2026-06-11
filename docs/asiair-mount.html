@@ -28,6 +28,9 @@
     }
     .nav a:hover { color: var(--text); border-color: var(--line); }
     .nav a.active { color: var(--cyan); border-color: var(--cyan); }
+    .tgbtn { background:#101617; color:var(--muted); border:1px solid var(--line); border-radius:4px;
+      padding:3px 8px; font:inherit; font-size:11px; cursor:pointer; }
+    .tgbtn.on { color: var(--cyan); border-color: var(--cyan); }
     .top-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
     .badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); white-space: nowrap; }
     .badge.good { color: var(--green); border-color: var(--green); }
@@ -105,9 +108,13 @@
       <div id="notice" class="notice">赤道仪未连接 —— 请在 ASIAIR 中连接赤道仪后自动显示。</div>
 
       <section class="panel span2">
-        <div class="panel-head"><span>设备实时姿态 3D</span><span class="hint">GPU 渲染 · 随指向实时更新 · 只读</span></div>
-        <div style="display:flex; justify-content:center; align-items:center; background:radial-gradient(circle at 50% 40%, #0a0e0e, #040606); min-height:300px; padding:10px;">
-          <img id="mount3d" alt="赤道仪 3D 姿态" style="max-width:100%; width:560px; display:none;" />
+        <div class="panel-head"><span>实时天球 · 设备姿态 3D</span><span class="hint" style="display:flex; gap:8px; align-items:center;">
+          <button id="tg-eq" class="tgbtn on" type="button">赤道网格</button>
+          <button id="tg-alt" class="tgbtn" type="button">地平网格</button>
+          <span>GPU 渲染 · 随指向实时更新 · 只读</span>
+        </span></div>
+        <div style="display:flex; justify-content:center; align-items:center; background:radial-gradient(circle at 50% 40%, #0a0e0e, #040606); min-height:340px; padding:10px;">
+          <img id="mount3d" alt="实时天球与赤道仪姿态" style="max-width:100%; width:720px; display:none;" />
           <span id="mount3d-empty" style="color:var(--muted); font-size:13px;">等待赤道仪指向数据…</span>
         </div>
       </section>
@@ -168,6 +175,28 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
+
+    let skyEq = 1, skyAlt = 0, lastMountData = null;
+    function updateRig(d) {
+      if (!d) return;
+      const p0 = d.position || {}, s0 = d.site || {}, t0 = d.target || {};
+      const rr = (v, n) => (v == null ? "" : Number(v).toFixed(n));
+      if (d.connected && p0.ra_hours != null) {
+        const u = new URLSearchParams({ ra: rr(p0.ra_hours, 3), dec: rr(p0.dec_degrees, 2),
+          lst: rr(p0.lst_hours, 2), pier: d.pier_side || "",
+          lat: rr(s0.lat != null ? s0.lat : 40, 1), size: 760,
+          sky: 1, eqgrid: skyEq, altgrid: skyAlt });
+        if (t0.ra_hours != null) { u.set("tra", rr(t0.ra_hours, 3)); u.set("tdec", rr(t0.dec_degrees, 2)); }
+        const url = "/api/mount-render?" + u.toString();
+        const img = $("mount3d");
+        if (img.getAttribute("src") !== url) img.src = url;
+        img.style.display = ""; $("mount3d-empty").style.display = "none";
+      } else {
+        $("mount3d").style.display = "none"; $("mount3d-empty").style.display = "";
+      }
+    }
+    $("tg-eq").addEventListener("click", () => { skyEq = skyEq ? 0 : 1; $("tg-eq").classList.toggle("on", !!skyEq); updateRig(lastMountData); });
+    $("tg-alt").addEventListener("click", () => { skyAlt = skyAlt ? 0 : 1; $("tg-alt").classList.toggle("on", !!skyAlt); updateRig(lastMountData); });
     const qs = new URLSearchParams(location.search);
     const state = { device: qs.get("device") || "", timer: null };
 
@@ -213,18 +242,8 @@
       $("conn").textContent = connected ? "已连接" : (d.ok ? "未连接" : "无响应");
       $("conn").className = "badge " + (connected ? "good" : "bad");
 
-      const p0 = d.position || {}, s0 = d.site || {};
-      if (connected && p0.ra_hours != null) {
-        const u = new URLSearchParams({ ra: p0.ra_hours, dec: p0.dec_degrees,
-          lst: (p0.lst_hours != null ? p0.lst_hours : ""), pier: d.pier_side || "",
-          lat: (s0.lat != null ? s0.lat : 40), size: 600 });
-        const url = "/api/mount-render?" + u.toString();
-        const img = $("mount3d");
-        if (img.getAttribute("src") !== url) img.src = url;
-        img.style.display = ""; $("mount3d-empty").style.display = "none";
-      } else {
-        $("mount3d").style.display = "none"; $("mount3d-empty").style.display = "";
-      }
+      lastMountData = d;
+      updateRig(d);
 
       const p = d.position || {};
       setText("ra", connected ? p.ra_text : "--");
