@@ -196,7 +196,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 query = parse_qs(parsed.query)
                 params = {k: query.get(k, [None])[0] for k in (
                     "ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha",
-                    "sky", "eqgrid", "altgrid", "tra", "tdec", "fov")}
+                    "sky", "eqgrid", "altgrid", "tra", "tdec", "fov", "ground")}
                 self._send_bytes(render_cached(params, str(self.server.config.root)), "image/png")
             elif parsed.path == "/api/sky-render":
                 query = parse_qs(parsed.query)

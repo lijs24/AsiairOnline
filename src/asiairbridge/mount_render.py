@@ -44,7 +44,7 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
            str(params.get("pier")), round(f("lat", 40.0), 2), int(f("size", 560)),
            round(f("az", -999.0), 1), round(f("el", -999.0), 1), round(f("ha", -999.0), 1),
            int(f("sky", 0)), int(f("eqgrid", 1)), int(f("altgrid", 0)),
-           round(f("tra", -999.0), 2), round(f("tdec", -999.0), 1), round(f("fov", 35.0), 0),
+           round(f("tra", -999.0), 2), round(f("tdec", -999.0), 1), round(f("fov", 35.0), 0), int(f("ground", 1)),
            _dt.now().strftime("%Y%m%d%H") if f("sky", 0) else "")
     with _RENDER_LOCK:
         hit = _RENDER_CACHE.get(key)
@@ -63,7 +63,7 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
 
 def _render_subprocess(params: dict, root: str) -> bytes:
     args = [sys.executable, "-B", "-m", "asiairbridge.mount_render"]
-    for k in ("ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha", "sky", "eqgrid", "altgrid", "tra", "tdec", "fov"):
+    for k in ("ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha", "sky", "eqgrid", "altgrid", "tra", "tdec", "fov", "ground"):
         v = params.get(k)
         if v not in (None, ""):
             args += [f"--{k}", str(v)]
@@ -1054,7 +1054,7 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=
     if frame is not None:
         center = np.asarray(frame[0], "f4")
         radius = float(frame[1])
-        dist = radius * 3.1
+        dist = radius * float(frame[2])
     else:
         lo = P.min(axis=0)
         hi = P.max(axis=0)
@@ -1143,6 +1143,25 @@ def render_png(parts, size=560, bg=(0.027, 0.035, 0.035), view_az=None, view_el=
 
 
 SKY_RADIUS = 110.0
+GROUND_COLOR = (0.036, 0.048, 0.042)
+
+
+def build_ground():
+    """Dark ground disk with faint surveyor rings/radials. Returns (tris, lines)."""
+    tris = []
+    p, n = disk(SKY_RADIUS, seg=96, z=-0.06, up=1.0)
+    tris.append((p, n, GROUND_COLOR))
+    lines = []
+    for r in (SKY_RADIUS * 0.25, SKY_RADIUS * 0.5, SKY_RADIUS * 0.75):
+        pts = [np.array([r * math.cos(math.radians(a)), r * math.sin(math.radians(a)), 0.05], "f4")
+               for a in range(0, 362, 3)]
+        lines.append((np.array(pts, "f4"), (0.16, 0.20, 0.17, 0.45)))
+    for a in range(0, 360, 45):
+        ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
+        pts = [np.array([10 * ca, 10 * sa, 0.05], "f4"),
+               np.array([SKY_RADIUS * 0.995 * ca, SKY_RADIUS * 0.995 * sa, 0.05], "f4")]
+        lines.append((np.array(pts, "f4"), (0.14, 0.18, 0.15, 0.4)))
+    return tris, lines
 
 
 def build_sky(lst_hours, lat, ra_hours=None, dec_degrees=None,
@@ -1298,14 +1317,24 @@ def build_sky(lst_hours, lat, ra_hours=None, dec_degrees=None,
 
 def render_mount_png(ra_hours, dec_degrees, lst_hours=None, pier_side="pier_east", latitude=40.0, size=560,
                      view_az=None, view_el=None, ha_override=None,
-                     sky=False, eqgrid=True, altgrid=False, target_ra=None, target_dec=None, fov=35.0):
+                     sky=False, eqgrid=True, altgrid=False, target_ra=None, target_dec=None, fov=35.0,
+                     ground=True):
     parts, scope_center = build_scene(ra_hours, dec_degrees, lst_hours, pier_side, latitude, ha_override=ha_override)
     sky_lines = sky_points = labels = frame = None
     if sky:
         sky_lines, sky_points, labels = build_sky(
             lst_hours, latitude, ra_hours, dec_degrees, target_ra, target_dec,
             bool(eqgrid), bool(altgrid), scope_center, size)
-        frame = ((0.0, 0.0, SKY_RADIUS * 0.40), SKY_RADIUS * 1.02)
+        frame = ((0.0, 0.0, SKY_RADIUS * 0.40), SKY_RADIUS * 1.02, 3.1)
+    elif ground:
+        P0 = np.concatenate([p[0] for p in parts])
+        lo = P0.min(axis=0)
+        hi = P0.max(axis=0)
+        frame = (((lo + hi) / 2.0), float(np.linalg.norm(hi - lo)) / 2.0, 2.6)
+    if ground:
+        g_tris, g_lines = build_ground()
+        parts = list(parts) + g_tris
+        sky_lines = (list(sky_lines) if sky_lines else []) + g_lines
     return render_png(parts, size=size, view_az=view_az, view_el=view_el,
                       sky_lines=sky_lines, sky_points=sky_points, labels=labels, frame=frame, fov=fov)
 
@@ -1327,6 +1356,7 @@ def main(argv=None):
     ap.add_argument("--tra", type=float, default=None)
     ap.add_argument("--tdec", type=float, default=None)
     ap.add_argument("--fov", type=float, default=35.0)
+    ap.add_argument("--ground", type=int, default=1)
     ap.add_argument("--serve", action="store_true")
     ap.add_argument("--out", default=None)
     a = ap.parse_args(argv)
@@ -1335,7 +1365,7 @@ def main(argv=None):
     png = render_mount_png(a.ra, a.dec, a.lst, a.pier, a.lat, a.size,
                            view_az=a.az, view_el=a.el, ha_override=a.ha,
                            sky=bool(a.sky), eqgrid=bool(a.eqgrid), altgrid=bool(a.altgrid),
-                           target_ra=a.tra, target_dec=a.tdec, fov=a.fov)
+                           target_ra=a.tra, target_dec=a.tdec, fov=a.fov, ground=bool(a.ground))
     if a.out:
         with open(a.out, "wb") as fh:
             fh.write(png)
@@ -1443,6 +1473,7 @@ def _serve_frame(ctx, progs, fbos, scene_cache, sky_cache, q):
     view_az = f("az")
     view_el = f("el")
     fov = f("fov", 35.0)
+    gnd = bool(int(f("ground", 1.0)))
 
     pkey = (ra, dec, lst, pier, lat, ha)
     ent = scene_cache.get(pkey)
@@ -1459,6 +1490,27 @@ def _serve_frame(ctx, progs, fbos, scene_cache, sky_cache, q):
             scene_cache.clear()
         scene_cache[pkey] = ent
     tri_data, scope_center, bbox = ent
+
+    gent = fbos.get("_ground")
+    if gent is None:
+        g_tris, g_lines = build_ground()
+        gp = np.concatenate([t[0] for t in g_tris])
+        gn = np.concatenate([t[1] for t in g_tris])
+        gc = np.concatenate([np.broadcast_to(_arr(t[2]), (len(t[0]), 3)) for t in g_tris])
+        g_tri_bytes = np.hstack([gp, gn, gc]).astype("f4").tobytes()
+        seg = []
+        cols = []
+        for pts0, rgba in g_lines:
+            inter = np.empty((2 * (len(pts0) - 1), 3), "f4")
+            inter[0::2] = pts0[:-1]
+            inter[1::2] = pts0[1:]
+            seg.append(inter)
+            cols.append(np.tile(np.asarray(rgba, "f4"), (len(inter), 1)))
+        g_line_bytes = np.hstack([np.concatenate(seg), np.concatenate(cols)]).astype("f4").tobytes()
+        gent = (g_tri_bytes, g_line_bytes)
+        fbos["_ground"] = gent
+    if gnd:
+        tri_data = tri_data + gent[0]
 
     lines_data = pts_data = labels = None
     if sky:
@@ -1495,6 +1547,8 @@ def _serve_frame(ctx, progs, fbos, scene_cache, sky_cache, q):
     else:
         center, radius = bbox
         dist = radius * 2.6
+    if gnd:
+        lines_data = (lines_data or b"") + gent[1]
     if view_az is None:
         view_az = float(os.environ.get("MV_AZ", "-90"))
     if view_el is None:

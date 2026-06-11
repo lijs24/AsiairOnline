@@ -92,6 +92,7 @@
         <button id="sky-on" class="on">天球</button>
         <button id="sky-eq" class="on">赤道网格</button>
         <button id="sky-alt">地平网格</button>
+        <button id="sky-gnd" class="on">地面</button>
       </div>
     </div>
 
@@ -113,14 +114,14 @@
   let az = -90, el = 8, size = 640, fov = 35;
   let live = true, dec = 89.96, ha = 270, ra = null, lst = null, pier = "pier_east", lat = 40;
   let timer = null, inflight = false, pendingUrl = null;
-  let sky = 1, seq = 1, salt = 0;
+  let sky = 1, seq = 1, salt = 0, gnd = 1;
 
   function url() {
     const p = new URLSearchParams({ size: size, az: az.toFixed(1), el: el.toFixed(1) });
     if (live && ra != null) { p.set("ra", ra); p.set("lst", lst != null ? lst : ""); }
     p.set("dec", dec); p.set("pier", pier); p.set("lat", lat);
     if (!live) p.set("ha", ha);
-    p.set("sky", sky); p.set("eqgrid", seq); p.set("altgrid", salt); p.set("fov", fov);
+    p.set("sky", sky); p.set("eqgrid", seq); p.set("altgrid", salt); p.set("fov", fov); p.set("ground", gnd);
     return "/api/mount-render?" + p.toString();
   }
 
@@ -155,8 +156,8 @@
   img.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY, az, el }; img.classList.add("dragging"); img.setPointerCapture(e.pointerId); });
   img.addEventListener("pointermove", e => {
     if (!drag) return;
-    az = drag.az + (e.clientX - drag.x) * 0.45;
-    el = Math.max(-5, Math.min(80, drag.el + (e.clientY - drag.y) * 0.3));
+    az = drag.az - (e.clientX - drag.x) * 0.45;
+    el = Math.max(-5, Math.min(80, drag.el - (e.clientY - drag.y) * 0.3));
     az = ((az + 180) % 360 + 360) % 360 - 180;
     $("az").value = Math.round(az); $("el").value = Math.round(el);
     $("azv").textContent = az.toFixed(0) + "°"; $("elv").textContent = el.toFixed(0) + "°";
@@ -186,6 +187,7 @@
   $("sky-on").addEventListener("click", () => { sky = sky ? 0 : 1; $("sky-on").classList.toggle("on", !!sky); render(true); });
   $("sky-eq").addEventListener("click", () => { seq = seq ? 0 : 1; $("sky-eq").classList.toggle("on", !!seq); render(true); });
   $("sky-alt").addEventListener("click", () => { salt = salt ? 0 : 1; $("sky-alt").classList.toggle("on", !!salt); render(true); });
+  $("sky-gnd").addEventListener("click", () => { gnd = gnd ? 0 : 1; $("sky-gnd").classList.toggle("on", !!gnd); render(true); });
 
   async function loadDevices() {
     try {
