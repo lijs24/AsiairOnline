@@ -38,4 +38,16 @@ if ($ForceLock) {
 }
 
 & $Python @CmdArgs
-exit $LASTEXITCODE
+$BackupExit = $LASTEXITCODE
+
+if ($Run -and $BackupExit -eq 0) {
+    # Refresh the material-library index so the web pages see the new files.
+    try {
+        Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8787/api/materials/scan" `
+            -ContentType "application/json" -Body (ConvertTo-Json @{ force = $true }) -TimeoutSec 15 | Out-Null
+        Write-Host "Material index scan triggered."
+    } catch {
+        Write-Warning "Could not trigger the material index scan: $_"
+    }
+}
+exit $BackupExit
