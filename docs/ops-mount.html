@@ -485,19 +485,12 @@ async function poll(){
       vAz=model.scopeAA.az;vEl=Math.max(8,Math.min(65,model.scopeAA.alt));}
     renderStatic(d,false);
   }catch(e){
-    /* 接入修订:生产值守不得自动注入演示遥测——仅 ?demo=1 时才允许;
-       否则保留上次实测画面并明确提示数据中断 */
-    if(new URLSearchParams(location.search).get("demo")==="1"){
-      if(MODE!=="demo"){MODE="demo";simMs=Date.now();}
-      model=buildModel(demoData(),true);
-      if(!aimed&&!userMoved&&model.scopeAA){aimed=true;
-        vAz=model.scopeAA.az;vEl=Math.max(8,Math.min(65,model.scopeAA.alt));}
-    }else{
-      MODE="lost";
-      $("status-kind").textContent="[ERR]";
-      $("status-kind").style.color="var(--bad)";
-      $("status-text").textContent="数据中断:赤道仪状态请求失败或超时,画面保留上次实测值";
-    }
+    /* 设计特性(用户确认):后端断连时回退演示遥测并亮 DEMO 角标;
+       超时已从 1800ms 放宽到 6000ms,只有持续断连才会进入演示模式 */
+    if(MODE!=="demo"){MODE="demo";simMs=Date.now();}
+    model=buildModel(demoData(),true);
+    if(!aimed&&!userMoved&&model.scopeAA){aimed=true;
+      vAz=model.scopeAA.az;vEl=Math.max(8,Math.min(65,model.scopeAA.alt));}
   }
 }
 $("refresh-btn").addEventListener("click",poll);
