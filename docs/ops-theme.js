@@ -214,17 +214,17 @@ const isActive = (p) => {
 const top = document.createElement("header");
 top.className = "ops-top";
 top.innerHTML = `
-  <div class="ops-brand"><b>ASIAIR 远程天文台</b><span>REMOTE OBSERVATORY OPS</span></div>
+  <div class="ops-brand"><b>清华天协远程天文台</b><span>TSINGHUA ASTRO REMOTE OBSERVATORY</span></div>
   <nav class="ops-nav">${NAV.map(([t,p]) =>
     `<a href="${p}${urlDevice?`?device=${encodeURIComponent(urlDevice)}`:""}" class="${isActive(p)?"active":""}">${t}</a>`).join("")}</nav>
   <span class="ops-spacer"></span>
   <div class="ops-acts">
     <span id="ops-clock">--:--:--</span>
-    <span id="ops-control" class="ops-lamp"><i></i><span id="ops-control-text">主控空闲</span></span>
+    <select id="ops-device" class="ops-sel" aria-label="设备"></select>
     <select id="ops-role" class="ops-sel" aria-label="协作模式">
       <option value="monitor">监控</option><option value="controller">主控</option>
     </select>
-    <select id="ops-device" class="ops-sel" aria-label="设备"></select>
+    <span id="ops-control" class="ops-lamp"><i></i><span id="ops-control-text">主控空闲</span></span>
   </div>`;
 document.body.prepend(top);
 
