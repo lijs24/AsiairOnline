@@ -34,11 +34,11 @@ class RunLock:
                         f"Refusing --force-lock: backup process pid={holder_pid} "
                         f"still appears to be running. Stop it first: {self.path}"
                     )
-                self.path.unlink()
+                self._claim_stale()
             elif alive is False:
                 # Stale lock left by a crashed/killed run (PID is positively
                 # dead) — reclaim automatically so scheduled backups self-heal.
-                self.path.unlink()
+                self._claim_stale()
             # alive is True (genuinely running) or None (unreadable/unknown
             # holder): fall through and let O_EXCL reject the acquisition.
 
@@ -58,6 +58,20 @@ class RunLock:
         payload.update(self.metadata)
         os.write(self._fd, json.dumps(payload, ensure_ascii=False).encode("utf-8"))
         return self
+
+    def _claim_stale(self) -> None:
+        # Atomic reclaim: two simultaneous starters must not both unlink the
+        # stale lock and both pass O_EXCL. rename() lets exactly one win; the
+        # loser falls through and is rejected by O_EXCL as intended.
+        claim = self.path.with_name(self.path.name + f".stale-{os.getpid()}")
+        try:
+            self.path.rename(claim)
+        except FileNotFoundError:
+            return
+        try:
+            claim.unlink()
+        except FileNotFoundError:
+            pass
 
     def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[no-untyped-def]
         if self._fd is not None:
@@ -114,7 +128,12 @@ def _pid_is_running(pid: int | None) -> bool:
             errors="replace",
         )
         text = proc.stdout.strip()
-        return str(pid) in text and not text.startswith("INFO:")
+        if str(pid) not in text or text.startswith("INFO:"):
+            return False
+        # Guard against PID reuse after reboot: only a python process can be
+        # a live backup holder; any other image means the lock is stale.
+        image = text.split(",", 1)[0].strip('"').lower()
+        return image.startswith("python")
     try:
         os.kill(pid, 0)
     except OSError:
@@ -127,7 +146,7 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     # latest.json/run file. Write a sibling temp, flush+fsync, then os.replace
     # (atomic on Windows and POSIX). Mirrors web_control/rpc_monitor.
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_name(path.name + ".tmp")
+    tmp_path = path.with_name(path.name + f".tmp{os.getpid()}")
     with tmp_path.open("w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
         fh.write("\n")

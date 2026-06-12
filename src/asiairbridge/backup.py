@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -66,7 +67,14 @@ def build_jobs(
 def run_job(config: AppConfig, job: BackupJob, dry_run: bool) -> BackupResult:
     started_at = datetime.now().isoformat(timespec="seconds")
     port = config.backup.smb_port
-    tcp = tcp_open(job.device.ip, port)
+    # Retry the reachability precheck: one 2s SYN miss (Wi-Fi power-save ARP
+    # latency) must not skip a device for the whole day.
+    for attempt in range(config.backup.retry_count + 1):
+        tcp = tcp_open(job.device.ip, port, timeout_seconds=5.0)
+        if tcp.ok:
+            break
+        if attempt < config.backup.retry_count:
+            time.sleep(config.backup.retry_wait_seconds)
     if not tcp.ok:
         finished_at = datetime.now().isoformat(timespec="seconds")
         return BackupResult(
@@ -101,21 +109,41 @@ def run_job(config: AppConfig, job: BackupJob, dry_run: bool) -> BackupResult:
     # code page, not UTF-8. Decode with "oem" so Chinese source/destination
     # paths in the summary stay readable (Unicode-safe per project rules).
     output_encoding = "oem" if os.name == "nt" else "utf-8"
-    proc = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        encoding=output_encoding,
-        errors="replace",
-    )
+    timeout_seconds = config.backup.job_timeout_hours * 3600
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding=output_encoding,
+            errors="replace",
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        # A degraded-but-alive link can dribble for days without a robocopy
+        # error; kill the job here so the run finishes, state is written and
+        # the lock is released before the evening imaging window.
+        finished_at = datetime.now().isoformat(timespec="seconds")
+        return BackupResult(
+            job=job,
+            ok=False,
+            status="failed",
+            exit_code=None,
+            detail=f"timed out after {config.backup.job_timeout_hours}h (robocopy killed)",
+            started_at=started_at,
+            finished_at=finished_at,
+        )
     finished_at = datetime.now().isoformat(timespec="seconds")
-    ok = proc.returncode < 8
+    # robocopy exit bits: 1=copied, 2=extras (expected: additive archive keeps
+    # files deleted box-side), 4=mismatch, >=8=failures. Treat mismatch as a
+    # visible problem instead of success.
+    ok = proc.returncode < 4
     detail = _summarize_process(proc)
 
     return BackupResult(
         job=job,
         ok=ok,
-        status="ok" if ok else "failed",
+        status="ok" if ok else ("mismatch" if proc.returncode < 8 else "failed"),
         exit_code=proc.returncode,
         detail=detail,
         started_at=started_at,
