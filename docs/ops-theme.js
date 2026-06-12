@@ -214,7 +214,7 @@ const isActive = (p) => {
 const top = document.createElement("header");
 top.className = "ops-top";
 top.innerHTML = `
-  <div class="ops-brand"><b>清华天协远程天文台</b><span>TSINGHUA ASTRO REMOTE OBSERVATORY</span></div>
+  <div class="ops-brand"><b>清华天协远程天文台</b><span>THU ASTRO REMOTE OBSERVATORY</span></div>
   <nav class="ops-nav">${NAV.map(([t,p]) =>
     `<a href="${p}${urlDevice?`?device=${encodeURIComponent(urlDevice)}`:""}" class="${isActive(p)?"active":""}">${t}</a>`).join("")}</nav>
   <span class="ops-spacer"></span>
