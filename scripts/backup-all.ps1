@@ -37,10 +37,20 @@ if ($ForceLock) {
     $CmdArgs += "--force-lock"
 }
 
+if ($Run) {
+    $h = (Get-Date).Hour
+    if ($h -ge 19 -or $h -lt 6) {
+        # A missed 09:00 trigger (StartWhenAvailable) must not start a bulk
+        # SMB pull mid-imaging; the next morning trigger covers the data.
+        Write-Warning "Inside the imaging window (19:00-06:00); skipping catch-up run."
+        exit 0
+    }
+}
+
 & $Python @CmdArgs
 $BackupExit = $LASTEXITCODE
 
-if ($Run -and $BackupExit -eq 0) {
+if ($Run) {
     # Refresh the material-library index so the web pages see the new files.
     try {
         Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8787/api/materials/scan" `
