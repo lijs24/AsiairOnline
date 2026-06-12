@@ -106,62 +106,6 @@
       border: 1px solid var(--line);
     }
 
-    .topbar {
-      height: 54px;
-      display: grid;
-      grid-template-columns: 220px minmax(0, 1fr) auto;
-      align-items: stretch;
-      border-bottom: 1px solid var(--line-dim);
-      background: #000;
-      position: sticky;
-      top: 0;
-      z-index: 20;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      padding: 0 12px;
-      color: var(--cyan);
-      font-weight: 800;
-      letter-spacing: 0.14em;
-      white-space: nowrap;
-    }
-
-    .nav {
-      display: flex;
-      align-items: stretch;
-      gap: 0;
-      overflow-x: auto;
-    }
-
-    .nav a {
-      min-width: 92px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--muted);
-      text-decoration: none;
-      border-left: 1px solid transparent;
-      border-right: 1px solid transparent;
-    }
-
-    .nav a:hover,
-    .nav a.active {
-      color: var(--text);
-      border-color: var(--line);
-      background: var(--panel-soft);
-    }
-
-    .top-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 0 12px;
-      color: var(--muted);
-      white-space: nowrap;
-    }
-
     .shell {
       min-height: calc(100vh - 54px);
       display: grid;
@@ -183,7 +127,7 @@
 
     .toolbar {
       display: grid;
-      grid-template-columns: 170px 180px minmax(220px, 1fr) auto auto;
+      grid-template-columns: 170px 180px minmax(220px, 1fr) auto auto auto;
       gap: 10px;
       padding: 12px;
       border-bottom: 1px solid var(--line-dim);
@@ -191,6 +135,12 @@
       position: sticky;
       top: 54px;
       z-index: 10;
+    }
+
+    .toolbar #scan-state {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
     }
 
     .crumbbar {
@@ -650,14 +600,6 @@
     }
 
     @media (max-width: 680px) {
-      .topbar {
-        height: auto;
-        grid-template-columns: 1fr;
-      }
-      .brand,
-      .top-actions {
-        min-height: 48px;
-      }
       .toolbar {
         position: static;
         grid-template-columns: 1fr;
@@ -673,18 +615,8 @@
   </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">ASIAIR OPS</div>
-    <nav class="nav">
-      <a id="overview-link" href="/monitor-minterm">总览</a>
-      <a id="camera-link" href="/camera">相机</a>
-      <a class="active" href="/materials">素材库</a>
-    </nav>
-    <div class="top-actions">
-      <span id="clock">--:--:--</span>
-      <span id="scan-state" class="cyan">索引</span>
-    </div>
-  </header>
+  <header id="app-topbar"></header>
+  <script src="/topbar.js"></script>
 
   <div class="shell">
     <main class="main">
@@ -694,6 +626,7 @@
         <input id="search-input" type="search" placeholder="在当前目录搜索">
         <button id="refresh-btn" type="button">刷新</button>
         <button id="scan-btn" type="button">扫描</button>
+        <span id="scan-state" class="cyan">索引</span>
       </section>
 
       <section id="crumbbar" class="crumbbar"></section>
@@ -824,10 +757,6 @@
 
     const $ = (id) => document.getElementById(id);
 
-    function clock() {
-      $("clock").textContent = new Date().toLocaleString("zh-CN", { hour12: false });
-    }
-
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({
         "&": "&amp;",
@@ -916,9 +845,6 @@
       if (state.view !== "thumb") params.set("view", state.view);
       const suffix = params.toString() ? `?${params.toString()}` : "";
       history.replaceState(null, "", `/materials${suffix}`);
-      const deviceSuffix = state.device ? `?device=${encodeURIComponent(state.device)}` : "";
-      $("overview-link").href = `/monitor-minterm${deviceSuffix}`;
-      $("camera-link").href = `/camera${deviceSuffix}`;
     }
 
     function render() {
@@ -1592,8 +1518,6 @@
     }
 
     async function init() {
-      clock();
-      setInterval(clock, 1000);
       state.path = initialParam("path") || "";
       state.view = initialParam("view") || state.view;
       if (!["list", "thumb"].includes(state.view)) state.view = "thumb";

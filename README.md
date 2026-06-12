@@ -8,6 +8,12 @@ The project provides:
 - A web dashboard for live device monitoring, camera preview/control, and local material browsing.
 - A local SQLite index for cached material metadata and generated preview images.
 - Per-device control leases so multiple tailnet users can watch the dashboard while write actions stay gated to a single controller.
+- A read-only equatorial mount page with the live pointing, tracking and goto-target state.
+- A GPU-rendered 3D scene of the rig (harmonic mount + refractor + cooled camera) with true two-axis
+  kinematics, pier-side solution and mechanical limits, standing at the center of a real-time celestial
+  sphere (Yale BSC stars to mag 5, the milky way, equatorial/alt-az grids, the sun, pointing and target
+  markers). Stellarium-style drag/zoom served by a persistent render worker at ~8 ms/frame.
+- A shared topbar component across all pages with one control-lease identity per browser.
 
 ## Quick Start
 

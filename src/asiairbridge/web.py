@@ -15,6 +15,9 @@ from urllib.parse import parse_qs, urlparse
 
 from .camera_cache import CameraStateCache
 from .camera_ops import camera_action_response, camera_status_response, capture_progress_response
+from .mount_ops import mount_status_response
+from .mount_render import render_cached
+from .sky_render import render_sky_cached
 from .config import AppConfig, load_config
 from .image_preview import cached_image_path, cached_raw_path, current_image_response
 from .materials import MaterialLibrary
@@ -119,6 +122,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.server.config.root / "docs" / "asiair-materials.html",
                     "text/html; charset=utf-8",
                 )
+            elif parsed.path == "/mount":
+                self._send_file(
+                    self.server.config.root / "docs" / "asiair-mount.html",
+                    "text/html; charset=utf-8",
+                )
+            elif parsed.path == "/topbar.js":
+                self._send_file(
+                    self.server.config.root / "docs" / "asiair-topbar.js",
+                    "application/javascript; charset=utf-8",
+                )
             elif parsed.path == "/static/asiair-monitor-static-preview.html":
                 self._send_file(
                     self.server.config.root / "docs" / "asiair-monitor-static-preview.html",
@@ -175,6 +188,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 query = parse_qs(parsed.query)
                 device = query.get("device", [None])[0]
                 self._send_json(capture_progress_response(self.server.config, device))
+            elif parsed.path == "/api/mount-state":
+                query = parse_qs(parsed.query)
+                device = query.get("device", [None])[0]
+                self._send_json(mount_status_response(self.server.config, device))
+            elif parsed.path == "/api/mount-render":
+                query = parse_qs(parsed.query)
+                params = {k: query.get(k, [None])[0] for k in (
+                    "ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha",
+                    "sky", "eqgrid", "altgrid", "tra", "tdec", "fov", "ground")}
+                self._send_bytes(render_cached(params, str(self.server.config.root)), "image/png")
+            elif parsed.path == "/api/sky-render":
+                query = parse_qs(parsed.query)
+                params = {k: query.get(k, [None])[0] for k in ("ra", "dec", "lst", "lat", "tra", "tdec", "size")}
+                self._send_bytes(render_sky_cached(params), "image/png")
             elif parsed.path == "/api/current-image":
                 query = parse_qs(parsed.query)
                 device = query.get("device", [None])[0]
@@ -411,7 +438,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def _require_actions_allowed(self) -> None:
         if not self._actions_allowed():
-            raise PermissionError("Remote dashboard access is read-only")
+            raise PermissionError("此入口不允许远程操作 — 请使用可操作入口(端口 8794)")
 
     def _require_scan_allowed(self) -> None:
         if not self._scan_allowed():
@@ -419,10 +446,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def _require_controller_for_device(self, device_name: str, session_id: str) -> None:
         if self.server.read_only:
-            raise PermissionError("Web server is running in read-only mode")
+            raise PermissionError("只读入口禁止拍摄/写入 — 请使用可操作入口(端口 8794)")
         lease = control_state(self.server.config, device_name, session_id=session_id)
         if not lease.get("held_by_self"):
-            raise PermissionError(f"{device_name} requires controller mode")
+            raise PermissionError(f"{device_name} 需要主控模式 — 请在顶栏将 监控 切换为 主控")
 
     def _read_json_body(self) -> dict[str, Any]:
         length = int(self.headers.get("Content-Length") or 0)
@@ -523,6 +550,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_bytes(self, data: bytes, content_type: str) -> None:
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _send_json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
