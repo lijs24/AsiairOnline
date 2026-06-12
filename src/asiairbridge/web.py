@@ -109,24 +109,45 @@ class DashboardHandler(BaseHTTPRequestHandler):
         try:
             if parsed.path in {"/", "/monitor-minterm"}:
                 self._send_file(
-                    self.server.config.root / "docs" / "asiair-monitor-minterm-live.html",
+                    self.server.config.root / "docs" / "ops-overview.html",
                     "text/html; charset=utf-8",
                 )
             elif parsed.path in {"/preview", "/camera"}:
                 self._send_file(
-                    self.server.config.root / "docs" / "asiair-image-preview.html",
+                    self.server.config.root / "docs" / "ops-camera.html",
                     "text/html; charset=utf-8",
                 )
             elif parsed.path in {"/materials", "/library"}:
                 self._send_file(
-                    self.server.config.root / "docs" / "asiair-materials.html",
+                    self.server.config.root / "docs" / "ops-materials.html",
                     "text/html; charset=utf-8",
                 )
             elif parsed.path == "/mount":
                 self._send_file(
+                    self.server.config.root / "docs" / "ops-mount.html",
+                    "text/html; charset=utf-8",
+                )
+            elif parsed.path == "/mount-classic":
+                # 旧版 GPU 3D 渲染赤道仪页,新前端未包含 3D 能力,保留入口
+                self._send_file(
                     self.server.config.root / "docs" / "asiair-mount.html",
                     "text/html; charset=utf-8",
                 )
+            elif parsed.path == "/ops-theme.js":
+                self._send_file(
+                    self.server.config.root / "docs" / "ops-theme.js",
+                    "application/javascript; charset=utf-8",
+                )
+            elif parsed.path.startswith("/fonts/"):
+                name = parsed.path[len("/fonts/"):]
+                if name.endswith(".woff2") and "/" not in name and ".." not in name:
+                    self._send_file(
+                        self.server.config.root / "docs" / "fonts" / name,
+                        "font/woff2",
+                        cache_seconds=86400,
+                    )
+                else:
+                    self.send_error(HTTPStatus.NOT_FOUND)
             elif parsed.path == "/topbar.js":
                 self._send_file(
                     self.server.config.root / "docs" / "asiair-topbar.js",
@@ -538,6 +559,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path: Path,
         content_type: str,
         download_name: str | None = None,
+        cache_seconds: int = 0,
     ) -> None:
         if not path.is_file():
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -546,6 +568,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        if cache_seconds > 0:
+            self.send_header("Cache-Control", f"public, max-age={cache_seconds}")
         if download_name:
             self.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
         self.end_headers()
