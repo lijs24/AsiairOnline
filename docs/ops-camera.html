@@ -87,6 +87,31 @@ html[data-skin="B"] .statusline{font-size:14px}
 html[data-skin="B"] .statusline .kind{font-size:14px}
 html[data-skin="B"] .con-note{font-size:14px}
 html[data-skin="B"] button.con{font-size:14px}
+
+/* 入场编排修订:本页右栏/直方图带/状态行均为异步填充(loadImage + loadState),
+   若沿用主题层"加载即按时间轴淡入",慢网时空容器会先于内容浮现、顺序错乱。
+   做法:先把所有 .seq 暂停在隐藏起始态,等首次数据就绪(两路 load 结束)再统一放行,
+   届时各段已填好内容,按 d1/d2/d3 自上而下依次浮现。reduce 用户不受影响(本块在 no-preference 内)。 */
+@media (prefers-reduced-motion:no-preference){
+  .seq{animation-play-state:paused}
+  body.ready .seq{animation-play-state:running}
+}
+/* 右栏:不整块淡入,而是分组标题与数据行逐条依次浮现。
+   容器自身用一个近乎即时的 opacity 切换占住它在级联中的档位(.28s),不做时长淡入 ——
+   否则父级 opacity 渐变会"罩住"子行,行级错峰就看不出来了。
+   行的浮现只在首次揭幕(.rail.reveal)期间生效,其后轮询刷新不重放(见脚本)。 */
+@media (prefers-reduced-motion:no-preference){
+  .rail{opacity:0}
+  body.ready .rail{animation:camFrameIn .01s linear .28s forwards}
+  @keyframes camFrameIn{to{opacity:1}}
+  body.ready .rail.reveal .hgroup h3,
+  body.ready .rail.reveal .hrow,
+  body.ready .rail.reveal .ro-note{
+    opacity:0;transform:translateY(6px);
+    animation:opsSeq .46s cubic-bezier(.2,.7,.3,1) both;
+    animation-delay:calc(.3s + var(--ri,0) * .07s);
+  }
+}
 </style>
 </head>
 <body>
@@ -176,6 +201,23 @@ const $=id=>document.getElementById(id);
 const OPS=window.OPS;
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
+let revealed=false;
+/* 首次数据就绪后统一放行入场动画(自上而下),并让右栏分组/数据行逐条浮现。
+   仅首次揭幕加 .reveal,级联跑完即移除,避免 3s 轮询刷新重放。 */
+function revealSeq(){
+  if(revealed)return;revealed=true;
+  requestAnimationFrame(()=>{
+    document.body.classList.add("ready");
+    const rail=document.querySelector(".rail");
+    if(rail){
+      /* 为逐条浮现标注顺序索引(仅在首次揭幕 .rail.reveal 期间被 CSS 使用) */
+      const items=rail.querySelectorAll(".ro-note, .hgroup h3, .hrow");
+      items.forEach((el,i)=>el.style.setProperty("--ri",i));
+      rail.classList.add("reveal");
+      setTimeout(()=>rail.classList.remove("reveal"),300+items.length*70+800);
+    }
+  });
+}
 
 /* ───── 图像核心:原始像素 + LUT 拉伸 + 视口变换 ───── */
 const stage=$("stage"),sctx=stage.getContext("2d");
@@ -481,14 +523,17 @@ async function loadState(){
     setBadge("无响应","");
     $("status-kind").textContent="[ERR]";$("status-kind").style.color="var(--bad)";
     $("status-text").textContent="相机状态加载失败:"+(e.message||"接口不可达");
+  }finally{
+    const gate=OPS.actionsAllowed();
+    const self=OPS.heldBySelf&&gate;
+    $("btn-shoot").disabled=!self;
+    $("apply-exposure-btn").disabled=!self;
+    $("ro-note").style.display=(self||!gate)?"none":"";
+    $("access-note").style.display=gate?"none":"";
+    if(!gate)$("access-note-link").href=OPS.actionEntry("camera");
+    /* 首次状态就绪(成功或失败、且门禁文案已就位)后统一放行入场动画 */
+    revealSeq();
   }
-  const gate=OPS.actionsAllowed();
-  const self=OPS.heldBySelf&&gate;
-  $("btn-shoot").disabled=!self;
-  $("apply-exposure-btn").disabled=!self;
-  $("ro-note").style.display=(self||!gate)?"none":"";
-  $("access-note").style.display=gate?"none":"";
-  if(!gate)$("access-note-link").href=OPS.actionEntry("camera");
 }
 OPS.onControl(()=>loadState());document.addEventListener("ops:access",loadState);
 
