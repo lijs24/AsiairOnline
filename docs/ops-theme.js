@@ -55,22 +55,26 @@ a{color:inherit}
 /* —— 顶栏 —— */
 .ops-top{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;align-items:center;gap:18px;
   padding:10px 22px;background:linear-gradient(180deg,var(--scrim),var(--scrim0))}
+.ops-top::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+  -webkit-mask-image:linear-gradient(180deg,#000 62%,transparent);
+  mask-image:linear-gradient(180deg,#000 62%,transparent)}
 .ops-brand{line-height:1.15;white-space:nowrap}
 .ops-brand b{display:block;font:600 17px var(--display);letter-spacing:.16em}
 html[data-skin="B"] .ops-brand b{font-weight:600;letter-spacing:.12em}
 .ops-brand span{font:var(--lab-w) 9.5px var(--display);letter-spacing:.38em;color:var(--ac);text-transform:uppercase}
-.ops-nav{display:flex;gap:6px}
+.ops-nav{display:flex;gap:6px;margin-left:28px}
 html[data-skin="B"] .ops-nav{gap:22px}
-.ops-nav a{position:relative;color:var(--muted);text-decoration:none;font:var(--lab-w) 14px var(--display);
-  letter-spacing:.16em;padding:5px 10px;text-transform:var(--lab-tt)}
+.ops-nav a{position:relative;color:var(--muted);text-decoration:none;font:var(--lab-w) 16px var(--display);
+  letter-spacing:.08em;padding:5px 10px;text-transform:var(--lab-tt)}
 .ops-nav a:hover{color:var(--text)}
 .ops-nav a.active{color:var(--text)}
 html[data-skin="B"] .ops-nav a.active::after{content:"";position:absolute;left:14%;right:14%;bottom:0;height:1px;background:var(--ac)}
 .ops-spacer{flex:1}
 .ops-acts{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
-#ops-clock{font:500 12px var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}
-.ops-lamp{display:inline-flex;align-items:center;gap:7px;font:var(--lab-w) 11px var(--display);
-  letter-spacing:.14em;padding:3px 11px;border:1px solid var(--line);border-radius:var(--pill);text-transform:var(--lab-tt)}
+#ops-clock{font:500 14px var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.ops-lamp{display:inline-flex;align-items:center;gap:7px;font:var(--lab-w) 13px var(--display);
+  letter-spacing:.08em;padding:3px 11px;border:1px solid var(--line);border-radius:var(--pill);text-transform:var(--lab-tt)}
 .ops-lamp i{width:7px;height:7px;border-radius:50%;background:var(--quiet)}
 html[data-skin="B"] .ops-lamp i{transform:rotate(45deg);border-radius:0;width:6px;height:6px}
 .ops-lamp.self{color:var(--ac);border-color:var(--ac-soft)}
@@ -78,7 +82,9 @@ html[data-skin="B"] .ops-lamp i{transform:rotate(45deg);border-radius:0;width:6p
 .ops-lamp.busy{color:var(--warn);border-color:var(--warn)}
 .ops-lamp.busy i{background:var(--warn)}
 select.ops-sel{background:transparent;color:var(--text);border:1px solid var(--line);border-radius:var(--pill);
-  font:400 12px var(--body);padding:4px 10px;min-width:96px}
+  font:400 14px var(--body);padding:4px 10px;min-width:96px}
+#ops-device{color:var(--ac);border-color:var(--ac-soft)}
+#ops-device option{color:var(--text);background:var(--bg)}
 select.ops-sel:focus-visible{outline:1px solid var(--ac);outline-offset:2px}
 
 /* —— 通用:数据行 / 分组 / 按钮 / 抽屉 / 状态行 —— */
@@ -202,7 +208,7 @@ API.hidden = () => document.hidden;
 /* ───────────────────────── 3. 顶栏注入 ───────────────────────── */
 function initDom(){
 
-const NAV = [["总览","/monitor-minterm"],["相机","/camera"],["赤道仪","/mount"],["素材库","/materials"]];
+const NAV = [["总览","/monitor-minterm"],["相机","/camera"],["赤道仪","/mount"],["素材库","/materials"],["高级","/advanced"]];
 const here = location.pathname;
 const isActive = (p) => {
   if (p === "/monitor-minterm") return here === "/" || here.startsWith("/monitor-minterm");

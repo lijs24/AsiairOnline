@@ -127,6 +127,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.server.config.root / "docs" / "ops-mount.html",
                     "text/html; charset=utf-8",
                 )
+            elif parsed.path == "/advanced":
+                self._send_file(
+                    self.server.config.root / "docs" / "ops-advanced.html",
+                    "text/html; charset=utf-8",
+                )
             elif parsed.path == "/mount-classic":
                 # 旧版 GPU 3D 渲染赤道仪页,新前端未包含 3D 能力,保留入口
                 self._send_file(
@@ -570,6 +575,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         if cache_seconds > 0:
             self.send_header("Cache-Control", f"public, max-age={cache_seconds}")
+        elif content_type.startswith(("text/html", "application/javascript")):
+            # 页面与脚本禁止启发式缓存,部署即生效(图像类响应不受影响)
+            self.send_header("Cache-Control", "no-store")
         if download_name:
             self.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
         self.end_headers()
