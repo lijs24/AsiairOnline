@@ -53,7 +53,7 @@ $BackupExit = $LASTEXITCODE
 if ($Run) {
     # Refresh the material-library index so the web pages see the new files.
     try {
-        Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8787/api/materials/scan" `
+        Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8794/api/materials/scan" `
             -ContentType "application/json" -Body (ConvertTo-Json @{ force = $true }) -TimeoutSec 15 | Out-Null
         Write-Host "Material index scan triggered."
     } catch {

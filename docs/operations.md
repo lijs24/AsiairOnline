@@ -1,5 +1,11 @@
 # Operations
 
+## 当前状态
+
+截至 2026-06-12，项目已经从备份脚本扩展为本地 ASIAIR 运维控制台。当前主要页面是 `/` 或 `/monitor-minterm`、`/camera`、`/mount`、`/materials`、`/advanced`；旧版 GPU 3D 赤道仪视图保留在 `/mount-classic`。
+
+真实设备 IP、共享名和目标路径以 `config/devices.json` 为准。该文件被 git 忽略，不要把凭据写入仓库。
+
 ## 每日使用
 
 常规检查：
@@ -20,10 +26,12 @@
 .\scripts\backup-all.ps1 -Run
 ```
 
+`-Run` 包装器会避开 19:00-06:00 拍摄窗口，并在真实备份结束后尝试触发素材库索引扫描。
+
 只跑某台设备：
 
 ```powershell
-.\scripts\backup-all.ps1 -Run -Device pier-a
+.\scripts\backup-all.ps1 -Run -Device 90sap
 ```
 
 查看最近结果：
@@ -94,8 +102,13 @@ Unregister-ScheduledTask -TaskName "AsiairBridge Daily Backup" -Confirm:$false
 同一 Tailscale 网络访问：
 
 ```powershell
-.\scripts\start-web.ps1
 .\scripts\start-tailnet-web.ps1
+```
+
+如果明确需要 tailnet 可写访问，才使用：
+
+```powershell
+.\scripts\start-web.ps1 -HostName 0.0.0.0 -AllowRemoteActions
 ```
 
 查看本机 Tailscale IP：
@@ -110,7 +123,18 @@ tailscale ip -4
 .\scripts\install-web-task.ps1
 ```
 
-远程 tailnet 访问默认只读，可以触发源容量扫描，但不能触发预演或真实备份。本机打开 `http://127.0.0.1:8787` 时仍可完整操作。
+远程 tailnet 访问默认只读，可以查看状态、日志和素材库；写入动作需要服务端允许远程写入，并且相机控制还需要持有对应设备的 control lease。本机打开 `http://127.0.0.1:8787` 时仍可完整操作。
+
+当前页面：
+
+| 路径 | 页面 |
+| --- | --- |
+| `/` 或 `/monitor-minterm` | ops 总览页 |
+| `/camera` | 相机预览与控制 |
+| `/mount` | 赤道仪/星图遥测页 |
+| `/materials` | 本地素材库 |
+| `/advanced` | 高级 RPC 监测页 |
+| `/mount-classic` | 旧版 GPU 3D 赤道仪视图 |
 
 让 tailnet 只读控制台也在登录后自动恢复：
 

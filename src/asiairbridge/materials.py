@@ -126,6 +126,14 @@ class MaterialLibrary:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_materials_target ON materials(target)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_materials_frame ON materials(frame_type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_materials_mtime ON materials(mtime DESC)")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS material_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+                """
+            )
 
     def _ensure_column(self, conn: sqlite3.Connection, column: str, definition: str) -> None:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(materials)")}
@@ -141,7 +149,32 @@ class MaterialLibrary:
         status["library_root_display"] = self.config.display_path(self.root)
         status["preview_dir"] = str(self.preview_dir)
         status["preview_dir_display"] = self.config.display_path(self.preview_dir)
+        status["library_updated_at"] = self.library_updated_at()
         return status
+
+    def library_updated_at(self) -> str | None:
+        with self._connect() as conn:
+            return self._library_updated_at(conn)
+
+    def _library_updated_at(self, conn: sqlite3.Connection) -> str | None:
+        row = conn.execute("SELECT value FROM material_meta WHERE key='library_updated_at'").fetchone()
+        if row and row["value"]:
+            return str(row["value"])
+        row = conn.execute("SELECT MAX(indexed_at) AS updated_at FROM materials").fetchone()
+        if row and row["updated_at"]:
+            return str(row["updated_at"])
+        return None
+
+    def _set_meta(self, key: str, value: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO material_meta(key, value)
+                VALUES(?, ?)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value
+                """,
+                [key, value],
+            )
 
     def start_scan(self, force: bool = False) -> dict[str, Any]:
         with self._lock:
@@ -351,17 +384,24 @@ class MaterialLibrary:
             )
 
     def _finish_scan(self, scanned: int, indexed: int, error: str | None) -> None:
+        finished_at = datetime.now().isoformat(timespec="seconds")
         with self._lock:
             self._scan_status.update(
                 {
                     "running": False,
-                    "finished_at": datetime.now().isoformat(timespec="seconds"),
+                    "finished_at": finished_at,
                     "scanned_files": scanned,
                     "indexed_items": indexed,
                     "current": "",
                     "error": error,
                 }
             )
+        try:
+            self._set_meta("last_scan_finished_at", finished_at)
+            if error is None:
+                self._set_meta("library_updated_at", finished_at)
+        except sqlite3.Error:
+            pass
 
     def list_materials(
         self,
@@ -390,6 +430,7 @@ class MaterialLibrary:
         clause = f"WHERE {' AND '.join(where)}" if where else ""
         offset = (page - 1) * page_size
         with self._connect() as conn:
+            library_updated_at = self._library_updated_at(conn)
             total = int(conn.execute(f"SELECT COUNT(*) FROM materials {clause}", params).fetchone()[0])
             rows = conn.execute(
                 f"""
@@ -404,6 +445,7 @@ class MaterialLibrary:
         return {
             "ok": True,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "library_updated_at": library_updated_at,
             "library_root": str(self.root),
             "library_root_display": self.config.display_path(self.root),
             "page": page,
@@ -435,6 +477,7 @@ class MaterialLibrary:
         pattern = str(q or "").strip().lower()
 
         with self._connect() as conn:
+            library_updated_at = self._library_updated_at(conn)
             rows = conn.execute(
                 """
                 SELECT * FROM materials
@@ -494,6 +537,7 @@ class MaterialLibrary:
         return {
             "ok": True,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "library_updated_at": library_updated_at,
             "library_root": str(self.root),
             "library_root_display": self.config.display_path(self.root),
             "device": device,
@@ -512,6 +556,7 @@ class MaterialLibrary:
 
     def summary(self) -> dict[str, Any]:
         with self._connect() as conn:
+            library_updated_at = self._library_updated_at(conn)
             total = int(conn.execute("SELECT COUNT(*) FROM materials").fetchone()[0])
             preview_ready = int(
                 conn.execute("SELECT COUNT(*) FROM materials WHERE preview_status='ready'").fetchone()[0]
@@ -536,13 +581,15 @@ class MaterialLibrary:
                     """
                 )
             ]
-            latest = [
-                _row_to_item(row)
-                for row in conn.execute("SELECT * FROM materials ORDER BY mtime DESC LIMIT 12").fetchall()
-            ]
+            latest = []
+            for row in conn.execute("SELECT * FROM materials ORDER BY mtime DESC LIMIT 12").fetchall():
+                item = _row_to_item(row)
+                item["thumb_url"] = f"/api/materials/thumb?id={row['id']}" if self._thumbnail_path_for_row(row) else None
+                latest.append(item)
         return {
             "ok": True,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "library_updated_at": library_updated_at,
             "library_root": str(self.root),
             "library_root_display": self.config.display_path(self.root),
             "db_path": str(self.db_path),

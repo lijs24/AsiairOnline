@@ -8,11 +8,12 @@ The project provides:
 - A web dashboard for live device monitoring, camera preview/control, and local material browsing.
 - A local SQLite index for cached material metadata and generated preview images.
 - Per-device control leases so multiple tailnet users can watch the dashboard while write actions stay gated to a single controller.
-- A read-only equatorial mount page with the live pointing, tracking and goto-target state.
-- A GPU-rendered 3D scene of the rig (harmonic mount + refractor + cooled camera) with true two-axis
+- A read-only equatorial mount page with live pointing, tracking, goto-target state, and a demo-telemetry fallback when the backend is unreachable.
+- An advanced RPC monitor page for inspecting the method-category health snapshot.
+- A legacy GPU-rendered 3D scene of the rig (harmonic mount + refractor + cooled camera) with true two-axis
   kinematics, pier-side solution and mechanical limits, standing at the center of a real-time celestial
   sphere (Yale BSC stars to mag 5, the milky way, equatorial/alt-az grids, the sun, pointing and target
-  markers). Stellarium-style drag/zoom served by a persistent render worker at ~8 ms/frame.
+  markers). Stellarium-style drag/zoom is retained at `/mount-classic`.
 - A shared topbar component across all pages with one control-lease identity per browser.
 
 ## Quick Start
@@ -60,7 +61,10 @@ The dashboard root is the live monitor; the other pages are reached from there:
 | --- | --- |
 | `/` or `/monitor-minterm` | Live device monitor (MINTERM ops console) — the landing page |
 | `/camera` | Current-image preview, camera status, exposure and camera controls (requires the control lease) |
+| `/mount` | Read-only mount/star-chart telemetry page, with a labeled demo fallback when live telemetry is unavailable |
 | `/materials` | Local material library browser, backed by the backup destination and cached previews |
+| `/advanced` | Advanced RPC monitor and method-category health page |
+| `/mount-classic` | Legacy GPU-rendered 3D rig and celestial-sphere view |
 
 > The legacy backup-console landing page and the old `/monitor` page have been removed; the live monitor is now the default landing page. The `/api/*` JSON endpoints (status, devices, rpc-monitor, materials, camera, …) are unchanged.
 
@@ -96,6 +100,7 @@ Keep credentials outside this repository. Use Windows Credential Manager, `net u
 ## Reliability
 
 - Backups default to dry-run; a real copy requires `-Run` / `--no-dry-run`.
+- The `scripts\backup-all.ps1 -Run` wrapper skips catch-up runs during the 19:00-06:00 imaging window and triggers `/api/materials/scan` after a real run so the material library sees fresh files.
 - A stale lock left by a crashed or killed backup is reclaimed automatically once its PID is confirmed dead, so scheduled backups self-heal. `--force-lock` refuses to clear a lock whose owner is still alive, preventing two concurrent runs against the same destination.
 - Run-state and cache files are written atomically (temp file + `os.replace`); a crash mid-write cannot leave a truncated file.
 - robocopy output is decoded with the Windows OEM code page, so non-ASCII (e.g. Chinese) source/destination paths stay readable in logs and the dashboard.
@@ -121,8 +126,11 @@ Each running web server independently polls every configured device and can issu
 - `config/devices.example.json`: public example configuration.
 - `src/asiairbridge/`: Python CLI, backup logic, JSON-RPC client and monitor, web server, camera operations, and material library.
 - `scripts/`: Windows PowerShell entry points (`doctor`, `backup-all`, `start-web`, `start-tailnet-web`, scheduled-task installers).
-- `docs/asiair-monitor-minterm-live.html`: live monitor frontend (dashboard landing page).
-- `docs/asiair-image-preview.html`: camera frontend.
-- `docs/asiair-materials.html`: material library frontend.
+- `docs/ops-overview.html`: current live monitor frontend (dashboard landing page).
+- `docs/ops-camera.html`: current camera frontend.
+- `docs/ops-mount.html`: current mount/star-chart telemetry frontend.
+- `docs/ops-materials.html`: current material library frontend.
+- `docs/ops-advanced.html`: current advanced RPC monitor frontend.
+- `docs/asiair-*.html`: older or supporting frontend/prototype/reference pages retained for comparison and fallback routes.
 - `logs/`: per-run logs, git-ignored.
 - `state/`: runtime state, locks, caches, SQLite databases, and generated previews, git-ignored.
