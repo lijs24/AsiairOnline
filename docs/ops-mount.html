@@ -31,7 +31,9 @@ html[data-skin="C"] #cursor-tip::before{left:4px;width:7px;background:var(--ac)}
 /* 主遥测带 */
 .kicker{display:none;text-align:center;font:300 10.5px var(--body);letter-spacing:.5em;color:var(--ac);text-transform:uppercase}
 html[data-skin="B"] .kicker{display:block}
-.telemetry{position:fixed;top:62px;left:50%;transform:translateX(-50%);z-index:20;text-align:center}
+/* 居中不用 transform:.telemetry 带 .seq 入场动画,opsSeq 收尾 transform:none 会覆盖 translateX(-50%) 导致偏右;
+   改用 left:0/right:栏宽 + margin:auto 在内容区(去掉右栏)居中,动画(只动 translateY/opacity)互不干扰 */
+.telemetry{position:fixed;top:104px;left:0;right:286px;margin-inline:auto;width:-moz-fit-content;width:fit-content;max-width:calc(100vw - 286px);z-index:20;text-align:center}
 .telemetry .row{display:flex;gap:44px;justify-content:center}
 .tele .tl{font:var(--lab-w) 10.5px var(--display);letter-spacing:.32em;color:var(--muted);text-transform:var(--lab-tt)}
 .tele .tv{margin-top:4px;font:700 30px/1.1 var(--mono);color:var(--ac);font-variant-numeric:tabular-nums;
@@ -320,6 +322,7 @@ function renderTick(){ /* 每帧:坐标读数随模型推进 */
 const cv=$("sky"),ctx=cv.getContext("2d");
 const STARS=(()=>{let s=20260612;const rnd=()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return((s>>>0)/4294967296);};
   return Array.from({length:380},()=>({ra:rnd()*24,dec:Math.asin(2*rnd()-1)/RAD,m:rnd(),ph:rnd()*6.28,sp:.5+rnd()*1.5}));})();
+const SKY_VC=0.75;  /* 天球投影竖直中心比例:0.5=屏幕正中;0.75=下移,天空占上 3/4、地面缩到底部 1/4(地面不在意)*/
 function project(az,alt,scale,cx,cy){
   const a=az*RAD,e=alt*RAD,a0=vAz*RAD,e0=vEl*RAD;
   const c=Math.sin(e0)*Math.sin(e)+Math.cos(e0)*Math.cos(e)*Math.cos(a-a0);
@@ -349,7 +352,7 @@ function drawSky(now,dt){
   ctx.fillStyle=cssv("--sky-bg");ctx.fillRect(0,0,w,h);
   if(!model)return;
   const lst=lstNow(),lat=model.lat;
-  const cx=w/2,cy=h/2,scale=Math.min(w,h)/(vFov*RAD);
+  const cx=w/2,cy=h*SKY_VC,scale=Math.min(w,h)/(vFov*RAD);
   const P=(az,alt)=>project(az,alt,scale,cx,cy);
   const rv=reveal,ts=now/1000;
 
@@ -468,7 +471,7 @@ const tip=$("cursor-tip");
     }
     if(!model)return;
     const scale=Math.min(cv.clientWidth,cv.clientHeight)/(vFov*RAD);
-    const aa=invProject(e.clientX,e.clientY,scale,cv.clientWidth/2,cv.clientHeight/2);
+    const aa=invProject(e.clientX,e.clientY,scale,cv.clientWidth/2,cv.clientHeight*SKY_VC);
     if(aa.alt<-2){tip.style.display="none";return;}
     const eq=altAzToEq(aa.az,aa.alt,lstNow(),model.lat);
     tip.textContent=`RA ${fmtHMS(eq.ra)} · Dec ${fmtDMS(eq.dec)}`;
@@ -523,6 +526,7 @@ async function poll(){
   }
 }
 $("refresh-btn").addEventListener("click",poll);
+
 poll();setInterval(()=>{if(!OPS.hidden())poll();},2000);
 </script>
 </body>
