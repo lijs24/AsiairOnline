@@ -291,19 +291,35 @@ function renderRole(p){
   roleSel.value = self ? "controller" : "monitor";
   API._cbs.forEach(cb => { try{ cb(p); }catch(e){} });
 }
+function postRole(role){
+  return fetch("/api/control-role", { method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ device: API.device || "", session_id: sid, session_label:"web", role }) });
+}
 async function pollRole(){
   if (!API.device) return;  /* 接入修订:设备未就绪时后端会拒绝 device 空参,跳过本轮 */
   try{
-    const q = new URLSearchParams({ device: API.device || "", session_id: sid });
-    const r = await fetch(`/api/control-role?${q}`, { cache:"no-store" });
-    if (r.ok) renderRole(await r.json());
+    let r;
+    if (API.heldBySelf){
+      /* 续租心跳:作为主控时每轮用 POST 刷新 45s 租约(后端只有 POST 续租,GET 不续);
+         否则切页/空闲后租约到期会自动掉主控——全局问题,在共享主题层统一修复 */
+      r = await postRole("controller");
+    } else {
+      const q = new URLSearchParams({ device: API.device || "", session_id: sid });
+      r = await fetch(`/api/control-role?${q}`, { cache:"no-store" });
+    }
+    if (!r || !r.ok) return;
+    const wasSelf = API.heldBySelf;
+    renderRole(await r.json());
+    /* 切页后新页首轮以 GET 发现仍持有主控 → 立刻补一次续租,关闭"加载→下一轮(10s)"间的过期窗口 */
+    if (!wasSelf && API.heldBySelf){ try{ const rr = await postRole("controller"); if (rr.ok) renderRole(await rr.json()); }catch(e){} }
   }catch(e){}
 }
 roleSel.addEventListener("change", async () => {
+  /* 切到监控时立即停掉续租心跳,避免在途心跳把刚释放的租约又抢回(释放/续租竞争) */
+  if (roleSel.value !== "controller") API.heldBySelf = false;
   try{
-    const r = await fetch("/api/control-role", { method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ device: API.device || "", session_id: sid, session_label:"web", role: roleSel.value }) });
+    const r = await postRole(roleSel.value);
     if (r.ok) renderRole(await r.json());
   }catch(e){}
 });
