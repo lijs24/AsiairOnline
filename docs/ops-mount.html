@@ -62,10 +62,7 @@ html[data-skin="B"] .csep{display:none}
   padding:13px 24px;border:1px solid var(--ac-soft);color:var(--ac);background:var(--scrim);
   font:var(--lab-w) 14px var(--display);letter-spacing:.12em;text-transform:var(--lab-tt)}
 .notice.show{display:block}
-.demo-flag{position:fixed;left:24px;top:150px;z-index:20;display:none;
-  font:var(--lab-w) 10px var(--display);letter-spacing:.24em;color:var(--bg);background:var(--warn);
-  padding:3px 9px;text-transform:var(--lab-tt)}
-.demo-flag.show{display:block}
+#mount-offline{position:fixed;left:0;top:0;width:100%;height:100%;z-index:18;display:none;pointer-events:none}
 .phys-note{position:fixed;left:24px;bottom:118px;z-index:20;max-width:330px;
   font:italic 300 12px var(--body);color:var(--muted);
   background:linear-gradient(90deg,var(--scrim) 60%,var(--scrim0));padding:6px 18px 6px 0}
@@ -111,7 +108,12 @@ html[data-skin="A"] .phys-note,html[data-skin="C"] .phys-note{font-style:normal;
 <canvas id="sky"></canvas>
 <div class="vignette"></div><div class="frame"></div>
 <div id="cursor-tip"></div>
-<span class="demo-flag" id="demo-flag">演示遥测 DEMO</span>
+<div class="ops-disconnected" id="mount-offline" style="display:none">
+  <div class="ring"></div>
+  <h4>盒子未连接</h4>
+  <div class="sub" id="mount-offline-sub">--</div>
+  <div class="note" id="mount-offline-note">正在重试连接…</div>
+</div>
 <div id="notice" class="notice">赤道仪未连接 —— 连接后自动恢复实时遥测</div>
 
 <div class="telemetry seq">
@@ -157,7 +159,6 @@ html[data-skin="A"] .phys-note,html[data-skin="C"] .phys-note{font-style:normal;
     <button id="speed-600"  class="con" type="button">×600</button>
     <button id="speed-3600" class="con" type="button">×3600</button>
     <span class="csep"></span>
-    <button id="demo-slew" class="con" type="button" style="display:none">演示转向 → M45</button>
     <button id="raw-toggle" class="con" type="button">RAW</button>
     <span class="con-note" style="margin-left:auto">拖拽转视角 · 滚轮缩放 · 悬停读坐标 · 只读</span>
   </div>
@@ -174,7 +175,7 @@ html[data-skin="A"] .phys-note,html[data-skin="C"] .phys-note{font-style:normal;
 </div>
 
 <script>
-/* ════════ 引擎:真实遥测优先,断连回退演示;三皮肤共用 ════════ */
+/* ════════ 引擎:真实遥测;断连显示"未连接"界面(不再回退演示);三皮肤共用 ════════ */
 const $=id=>document.getElementById(id);
 const OPS=window.OPS;
 const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -189,14 +190,14 @@ const SKINS={
 };
 const sk=()=>SKINS[document.documentElement.dataset.skin]||SKINS.B;
 
-let MODE="boot";              // live | demo
+let MODE="boot";              // live | offline
 let skyEq=1,skyAlt=0,skyGnd=1,gEq=0,gAlt=0,gGnd=0;
 let vAz=160,vEl=26,vFov=58;
 let timeScale=1,simMs=Date.now();
 let aimed=false,userMoved=false;
 let reveal=REDUCED?1:0,HI=null,meteors=[];
 let revealed=false;           // 入场动画首次放行标记(与上面的 canvas reveal 无关)
-let model=null;               // 渲染模型(由真实或演示遥测构建)
+let model=null;               // 渲染模型(由真实遥测构建)
 let slew=null,targetIdx=0;
 
 const pad=n=>String(n).padStart(2,"0");
@@ -229,10 +230,10 @@ function hexA(hex,a){const h=hex.replace("#","");
   return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;}
 
 /* ── 模型构建:跟踪→锁赤道坐标;未跟踪→锁地平坐标 ── */
-function buildModel(d,demo){
+function buildModel(d){
   const p=d.position||{},s=d.site||{},t=d.target||{};
   const lst0=p.lst_hours!=null?p.lst_hours:lstHours(new Date(),s.lng||0);
-  const m={demo:!!demo,raw:d,connected:!!d.connected,ok:d.ok!==false,
+  const m={raw:d,connected:!!d.connected,ok:d.ok!==false,
     lat:s.lat??40,lng:s.lng??116,
     tracking:d.tracking===true,slewing:!!(t.slewing),
     scopeEq:{ra:p.ra_hours,dec:p.dec_degrees},
@@ -263,10 +264,25 @@ function setLamp(id,text,state){const el=$(id);
 function setText(id,v){const el=$(id);if(!el)return;
   const s=(v==null||v==="")?"--":v;if(el.textContent!==s)el.textContent=s;}
 let capsSig="";
-function renderStatic(d,demo){
+/* 盒子离线界面:盖在天球上,数据栏清空,不再回退演示遥测 */
+function setMountOffline(on,note){
+  const box=$("mount-offline"),sky=$("sky"),c=OPS.conn||{};
+  $("notice").classList.remove("show");
+  if(on){
+    const nm=c.name||OPS.device||"",ip=c.ip||"";
+    $("mount-offline-sub").textContent=[nm,ip].filter(Boolean).join(" · ")||"--";
+    $("mount-offline-note").textContent=note||("正在每 2 秒重试连接…"+(c.lastSeenMs?(" · 最后在线 "+OPS.fmtAgo((Date.now()-c.lastSeenMs)/1000)):""));
+    if(sky)sky.style.opacity=".12";
+    box.style.display="flex";
+    ["pierside","t-name","t-ra","t-dec","t-angle","lat","lng","ra","dec","lst"].forEach(id=>setText(id,null));
+    setLamp("tracking","--","");setLamp("moving","--","");
+    $("status-kind").textContent="[OFF]";$("status-kind").style.color="var(--bad)";
+    $("status-text").textContent="盒子未连接 · 无法访问 "+(ip||"赤道仪")+"(检查盒子电源/网络)";
+    $("phys-note").textContent="";
+  }else{box.style.display="none";if(sky)sky.style.opacity="";}
+}
+function renderStatic(d){
   $("notice").classList.toggle("show",d.ok!==false&&!d.connected);
-  $("demo-flag").classList.toggle("show",!!demo);
-  $("demo-slew").style.display=demo?"":"none";
   setLamp("tracking",d.tracking===true?"开启":d.tracking===false?"关闭":"--",d.tracking===true?"on":"");
   setLamp("moving",d.moving_text||"--",d.is_moving?"warn":"");
   setText("pierside",d.pier_side_text);
@@ -284,7 +300,7 @@ function renderStatic(d,demo){
   $("status-kind").textContent=`[${kind}]`;
   $("status-kind").style.color=d.ok===false?"var(--bad)":d.connected?"var(--good)":"var(--warn)";
   $("status-text").textContent=d.ok===false?(d.error||"查询失败")
-    :d.connected?`赤道仪在线 · ${(d.device&&d.device.name)||""}${demo?" · 演示遥测":""}${timeScale>1?` · 预览时间×${timeScale}`:""}`
+    :d.connected?`赤道仪在线 · ${(d.device&&d.device.name)||""}${timeScale>1?` · 预览时间×${timeScale}`:""}`
     :"赤道仪未连接";
   $("snapshot").textContent=d.snapshot_at||"--";
   $("phys-note").textContent=
@@ -298,21 +314,6 @@ function renderTick(){ /* 每帧:坐标读数随模型推进 */
   setText("lst",fmtHMS(lstNow()));
   $("pos-hint").textContent=`RA ${sc.eq.ra.toFixed(3)}h · Dec ${sc.eq.dec.toFixed(3)}°`;
   if(slew){setLamp("moving","转向中","warn");$("goto-hint").textContent="· 转向中…";}
-}
-
-/* ── 演示遥测(API 不可达) ── */
-const DEMO_SITE={lat:38.61,lng:99.13,lat_text:"N 38°36′36″",lng_text:"E 99°07′48″"};
-const TGT=[{name:"M31 仙女座星系",ra:.7123,dec:41.269},{name:"M45 昴星团",ra:3.791,dec:24.117}];
-function demoData(){
-  const now=new Date(simMs),lst=lstHours(now,DEMO_SITE.lng),t=TGT[targetIdx];
-  return{ok:true,connected:true,tracking:true,is_moving:!!slew,moving_text:slew?"转向中":"静止",
-    pier_side_text:"西侧 West",device:{name:"演示 · EQ8-R Pro"},
-    position:{ra_hours:t.ra,dec_degrees:t.dec,lst_hours:lst},
-    site:DEMO_SITE,
-    target:{name:t.name,ra_hours:t.ra,dec_degrees:t.dec,ra_text:fmtHMS(t.ra),dec_text:fmtDMS(t.dec),angle:0,slewing:!!slew},
-    capabilities:["goto","tracking","park","home","guide","sync"],
-    raw:{Note:"DEMO TELEMETRY — 后端不可达",Target:t.name,TimeScale:timeScale},
-    snapshot_at:now.toLocaleString("zh-CN",{hour12:false})};
 }
 
 /* ── 天球绘制 ── */
@@ -448,8 +449,7 @@ function loop(now){
   const ease=(c,t)=>c+(t-c)*Math.min(1,dt*5);
   gEq=ease(gEq,skyEq);gAlt=ease(gAlt,skyAlt);gGnd=ease(gGnd,skyGnd);
   drawSky(now,dt);
-  if(now-lastDom>200){lastDom=now;renderTick();
-    if(MODE==="demo")renderStatic(demoData(),true);}
+  if(now-lastDom>200){lastDom=now;renderTick();}
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -487,11 +487,6 @@ const tip=$("cursor-tip");
     if(v===1)simMs=Date.now();           /* 回到实时 */
     timeScale=v;
     ["speed-1","speed-600","speed-3600"].forEach(i=>$(i).classList.toggle("on",i===id));}));
-$("demo-slew").addEventListener("click",()=>{
-  if(MODE!=="demo"||slew)return;
-  const from=TGT[targetIdx];targetIdx=1-targetIdx;const to=TGT[targetIdx];
-  slew={t0:Date.now(),dur:4500,from:{ra:from.ra,dec:from.dec},to:{ra:to.ra,dec:to.dec}};
-  $("demo-slew").textContent=`演示转向 → ${TGT[1-targetIdx].name.split(" ")[0]}`;});
 $("raw-toggle").addEventListener("click",()=>$("raw-drawer").classList.toggle("open"));
 $("raw-close").addEventListener("click",()=>$("raw-drawer").classList.remove("open"));
 document.querySelectorAll("[data-hi]").forEach(el=>{
@@ -504,20 +499,18 @@ async function poll(){
     /* 接入修订:后端 mount-state 串行 RPC 上限约 2.5s×N,1800ms 会被正常抖动击穿 */
     const d=await OPS.fetchJSON("/api/mount-state"+(OPS.device?`?device=${encodeURIComponent(OPS.device)}`:""),{timeout:6000});
     MODE="live";
+    OPS.reportConn(true,{ip:d.device&&d.device.ip,name:d.device&&d.device.name});
     if(timeScale===1)simMs=Date.now();   /* 实时模式持续校准 */
-    model=buildModel(d,false);
+    model=buildModel(d);
     if(!aimed&&!userMoved&&model.scopeAA){aimed=true;
       vAz=model.scopeAA.az;vEl=Math.max(8,Math.min(65,model.scopeAA.alt));}
-    renderStatic(d,false);
+    setMountOffline(false);
+    renderStatic(d);
   }catch(e){
-    /* 设计特性(用户确认):后端断连时回退演示遥测并亮 DEMO 角标;
-       超时已从 1800ms 放宽到 6000ms,只有持续断连才会进入演示模式 */
-    if(MODE!=="demo"){MODE="demo";simMs=Date.now();}
-    model=buildModel(demoData(),true);
-    if(!aimed&&!userMoved&&model.scopeAA){aimed=true;
-      vAz=model.scopeAA.az;vEl=Math.max(8,Math.min(65,model.scopeAA.alt));}
-    /* 揭幕前先同步渲染一次演示静态内容,保证 finally 放行时各段(含能力标签)已就位 */
-    renderStatic(demoData(),true);
+    /* 盒子断连:直接进入"未连接"界面,不再回退演示遥测 */
+    MODE="offline";
+    OPS.reportConn(false,{name:OPS.device});
+    setMountOffline(true);
   }finally{
     /* 首次轮询结束(成功或失败)后统一放行入场动画,保证自上而下且内容已就位 */
     if(!revealed){revealed=true;requestAnimationFrame(()=>{
