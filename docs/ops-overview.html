@@ -249,13 +249,16 @@ function renderFleet(){
   root.innerHTML="";ringRegistry.clear();
   for(const [name,d] of devices){
     const cam=d.camera||{},app=d.app||{},ctl=d.controls||{},exp=d.exposure||{};
-    const [stxt,scls]=stateText(app);
+    /* 离线判定统一走 OPS.deriveOnline(看 errors 里 get_app_state 心跳);别用字段有无——
+       camera_cache 会保留旧相机型号,盒子掉线后字段仍有值会误报"在线" */
+    const dOff=OPS.deriveOnline(d)===false;
+    const [stxt,scls]=dOff?["未连接","bad"]:stateText(app);
     const el=document.createElement("article");
-    el.className="station"+(name===selDev?" sel":"");
+    el.className="station"+(name===selDev?" sel":"")+(dOff?" off":"");
     el.innerHTML=`
-      <span class="sig lampline ${d.ok?(app.capture_working?"warn":"on"):"bad"}"><i></i></span>
+      <span class="sig lampline ${dOff?"bad":(app.capture_working?"warn":"on")}"><i></i></span>
       <div class="dv"><b>${name}</b></div>
-      <div class="cam">${cam.name||"相机未连接"}</div>
+      <div class="cam">${dOff?"盒子未连接":(cam.name||"相机未连接")}</div>
       <div class="strip">
         <canvas class="ring" width="58" height="58" aria-label="采集进度"></canvas>
         <div class="kv">
@@ -380,6 +383,8 @@ async function load(){
     if(mon.status==="fulfilled")monitorData=mon.value;
     if(!fleetData&&!monitorData)throw new Error("台站接口不可达");
     renderPulse();renderFleet();renderRail();
+    {const cs=fleetData&&fleetData.devices&&fleetData.devices[selDev];
+     if(cs)OPS.reportConn(OPS.deriveOnline(cs)!==false,{ip:cs.device&&cs.device.ip,name:(cs.device&&cs.device.name)||selDev});}
     if(!logTimer){buildLogQueue();startLog();}
     $("status-kind").textContent="[OK]";$("status-kind").style.color="var(--good)";
     $("status-text").textContent=`${monitorData&&monitorData.safety?monitorData.safety.mode:""}`;

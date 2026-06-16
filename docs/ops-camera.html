@@ -12,6 +12,7 @@ html,body{height:100%;overflow:hidden}
 #stage.dragging{cursor:grabbing}
 .stage-empty{position:fixed;left:calc(24px + (100vw - 354px)/2);top:calc(64px + (100vh - 234px)/2);transform:translate(-50%,-50%);z-index:1;
   font:var(--lab-w) 16px var(--display);letter-spacing:.3em;color:var(--quiet);text-transform:var(--lab-tt)}
+.cam-offline-box{position:fixed;left:calc(24px + (100vw - 354px)/2);top:calc(64px + (100vh - 234px)/2);transform:translate(-50%,-50%);z-index:4;min-height:0}
 
 /* 设备信息:右栏顶部 */
 .meta{padding:0 0 12px;border-bottom:1px solid var(--line);margin-bottom:12px}
@@ -72,8 +73,10 @@ html[data-skin="C"] .histo,html[data-skin="C"] .statusline{background:linear-gra
 /* 底部曝光进度条(恢复旧版:标签 + 进度轨 + 已用/总时长,始终可见) */
 .exp-bar{position:fixed;left:0;right:0;bottom:0;z-index:12;display:flex;align-items:center;gap:14px;
   padding:7px 22px 8px;background:linear-gradient(0deg,var(--scrim) 72%,var(--scrim0))}
-.exp-bar .lbl{font:var(--lab-w) 13px var(--display);letter-spacing:.2em;color:var(--muted);text-transform:var(--lab-tt);white-space:nowrap;min-width:4.5em}
+.exp-bar .lbl{font:var(--lab-w) 13px var(--display);letter-spacing:.2em;color:var(--ac);text-transform:var(--lab-tt);white-space:nowrap;min-width:4.6em;flex:none}
 html[data-skin="B"] .exp-bar .lbl{font-size:15px;letter-spacing:.08em}
+.exp-bar .op{font:var(--lab-w) 13px var(--display);letter-spacing:.06em;color:var(--ac);white-space:nowrap;flex:none}
+html[data-skin="B"] .exp-bar .op{font-size:14px}
 .exp-bar .track{position:relative;flex:1;height:3px;background:var(--line-dim);overflow:hidden}
 .exp-bar .track i{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--ac)}
 .exp-bar .track i.ind{width:32%;animation:expScan 1.15s linear infinite}
@@ -131,6 +134,12 @@ html[data-skin="B"] button.con{font-size:14px}
 <body>
 <canvas id="stage"></canvas>
 <div class="stage-empty" id="stage-empty">正在取回最近一帧…</div>
+<div class="ops-disconnected cam-offline-box" id="cam-offline" style="display:none">
+  <div class="ring"></div>
+  <h4>盒子未连接</h4>
+  <div class="sub" id="cam-offline-sub">--</div>
+  <div class="note" id="cam-offline-note">正在重试连接…</div>
+</div>
 
 <aside class="rail seq d1">
   <section class="meta">
@@ -138,7 +147,6 @@ html[data-skin="B"] button.con{font-size:14px}
     <div class="cam" id="cam-name">--</div>
     <div class="line num" id="img-line">--</div>
     <span class="badge" id="state-badge"><i></i><span id="state-text">检测中</span></span>
-    <span class="badge" id="demo-badge" style="display:none"><i></i><span>演示曝光</span></span>
   </section>
   <div class="ro-note" id="ro-note">当前为监控视角 —— 参数只读;切换为主控后可写入。</div>
   <div class="ro-note" id="access-note" style="display:none">当前为只读入口,无法拍摄。<a id="access-note-link" href="#" style="color:var(--ac)">点此打开可操作入口 →</a></div>
@@ -150,7 +158,6 @@ html[data-skin="B"] button.con{font-size:14px}
     <div class="progress" id="cap-prog"><i></i></div>
     <div class="btns">
       <button class="primary" id="btn-shoot" type="button" disabled>拍摄一张</button>
-      <button class="con" id="btn-demo" type="button">演示拍摄(本地模拟)</button>
       <button class="con" id="btn-refresh" type="button">拉取最新图像</button>
     </div>
   </div>
@@ -162,7 +169,6 @@ html[data-skin="B"] button.con{font-size:14px}
     <div class="btns" style="margin-top:6px">
       <button class="con" id="apply-exposure-btn" type="button" disabled>写入曝光参数</button>
     </div>
-    <div id="op-msg" class="con-note" style="display:block;margin-top:6px"></div>
   </div>
 
   <div class="hgroup"><h3><span class="rn">Ⅲ</span>传感器</h3>
@@ -206,6 +212,7 @@ html[data-skin="B"] button.con{font-size:14px}
 
 <div class="exp-bar seq d3" id="exp-bar" aria-label="曝光进度">
   <span class="lbl" id="exp-label">待机</span>
+  <span class="op" id="op-status"></span>
   <div class="track"><i id="exp-fill"></i></div>
   <span class="val num" id="exp-val">--</span>
 </div>
@@ -479,6 +486,7 @@ async function loadRaw16(){
   return true;
 }
 async function loadImage(force){
+  loadingImage=true;
   try{
     {const p=new URLSearchParams();if(OPS.device)p.set("device",OPS.device);if(force)p.set("refresh","1");
     /* 全幅图取回+降采样本就要数秒,默认 6s 会被切断导致"图回不来";放宽到 30s */
@@ -514,19 +522,35 @@ async function loadImage(force){
     img.onerror=()=>{$("stage-empty").textContent="帧文件取回失败";};
     img.src=imgMeta.image_url;
   }catch(e){$("stage-empty").textContent="未取得当前帧:"+(e.message||"接口不可达");}
+  finally{loadingImage=false;}
+}
+function setCamOffline(on,note){
+  const box=$("cam-offline"),cv=$("stage"),c=OPS.conn||{};
+  if(on){
+    const nm=(camState&&camState.device&&camState.device.name)||c.name||OPS.device||"";
+    const ip=(camState&&camState.device&&camState.device.ip)||c.ip||"";
+    $("cam-offline-sub").textContent=[nm,ip].filter(Boolean).join(" · ")||"--";
+    $("cam-offline-note").textContent=note||("正在每 3 秒重试连接…"+(c.lastSeenMs?(" · 最后在线 "+OPS.fmtAgo((Date.now()-c.lastSeenMs)/1000)):""));
+    box.style.display="flex";$("stage-empty").style.display="none";if(cv)cv.style.opacity=".12";
+  }else{box.style.display="none";if(cv)cv.style.opacity="";}
 }
 async function loadState(){
+  let offline=false;
   try{
     /* 接入修订:补传 session_id,否则 lease.held_by_self 恒为 false,主控文案与顶栏矛盾 */
     camState=await OPS.fetchJSON("/api/camera-state"+(OPS.device?`?device=${encodeURIComponent(OPS.device)}&session_id=${encodeURIComponent(OPS.sessionId||"")}`:""));
     const cam=camState.camera||{},app=camState.app||{},ctl=camState.controls||{},exp=camState.exposure||{};
+    /* 离线判定统一走 OPS.deriveOnline(看 errors 里 get_app_state 心跳是否超时),
+       不能用字段有无——camera_cache 会保留上次在线的相机型号/曝光旧值,会误报"在线" */
+    offline=OPS.deriveOnline(camState)===false;
+    OPS.reportConn(!offline,{ip:camState.device&&camState.device.ip,name:camState.device&&camState.device.name});
     $("dev-name").textContent=(camState.device&&camState.device.name)||"相机";
     $("cam-name").textContent=cam.name||"--";
     /* 采集状态一律以 capture-progress(cpWorking,持续 1.5s 轮询、新鲜)为准。
        camera-state.capture_working 经 camera_cache 缓存,曝光期间会滞后约一个曝光周期
        (实测约 20s),既不驱动底部进度条也不单独决定徽标/指示,否则与 cp 打架、反复跳变。 */
     const live=cpWorking===true||(cpWorking===null&&!!app.capture_working);
-    setBadge(live?"采集中":"在线 · "+(app.capture_state||"idle"),live?"warn":"on");
+    setBadge(offline?"盒子未连接":(live?"采集中":"在线 · "+(app.capture_state||"idle")),offline?"":(live?"warn":"on"));
     $("r-state").textContent=app.capture_state||"--";
     $("r-mode").textContent=app.exposure_mode||"--";
     $("r-frame").textContent=app.capture_progress!=null?Math.round(app.capture_progress*100)+"%":"--";
@@ -541,18 +565,22 @@ async function loadState(){
     $("r-cool").textContent=ctl.cool_power?ctl.cool_power.display:"--";
     $("r-chip").textContent=cam.chip_size?cam.chip_size.join(" × "):"--";
     $("r-px").textContent=cam.pixel_size_um?cam.pixel_size_um+" µm":"--";
-    $("status-kind").textContent="[OK]";$("status-kind").style.color="var(--good)";
-    $("status-text").textContent=`相机在线 · ${cam.name||""} · ${camState.lease&&camState.lease.held_by_self?"主控会话":"监控视角(只读)"}`;
+    if(offline){$("status-kind").textContent="[OFF]";$("status-kind").style.color="var(--bad)";
+      $("status-text").textContent=`盒子未连接 · 无法访问 ${(camState.device&&camState.device.ip)||""}(检查盒子电源/网络)`;}
+    else{$("status-kind").textContent="[OK]";$("status-kind").style.color="var(--good)";
+      $("status-text").textContent=`相机在线 · ${cam.name||""} · ${camState.lease&&camState.lease.held_by_self?"主控会话":"监控视角(只读)"}`;}
     $("snapshot").textContent=camState.snapshot_at||"--";
+    setCamOffline(offline);
   }catch(e){
     setBadge("无响应","");
     $("status-kind").textContent="[ERR]";$("status-kind").style.color="var(--bad)";
     $("status-text").textContent="相机状态加载失败:"+(e.message||"接口不可达");
+    setCamOffline(true,"接口不可达,正在重试…");
   }finally{
     const gate=OPS.actionsAllowed();
     const self=OPS.heldBySelf&&gate;
-    $("btn-shoot").disabled=!self;
-    $("apply-exposure-btn").disabled=!self;
+    $("btn-shoot").disabled=!self||offline;
+    $("apply-exposure-btn").disabled=!self||offline;
     $("ro-note").style.display=(self||!gate)?"none":"";
     $("access-note").style.display=gate?"none":"";
     if(!gate)$("access-note-link").href=OPS.actionEntry("camera");
@@ -565,24 +593,28 @@ OPS.onControl(()=>loadState());document.addEventListener("ops:access",loadState)
 $("btn-refresh").addEventListener("click",()=>loadImage(true));
 function newOpId(){return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`;}
 async function postCameraAction(action,extra){
-  const operation_id=newOpId();
+  const operation_id=newOpId();$("op-status").title="";
   const body={device:OPS.device,session_id:OPS.sessionId,operation_id,action,...(extra||{})};
   const opTimer=setInterval(async()=>{
     try{const q=new URLSearchParams({device:OPS.device,session_id:OPS.sessionId,operation_id});
       const p=await OPS.fetchJSON(`/api/camera-operation?${q}`);
       const op=p&&p.operation;if(!op)return;
-      $("op-msg").textContent=`${op.label||"执行中"} ${op.step||0}/${op.total||1}`;
+      $("op-status").textContent=`${op.label||"执行中"} ${op.step||0}/${op.total||1}`;
       if(op.state==="done"||op.state==="error")clearInterval(opTimer);
     }catch(e){}},500);
   try{
     const payload=await OPS.fetchJSON("/api/camera-action",{method:"POST",
       headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    $("op-msg").textContent=action==="shutter"?"已发送快门":"参数已写入";
+    $("op-status").textContent=action==="shutter"?"已发送快门":"参数已写入";$("op-status").title="";
     return payload;
   }catch(err){
-    $("op-msg").textContent="操作失败:"+(err.message||err);
+    const raw=(err&&(err.message||String(err)))||"未知错误";
+    const brief=/timed?\s*out|timeout|无响应|unreachable|ECONN|Failed to fetch|NetworkError|refus/i.test(raw)?"盒子无响应"
+      :/16-?\s?bit/i.test(raw)?"非16bit,请在ASIAIR重开相机"
+      :raw.length>22?raw.slice(0,22)+"…":raw;
+    $("op-status").textContent="失败:"+brief;$("op-status").title=raw;
     $("status-kind").textContent="[ERR]";$("status-kind").style.color="var(--bad)";
-    $("status-text").textContent=err.message||String(err);
+    $("status-text").textContent=raw;
     throw err;
   }finally{setTimeout(()=>clearInterval(opTimer),4000);}
 }
@@ -613,30 +645,10 @@ $("apply-exposure-btn").addEventListener("click",async()=>{
   }catch(e){}
 });
 
-/* 演示拍摄:纯本地模拟一次曝光进度,完成后重取当前帧 */
-$("btn-demo").addEventListener("click",()=>{
-  const secs=(camState&&camState.exposure&&camState.exposure.seconds)||5;
-  const pr=$("cap-prog");pr.classList.add("show");
-  $("demo-badge").style.display="";setBadge("演示曝光中","warn");
-  const t0=performance.now(),dur=Math.min(8,secs)*1000;
-  demoTrack={startedAt:t0,durationMs:dur};
-  (function step(t){
-    const p=Math.min(1,(t-t0)/dur);
-    pr.querySelector("i").style.width=(p*100)+"%";
-    $("r-frame").textContent=Math.round(p*100)+"%";
-    if(p<1)requestAnimationFrame(step);
-    else{
-      pr.classList.remove("show");demoTrack=null;$("demo-badge").style.display="none";
-      setBadge("在线 · idle","on");
-      loadImage();   /* 重新取帧并播放入场动画 */
-    }
-  })(t0);
-});
-
 /* ── 底部曝光进度条引擎 ──
    权威进度取自 /api/capture-progress(锚定 lapse_ms/total_ms),两次轮询之间按真实时间本地插值,
    逐帧重绘以平滑推进;相机状态(3s)只用于在 cp 尚未发声时初始化轨道。星图册配色:金色,无霓虹。 */
-let cpWorking=null,cpDownload=false,expTrack=null,demoTrack=null,lastCpAt=0;
+let cpWorking=null,cpDownload=false,expTrack=null,lastCpAt=0,loadingImage=false;
 function applyCP(cp){
   if(!cp)return;
   lastCpAt=performance.now();
@@ -659,13 +671,17 @@ async function pollCaptureProgress(){
 function renderExpBar(){
   const fill=$("exp-fill"),label=$("exp-label"),val=$("exp-val");if(!fill)return;
   label.style.color="";fill.style.transform="";fill.style.width="";
-  if(demoTrack){const p=Math.max(0,Math.min(1,(performance.now()-demoTrack.startedAt)/demoTrack.durationMs));
-    fill.classList.remove("ind");fill.style.width=(p*100).toFixed(1)+"%";label.textContent="演示曝光";label.style.color="var(--warn)";val.textContent=Math.round(p*100)+"%";return;}
   if(cpDownload){fill.classList.add("ind");label.textContent="下载中";label.style.color="var(--good)";val.textContent="写盘";return;}
   const t=expTrack;
   /* cp 静默超 20s(接口持续失效)则不再信任旧轨道,回落待机,避免卡在曝光/读出中 */
   const stale=lastCpAt&&(performance.now()-lastCpAt>20000);
-  if(!t||stale){fill.classList.remove("ind");fill.style.width="0%";label.textContent="待机";val.textContent="--";return;}
+  if(!t||stale){
+    /* 盒子离线时底部条与离线界面一致显示"未连接",不报"待机" */
+    if(OPS.conn&&OPS.conn.online===false){fill.classList.remove("ind");fill.style.width="0%";label.textContent="未连接";label.style.color="var(--bad)";val.textContent="--";return;}
+    /* 采集已结束但图像还在取回/出图 → 显示"出图中",不要过早回到待机 */
+    if(loadingImage){fill.classList.add("ind");label.textContent="出图中";label.style.color="var(--ac)";val.textContent="载入";return;}
+    fill.classList.remove("ind");fill.style.width="0%";label.textContent="待机";val.textContent="--";return;
+  }
   if(t.capState==="saving"){fill.classList.add("ind");label.textContent="保存中";label.style.color="var(--warn)";val.textContent="写盘";return;}
   const dur=Number(t.durationMs||0);
   if(dur<=0){fill.classList.add("ind");label.textContent="曝光中";label.style.color="var(--ac)";val.textContent="进行中";return;}

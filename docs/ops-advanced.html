@@ -21,6 +21,13 @@
 .pl .bignum{margin-top:4px;font-size:44px}
 .pl .sub{font:400 var(--adv-control) var(--mono);color:var(--quiet);margin-top:2px}
 
+/* 盒子离线提示(不盖诊断内容,只点明下列接口失败的原因) */
+.adv-offline{display:none;align-items:baseline;gap:11px;padding:11px 0;border-bottom:1px solid var(--line);
+  font:var(--lab-w) var(--adv-major) var(--display);letter-spacing:.1em;color:var(--bad)}
+.adv-offline.show{display:flex}
+.adv-offline i{align-self:center;width:7px;height:7px;background:var(--bad);transform:rotate(45deg);animation:opsConnBlink 2.2s ease-in-out infinite}
+.adv-offline .ex{font:400 var(--adv-control) var(--body);color:var(--muted);letter-spacing:.02em}
+
 /* 异常摘要 */
 .issues{display:none;padding:12px 0 10px;border-bottom:1px solid var(--line)}
 .issues.show{display:block}
@@ -106,6 +113,8 @@ html[data-skin="B"] .wrap .con-note{font-size:var(--adv-control)}
     <div class="pl"><div class="lab">滞后</div><div class="bignum" id="n-stale">--</div><div class="sub">超过轮询间隔</div></div>
     <div class="pl"><div class="lab">失败</div><div class="bignum" id="n-fail">--</div><div class="sub" id="fail-sub">连续失败计数</div></div>
   </section>
+
+  <div class="adv-offline" id="adv-offline"><i></i><span id="adv-offline-msg">盒子未连接</span><span class="ex">下列接口失败为重试中,属预期</span></div>
 
   <section class="issues seq d2" id="issues" aria-label="接口异常摘要"></section>
 
@@ -255,7 +264,7 @@ async function load(){
     monitorData=await OPS.fetchJSON("/api/rpc-monitor?device="+encodeURIComponent(OPS.device||""));
     renderCats();
     $("status-kind").textContent="[OK]";$("status-kind").style.color="var(--good)";
-    $("status-text").textContent=`接口监测在线 · 轮询 ${monitorData.poll_interval_ms??"--"} ms`;
+    $("status-text").textContent=`接口监测在线 · 轮询 ${monitorData.poll_interval_ms??"--"} ms`+((OPS.conn&&OPS.conn.online===false)?" · 盒子未连接":"");
     $("snapshot").textContent=monitorData.generated_at||"--";
   }catch(e){
     $("status-kind").textContent="[ERR]";$("status-kind").style.color="var(--bad)";
@@ -271,6 +280,12 @@ async function load(){
     });}
   }
 }
+/* 顶栏连通性灯由 theme.js 探测点亮;本页据此点明"失败=盒子离线",但不盖诊断内容 */
+OPS.onConn(c=>{
+  const off=c&&c.online===false;
+  $("adv-offline").classList.toggle("show",!!off);
+  if(off)$("adv-offline-msg").textContent="盒子未连接"+(c.ip?(" · "+c.ip):"");
+});
 load();setInterval(load,5000);
 </script>
 </body>

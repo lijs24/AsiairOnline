@@ -141,6 +141,20 @@ html[data-skin="B"] .statusline .msg{flex:0 1 auto;max-width:56vw}
 /* 大数字 */
 .bignum{font:700 32px/1.1 var(--mono);font-variant-numeric:tabular-nums;color:var(--ac);text-shadow:var(--glow);white-space:nowrap}
 html[data-skin="B"] .bignum{font:500 38px/1.1 var(--display);color:var(--text)}
+
+/* —— 连通性:顶栏盒子灯 + 通用离线界面(全站一致) —— */
+.ops-lamp.off{color:var(--bad);border-color:var(--bad)}
+.ops-lamp.off i{background:var(--bad);animation:opsConnBlink 2.2s ease-in-out infinite}
+@keyframes opsConnBlink{0%,100%{opacity:1}50%{opacity:.28}}
+.ops-disconnected{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.55em;
+  text-align:center;color:var(--muted);padding:7vh 1em;min-height:220px}
+.ops-disconnected .ring{width:48px;height:48px;border:1.5px solid var(--ac-soft);border-radius:50%;
+  position:relative;margin-bottom:.45em;animation:opsConnPulse 2.4s ease-in-out infinite}
+.ops-disconnected .ring::after{content:"";position:absolute;inset:35%;border-radius:50%;background:var(--bad)}
+.ops-disconnected h4{margin:0;font:500 23px var(--display);letter-spacing:.14em;color:var(--text)}
+.ops-disconnected .sub{font:500 14px var(--mono);color:var(--ac);letter-spacing:.05em}
+.ops-disconnected .note{font:italic 300 13px var(--body);color:var(--quiet);max-width:30em;line-height:1.7}
+@keyframes opsConnPulse{0%,100%{opacity:.45;transform:scale(.95)}50%{opacity:1;transform:scale(1.05)}}
 `;
 
 const style = document.createElement("style");
@@ -205,6 +219,69 @@ API.scanAllowed = () => API.access.scan_allowed !== false;
 API.actionEntry = (page) => `http://${location.hostname}:8794/${page}${API.device?`?device=${encodeURIComponent(API.device)}`:""}`;
 API.hidden = () => document.hidden;
 
+/* ── 连通性:盒子可达状态 + 顶栏灯 + 离线广播(全站统一,各页可 onConn 监听) ── */
+API.conn = { online:null, ip:"", name:"", lastSeenMs:null, _reportedAtMs:0 };
+API._connCbs = [];
+API.onConn = function(cb){ this._connCbs.push(cb); if(this.conn.online!==null){ try{ cb(this.conn); }catch(e){} } };
+/* 从 /api/camera-state 推断盒子是否在线。关键:camera_cache 会保留上次在线时的相机型号/曝光等旧值,
+   盒子再次掉线时这些字段仍有值,所以不能用"有没有字段"判断——必须看本轮 errors 里核心 RPC(尤其
+   心跳 get_app_state)是否正在超时/不可达。 */
+API.deriveOnline = function(cs){
+  if(!cs) return null;
+  const errs = cs.errors || [];
+  const conn = e => /tim(e|ed)?\s*out|timeout|unreachable|refus|no route|reset|connection|不可达/i.test(String((e&&e.error)||""));
+  /* 心跳 get_app_state 当前不可达 → 离线(即使缓存里仍有相机型号/曝光旧值) */
+  if(errs.some(e => e && e.method==="get_app_state" && conn(e))) return false;
+  /* 多个核心读当前不可达 → 离线 */
+  const core = ["get_app_state","get_camera_state","get_camera_info","get_camera_exp_and_bin"];
+  if(errs.filter(e => e && core.indexOf(e.method)>=0 && conn(e)).length >= 2) return false;
+  if(!cs.partial) return true;
+  /* 部分但核心字段全空 → 离线(硬离线、无缓存) */
+  const cam=cs.camera||{}, app=cs.app||{}, exp=cs.exposure||{};
+  return !(!cam.name && app.capture_state==null && exp.seconds==null && !cam.chip_size);
+};
+function renderConn(){
+  const el = document.getElementById("ops-conn"); if(!el) return;
+  const c = API.conn, lab = el.querySelector("span");
+  if(c.online===null){ el.className="ops-lamp"; lab.textContent="盒子 --"; el.removeAttribute("title"); return; }
+  if(c.online){ el.className="ops-lamp self"; lab.textContent="盒子在线";
+    el.title = c.ip ? ("已连接 "+c.ip) : "已连接"; return; }
+  el.className="ops-lamp off"; lab.textContent="盒子未连接";
+  const ago = c.lastSeenMs!=null ? API.fmtAgo((Date.now()-c.lastSeenMs)/1000) : null;
+  el.title = (c.ip ? ("无法访问 "+c.ip) : "盒子无响应") + (ago ? (" · 最后在线 "+ago) : "");
+}
+API._renderConn = renderConn;
+function applyConn(online, meta, fromReport){
+  const c = API.conn;
+  if(fromReport) c._reportedAtMs = Date.now();
+  if(online==null) return;
+  if(meta){ if(meta.ip) c.ip=meta.ip; if(meta.name) c.name=meta.name; }
+  const was = c.online;
+  c.online = online;
+  if(online) c.lastSeenMs = Date.now();
+  renderConn();
+  if(was!==online){
+    if(document.body) document.body.classList.toggle("box-offline", online===false);
+    API._connCbs.forEach(cb=>{ try{ cb(c); }catch(e){} });
+    try{ document.dispatchEvent(new CustomEvent("ops:conn",{detail:c})); }catch(e){}
+  }
+}
+/* 各 box 依赖页从自己已有轮询调用,带来最新鲜的判断;调用后 8s 内抑制下方兜底探测 */
+API.reportConn = function(online, meta){ applyConn(online, meta, true); };
+/* 兜底探测:无页面自报(如素材库/高级页)时,主题层自行用 camera-state 探活,保证顶栏灯全站可用 */
+async function connProbe(){
+  if(API.hidden && API.hidden()) return;
+  if(Date.now() - API.conn._reportedAtMs < 8000) return;
+  if(!API.device) return;
+  try{
+    const cs = await API.fetchJSON("/api/camera-state?device="+encodeURIComponent(API.device), { timeout:6000 });
+    applyConn(API.deriveOnline(cs), { ip: cs && cs.device && cs.device.ip, name: cs && cs.device && cs.device.name }, false);
+  }catch(e){ /* 桥不可达:不翻转状态,等下一轮 */ }
+}
+API._connProbe = connProbe;
+/* 离线时每秒刷新顶栏灯的"最后在线"相对时间 */
+setInterval(() => { if(API.conn.online===false) renderConn(); }, 1000);
+
 /* ───────────────────────── 3. 顶栏注入 ───────────────────────── */
 function initDom(){
 
@@ -230,6 +307,7 @@ top.innerHTML = `
     <select id="ops-role" class="ops-sel" aria-label="协作模式">
       <option value="monitor">监控</option><option value="controller">主控</option>
     </select>
+    <span id="ops-conn" class="ops-lamp"><i></i><span>盒子 --</span></span>
     <span id="ops-control" class="ops-lamp"><i></i><span id="ops-control-text">主控空闲</span></span>
   </div>`;
 document.body.prepend(top);
@@ -250,6 +328,7 @@ fetch("/api/devices").then(r=>r.json()).then(d=>{
   API.device = cur;
   syncNavDevice();
   pollRole();  /* 接入修订:设备就绪后立即补一次主控轮询,消除首轮竞态空窗 */
+  connProbe(); /* 设备就绪后立即探一次盒子连通性,顶栏灯不留空窗 */
 }).catch(()=>{ /* 设备列表不可达时保持空,页面自处理 */ });
 
 devSel.addEventListener("change", () => {
@@ -349,6 +428,7 @@ API.sessionId = sid;
 })();
 setTimeout(pollRole, 400);
 setInterval(pollRole, 10000);
+setInterval(connProbe, 6000);
 
 }
 if (document.body) initDom();
