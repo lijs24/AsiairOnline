@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 from zipfile import ZipFile
 
+import numpy as np
+from PIL import Image
+
 from .config import AppConfig, Device
 from .rpc import rpc_priority_session
 
@@ -21,7 +24,7 @@ IMAGE_PORT = 4800
 IMAGE_METHOD = "get_current_img"
 MAX_PACKET_BYTES = 192 * 1024 * 1024
 CACHE_MAX_AGE_SECONDS = 30.0
-PREVIEW_MAX_EDGE = 2400
+PREVIEW_MAX_EDGE = 20000  # 发全幅给前端(>最大边 → step=1 不降采样);矢量化后整套处理仅 ~0.16s,保留全幅画质
 
 _PREVIEW_LOCKS: dict[str, threading.Lock] = {}
 _PREVIEW_LOCKS_GUARD = threading.Lock()
@@ -259,8 +262,6 @@ def build_preview_frame(frame: ImageFrame, max_edge: int = PREVIEW_MAX_EDGE) -> 
 
     out_width = max(1, (frame.width + step - 1) // step)
     out_height = max(1, (frame.height + step - 1) // step)
-    row_bytes = frame.width * frame.bytes_per_pixel
-    reduced = bytearray(out_width * out_height * frame.bytes_per_pixel)
     x_positions = [
         0 if out_width == 1 else round(index * (frame.width - 1) / (out_width - 1))
         for index in range(out_width)
@@ -269,21 +270,18 @@ def build_preview_frame(frame: ImageFrame, max_edge: int = PREVIEW_MAX_EDGE) -> 
         0 if out_height == 1 else round(index * (frame.height - 1) / (out_height - 1))
         for index in range(out_height)
     ]
-    out_index = 0
-    for y in y_positions:
-        row_start = y * row_bytes
-        row = frame.raw_data[row_start : row_start + row_bytes]
-        for x in x_positions:
-            pixel_start = x * frame.bytes_per_pixel
-            pixel_end = pixel_start + frame.bytes_per_pixel
-            reduced[out_index : out_index + frame.bytes_per_pixel] = row[pixel_start:pixel_end]
-            out_index += frame.bytes_per_pixel
+    # numpy 矢量化:同样的最近邻采样点,花式索引取出,字节级等价于原逐像素循环
+    source = np.frombuffer(frame.raw_data, dtype=np.uint8).reshape(
+        frame.height, frame.width, frame.bytes_per_pixel
+    )
+    reduced = source[np.ix_(np.asarray(y_positions), np.asarray(x_positions))]
+    raw = reduced.tobytes()
 
     return PreviewFrame(
         width=out_width,
         height=out_height,
-        raw_data=bytes(reduced),
-        raw_bytes=len(reduced),
+        raw_data=raw,
+        raw_bytes=len(raw),
         sample_step=step,
         bytes_per_pixel=frame.bytes_per_pixel,
     )
@@ -294,37 +292,31 @@ def normalize_raw16be(raw_data: bytes, bytes_per_pixel: int) -> bytes:
         return raw_data
     if bytes_per_pixel != 1:
         raise ValueError(f"Unsupported bytes_per_pixel: {bytes_per_pixel}")
-    normalized = bytearray(len(raw_data) * 2)
-    out_index = 0
-    for value in raw_data:
-        normalized[out_index] = value
-        normalized[out_index + 1] = value
-        out_index += 2
-    return bytes(normalized)
+    # 8-bit → 16-bit:每字节复制一份(矢量化,等价于原逐字节循环)
+    return np.repeat(np.frombuffer(raw_data, dtype=np.uint8), 2).tobytes()
 
 
 def raw16_to_png(raw_data: bytes, width: int, height: int) -> tuple[bytes, dict[str, Any]]:
     high_byte_offset = _detect_high_byte_offset(raw_data)
-    high_bytes = raw_data[high_byte_offset::2]
-    histogram = [0] * 256
-    for value in high_bytes:
-        histogram[value] += 1
-
-    total = len(high_bytes)
+    high_bytes = np.frombuffer(raw_data, dtype=np.uint8)[high_byte_offset::2]
+    total = int(high_bytes.size)
+    histogram = np.bincount(high_bytes, minlength=256).tolist()
     low = _hist_percentile(histogram, total, 0.01)
     high = _hist_percentile(histogram, total, 0.995)
     if high <= low:
-        low, high = min(high_bytes), max(high_bytes)
+        low, high = int(high_bytes.min()), int(high_bytes.max())
     if high <= low:
-        pixels = bytes(255 if value >= high else 0 for value in high_bytes)
+        pixels = np.where(high_bytes >= high, 255, 0).astype(np.uint8)
     else:
         scale = 255.0 / (high - low)
-        pixels = bytes(
-            0 if value <= low else 255 if value >= high else int((value - low) * scale)
-            for value in high_bytes
-        )
+        # 与原映射逐像素等价:value<=low→0, value>=high→255, 其余 int((value-low)*scale)
+        pixels = np.clip((high_bytes.astype(np.float32) - low) * scale, 0, 255).astype(np.uint8)
 
-    return _png_grayscale(width, height, pixels), {
+    buffer = BytesIO()
+    Image.fromarray(pixels.reshape(height, width), mode="L").save(
+        buffer, format="PNG", compress_level=6
+    )
+    return buffer.getvalue(), {
         "source": "16-bit mono high byte",
         "byte_order": "little" if high_byte_offset == 1 else "big",
         "low": low,
@@ -398,19 +390,12 @@ def _hist_percentile(histogram: list[int], total: int, percentile: float) -> int
 
 
 def _detect_high_byte_offset(raw_data: bytes) -> int:
-    even_hist = [0] * 256
-    odd_hist = [0] * 256
-    even_bytes = raw_data[0::2]
-    odd_bytes = raw_data[1::2]
-    for value in even_bytes:
-        even_hist[value] += 1
-    for value in odd_bytes:
-        odd_hist[value] += 1
+    arr = np.frombuffer(raw_data, dtype=np.uint8)
+    even_hist = np.bincount(arr[0::2], minlength=256).astype(np.float64)
+    odd_hist = np.bincount(arr[1::2], minlength=256).astype(np.float64)
 
-    def score(hist: list[int]) -> float:
-        total = sum(hist)
-        mean = total / len(hist)
-        return sum((count - mean) ** 2 for count in hist)
+    def score(hist: np.ndarray) -> float:
+        return float(np.sum((hist - hist.mean()) ** 2))
 
     return 1 if score(odd_hist) > score(even_hist) else 0
 
