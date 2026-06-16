@@ -44,7 +44,7 @@ button.primary{background:var(--ac);color:var(--bg);border:1px solid var(--ac);b
 button.primary:disabled{opacity:.4;cursor:not-allowed}
 
 /* 底部:直方图与拉伸(图像之上的一条仪表带) */
-.histo{position:fixed;left:24px;right:330px;bottom:10px;z-index:10;
+.histo{position:fixed;left:24px;right:330px;bottom:54px;z-index:10;
   padding:10px 14px 8px 0;background:linear-gradient(0deg,var(--scrim) 55%,var(--scrim0))}
 .histo .hd{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding-bottom:7px}
 .histo .hd b{font:var(--lab-w) 14px var(--display);letter-spacing:.22em;color:var(--ac);text-transform:var(--lab-tt)}
@@ -69,11 +69,25 @@ button.primary:disabled{opacity:.4;cursor:not-allowed}
 .statusline{display:none}
 html[data-skin="C"] .histo,html[data-skin="C"] .statusline{background:linear-gradient(0deg,var(--scrim) 70%,var(--scrim0))}
 
+/* 底部曝光进度条(恢复旧版:标签 + 进度轨 + 已用/总时长,始终可见) */
+.exp-bar{position:fixed;left:0;right:0;bottom:0;z-index:12;display:flex;align-items:center;gap:14px;
+  padding:7px 22px 8px;background:linear-gradient(0deg,var(--scrim) 72%,var(--scrim0))}
+.exp-bar .lbl{font:var(--lab-w) 13px var(--display);letter-spacing:.2em;color:var(--muted);text-transform:var(--lab-tt);white-space:nowrap;min-width:4.5em}
+html[data-skin="B"] .exp-bar .lbl{font-size:15px;letter-spacing:.08em}
+.exp-bar .track{position:relative;flex:1;height:3px;background:var(--line-dim);overflow:hidden}
+.exp-bar .track i{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--ac)}
+.exp-bar .track i.ind{width:32%;animation:expScan 1.15s linear infinite}
+@keyframes expScan{0%{transform:translateX(-110%)}100%{transform:translateX(380%)}}
+.exp-bar .val{font:400 13px var(--mono);color:var(--quiet);white-space:nowrap;font-variant-numeric:tabular-nums;min-width:7.5em;text-align:right}
+html[data-skin="B"] .exp-bar .val{font-size:14px}
+html[data-skin="C"] .exp-bar{background:linear-gradient(0deg,var(--scrim) 80%,var(--scrim0))}
+
 @media (max-width:980px){
   html,body{overflow:auto}
   .rail{position:static;width:auto;border-left:0;border-top:1px solid var(--ac-soft);margin-top:46vh;background:var(--bg)}
   .histo,.statusline{left:14px;right:14px}
   .histo{bottom:auto;position:relative;margin:10px 14px;background:var(--bg)}
+  .exp-bar{position:static;margin:6px 14px;padding:8px 0;background:var(--bg)}
   .viewbar{display:none}
   .meta{max-width:80vw}
 }
@@ -189,6 +203,12 @@ html[data-skin="B"] button.con{font-size:14px}
   </div>
   <div class="img-stats num" id="img-stats">--</div>
 </section>
+
+<div class="exp-bar seq d3" id="exp-bar" aria-label="曝光进度">
+  <span class="lbl" id="exp-label">待机</span>
+  <div class="track"><i id="exp-fill"></i></div>
+  <span class="val num" id="exp-val">--</span>
+</div>
 
 <footer class="statusline seq d3">
   <span class="kind" id="status-kind" style="color:var(--good)">[—]</span>
@@ -463,7 +483,8 @@ async function loadImage(force){
     {const p=new URLSearchParams();if(OPS.device)p.set("device",OPS.device);if(force)p.set("refresh","1");
     imgMeta=await OPS.fetchJSON("/api/current-image?"+p.toString());}
     const im=imgMeta.image||{};
-    $("img-line").textContent=`${im.width}×${im.height} · Bin${im.bin} · 曝光 ${im.exposure_ms/1000}s · 帧 #${im.image_id}`;
+    const _expS=im.exposure_ms!=null?(im.exposure_ms/1000):null;
+    $("img-line").textContent=`${im.width}×${im.height} · Bin${im.bin??"--"} · 曝光 ${_expS!=null?_expS+"s":"--"} · 帧 #${im.image_id??"--"}`;
     $("r-imgid").textContent="#"+(im.image_id??"--");
     $("r-osize").textContent=im.original_width?`${im.original_width} × ${im.original_height}`:"--";
     $("r-age").textContent=OPS.fmtAgo(imgMeta.age_seconds);
@@ -500,13 +521,16 @@ async function loadState(){
     const cam=camState.camera||{},app=camState.app||{},ctl=camState.controls||{},exp=camState.exposure||{};
     $("dev-name").textContent=(camState.device&&camState.device.name)||"相机";
     $("cam-name").textContent=cam.name||"--";
-    const working=!!app.capture_working;
-    setBadge(working?"采集中":"在线 · "+(app.capture_state||"idle"),working?"warn":"on");
+    /* 采集状态一律以 capture-progress(cpWorking,持续 1.5s 轮询、新鲜)为准。
+       camera-state.capture_working 经 camera_cache 缓存,曝光期间会滞后约一个曝光周期
+       (实测约 20s),既不驱动底部进度条也不单独决定徽标/指示,否则与 cp 打架、反复跳变。 */
+    const live=cpWorking===true||(cpWorking===null&&!!app.capture_working);
+    setBadge(live?"采集中":"在线 · "+(app.capture_state||"idle"),live?"warn":"on");
     $("r-state").textContent=app.capture_state||"--";
     $("r-mode").textContent=app.exposure_mode||"--";
     $("r-frame").textContent=app.capture_progress!=null?Math.round(app.capture_progress*100)+"%":"--";
-    const pr=$("cap-prog");pr.classList.toggle("show",working);
-    if(working)pr.querySelector("i").style.width=((app.capture_progress||0)*100)+"%";
+    const pr=$("cap-prog");pr.classList.toggle("show",live);
+    if(live)pr.querySelector("i").style.width=((app.capture_progress||0)*100)+"%";
     if(document.activeElement!==$("exposure-input")&&exp.seconds!=null)$("exposure-input").value=exp.seconds;
     {const bs=$("bin-select");
      if(!bs.options.length)((cam.bins&&cam.bins.length)?cam.bins:[1,2,3,4]).forEach(b=>{const o=document.createElement("option");o.value=o.textContent=b;bs.appendChild(o);});
@@ -566,11 +590,12 @@ async function trackCapture(){
   for(let i=0;i<240;i++){
     await new Promise(r=>setTimeout(r,500));
     try{const cp=await OPS.fetchJSON(`/api/capture-progress?device=${encodeURIComponent(OPS.device)}`);
+      applyCP(cp);
       if(cp&&cp.progress!=null)pr.querySelector("i").style.width=(cp.progress*100)+"%";
       if(cp&&cp.is_working===false)break;
     }catch(e){break;}
   }
-  pr.classList.remove("show");
+  pr.classList.remove("show");loadState();
 }
 $("btn-shoot").addEventListener("click",async()=>{
   try{
@@ -593,18 +618,65 @@ $("btn-demo").addEventListener("click",()=>{
   const pr=$("cap-prog");pr.classList.add("show");
   $("demo-badge").style.display="";setBadge("演示曝光中","warn");
   const t0=performance.now(),dur=Math.min(8,secs)*1000;
+  demoTrack={startedAt:t0,durationMs:dur};
   (function step(t){
     const p=Math.min(1,(t-t0)/dur);
     pr.querySelector("i").style.width=(p*100)+"%";
     $("r-frame").textContent=Math.round(p*100)+"%";
     if(p<1)requestAnimationFrame(step);
     else{
-      pr.classList.remove("show");$("demo-badge").style.display="none";
+      pr.classList.remove("show");demoTrack=null;$("demo-badge").style.display="none";
       setBadge("在线 · idle","on");
       loadImage();   /* 重新取帧并播放入场动画 */
     }
   })(t0);
 });
+
+/* ── 底部曝光进度条引擎 ──
+   权威进度取自 /api/capture-progress(锚定 lapse_ms/total_ms),两次轮询之间按真实时间本地插值,
+   逐帧重绘以平滑推进;相机状态(3s)只用于在 cp 尚未发声时初始化轨道。星图册配色:金色,无霓虹。 */
+let cpWorking=null,cpDownload=false,expTrack=null,demoTrack=null,lastCpAt=0;
+function applyCP(cp){
+  if(!cp)return;
+  lastCpAt=performance.now();
+  cpWorking=!!cp.is_working;
+  cpDownload=cpWorking&&cp.state==="download";
+  if(cpWorking&&Number(cp.total_ms)>0){
+    const total=Number(cp.total_ms),cand=performance.now()-Number(cp.lapse_ms||0);
+    /* 单次曝光内起点只向前(min),避免每秒按网络延迟回跳;换帧(total 变)或无轨道时才硬锚定 */
+    if(expTrack&&expTrack.durationMs===total)expTrack.startedAt=Math.min(expTrack.startedAt,cand);
+    else expTrack={startedAt:cand,durationMs:total};
+    expTrack.capState=String(cp.state||"");
+  }
+  else if(!cpWorking)expTrack=null;
+}
+async function pollCaptureProgress(){
+  if(!OPS.device)return;
+  try{const p=await OPS.fetchJSON(`/api/capture-progress?device=${encodeURIComponent(OPS.device)}`);if(p&&p.ok)applyCP(p);}
+  catch(e){/* 瞬时失败:保留上次值,曝光中途不回跳待机 */}
+}
+function renderExpBar(){
+  const fill=$("exp-fill"),label=$("exp-label"),val=$("exp-val");if(!fill)return;
+  label.style.color="";fill.style.transform="";fill.style.width="";
+  if(demoTrack){const p=Math.max(0,Math.min(1,(performance.now()-demoTrack.startedAt)/demoTrack.durationMs));
+    fill.classList.remove("ind");fill.style.width=(p*100).toFixed(1)+"%";label.textContent="演示曝光";label.style.color="var(--warn)";val.textContent=Math.round(p*100)+"%";return;}
+  if(cpDownload){fill.classList.add("ind");label.textContent="下载中";label.style.color="var(--good)";val.textContent="写盘";return;}
+  const t=expTrack;
+  /* cp 静默超 20s(接口持续失效)则不再信任旧轨道,回落待机,避免卡在曝光/读出中 */
+  const stale=lastCpAt&&(performance.now()-lastCpAt>20000);
+  if(!t||stale){fill.classList.remove("ind");fill.style.width="0%";label.textContent="待机";val.textContent="--";return;}
+  if(t.capState==="saving"){fill.classList.add("ind");label.textContent="保存中";label.style.color="var(--warn)";val.textContent="写盘";return;}
+  const dur=Number(t.durationMs||0);
+  if(dur<=0){fill.classList.add("ind");label.textContent="曝光中";label.style.color="var(--ac)";val.textContent="进行中";return;}
+  const el=Math.max(0,performance.now()-t.startedAt),ratio=el/dur;
+  fill.classList.remove("ind");
+  if(ratio>=1){fill.style.width="100%";label.textContent="读出中";label.style.color="var(--warn)";val.textContent=(dur/1000).toFixed(1)+"s";}
+  else{fill.style.width=(ratio*100).toFixed(1)+"%";label.textContent="曝光中";label.style.color="var(--ac)";val.textContent=(el/1000).toFixed(1)+" / "+(dur/1000).toFixed(1)+"s";}
+}
+(function progLoop(){renderExpBar();requestAnimationFrame(progLoop);})();
+/* 进度条完全由 capture-progress 驱动:可见时持续 1.5s 轮询(接口轻量且新鲜),
+   不再依赖滞后的 camera-state 判断是否曝光,避免漏检与跳变 */
+setInterval(()=>{if(!OPS.hidden())pollCaptureProgress();},1500);
 
 OPS.onSkin(()=>{drawStage();drawHist();});
 loadImage();

@@ -14,7 +14,7 @@ from typing import Any
 from zipfile import ZipFile
 
 from .config import AppConfig, Device
-from .rpc import rpc_priority_session
+from .rpc import IMAGER_PORT, asiair_rpc, rpc_priority_session
 
 
 IMAGE_PORT = 4800
@@ -52,6 +52,83 @@ class PreviewFrame:
     bytes_per_pixel: int
 
 
+def _exposure_bin_from_device(device: Device) -> tuple[int | None, int | None]:
+    """Exposure (ms) and bin for the current frame.
+
+    The ASIAIR get_current_img binary-header bytes for exposure/bin are
+    unreliable — exposure decodes to a constant 1000ms and bin to impossible
+    values (0/4) on a full-resolution frame. Read the real values from the
+    authoritative get_camera_exp_and_bin control RPC instead — the same source
+    camera-state uses — so each frame is labelled with the parameters it was
+    actually shot with. Returns (None, None) on any failure (shown as "--").
+    """
+    try:
+        response = asiair_rpc(
+            device.ip,
+            "get_camera_exp_and_bin",
+            port=IMAGER_PORT,
+            timeout_seconds=1.5,
+            priority="refresh",
+            queue_timeout_seconds=1.0,
+        )
+    except Exception:  # noqa: BLE001
+        return None, None
+    if not isinstance(response, dict) or response.get("code") != 0:
+        return None, None
+    result = response.get("result")
+    if not isinstance(result, dict):
+        return None, None
+    exposure_us = result.get("exposure")
+    bin_raw = result.get("bin")
+    exposure_ms = int(round(exposure_us / 1000)) if isinstance(exposure_us, (int, float)) else None
+    bin_value = int(bin_raw) if isinstance(bin_raw, (int, float)) and bin_raw else None
+    return exposure_ms, bin_value
+
+
+_CHIP_WIDTH_CACHE: dict[str, int] = {}
+
+
+def _chip_width(device: Device) -> int | None:
+    """Full bin1 sensor width (chip_size[0]) from get_camera_info, memoized per
+    device — used to derive a frame's true bin from its dimensions."""
+    cached = _CHIP_WIDTH_CACHE.get(device.ip)
+    if cached:
+        return cached
+    try:
+        response = asiair_rpc(
+            device.ip,
+            "get_camera_info",
+            port=IMAGER_PORT,
+            timeout_seconds=1.5,
+            priority="refresh",
+            queue_timeout_seconds=1.0,
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(response, dict) or response.get("code") != 0:
+        return None
+    result = response.get("result")
+    chip = result.get("chip_size") if isinstance(result, dict) else None
+    if isinstance(chip, (list, tuple)) and chip and isinstance(chip[0], (int, float)) and chip[0] > 0:
+        _CHIP_WIDTH_CACHE[device.ip] = int(chip[0])
+        return int(chip[0])
+    return None
+
+
+def _frame_bin(frame_width: int | None, chip_width: int | None) -> int | None:
+    """A frame's true bin from its full-resolution width vs the bin1 chip width
+    (a binN full frame is chip_width / N wide). Frame-accurate, so it is not
+    fooled by a bin SETTING that changed since this frame was captured. Returns
+    None when inputs are missing or the ratio is not close to an integer."""
+    if not frame_width or not chip_width:
+        return None
+    ratio = chip_width / frame_width
+    nearest = round(ratio)
+    if 1 <= nearest <= 8 and abs(ratio - nearest) <= 0.15:
+        return nearest
+    return None
+
+
 def current_image_response(
     config: AppConfig,
     device_name: str | None,
@@ -81,6 +158,14 @@ def current_image_response(
             return _metadata_response(device, cached, refreshed=False)
 
         frame = fetch_current_image(device)
+        # Header exposure/bin bytes are unreliable: source exposure from the
+        # control RPC, and derive bin from the frame's own dimensions (chip/N) so
+        # it reflects the parameters this frame was actually shot with — not a
+        # bin SETTING that may have changed since the frame was captured.
+        exposure_ms, bin_setting = _exposure_bin_from_device(device)
+        bin_value = _frame_bin(frame.width, _chip_width(device))
+        if bin_value is None:
+            bin_value = bin_setting
         preview = build_preview_frame(frame, max_edge=PREVIEW_MAX_EDGE)
         normalized_raw = normalize_raw16be(preview.raw_data, preview.bytes_per_pixel)
         png_bytes, stretch = raw16_to_png(normalized_raw, preview.width, preview.height)
@@ -100,8 +185,8 @@ def current_image_response(
                 "original_height": frame.height,
                 "sample_step": preview.sample_step,
                 "image_id": frame.image_id,
-                "bin": frame.bin_value,
-                "exposure_ms": frame.exposure_ms,
+                "bin": bin_value,
+                "exposure_ms": exposure_ms,
                 "packet_bytes": frame.packet_bytes,
                 "zip_bytes": frame.zip_bytes,
                 "raw_bytes": len(normalized_raw),
