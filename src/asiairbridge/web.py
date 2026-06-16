@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import subprocess
@@ -243,6 +244,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_file(
                     cached_raw_path(self.server.config, device),
                     "application/octet-stream",
+                    allow_gzip=True,
                 )
             elif parsed.path == "/api/materials/summary":
                 self._send_json(self.server.materials.summary())
@@ -565,14 +567,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
         content_type: str,
         download_name: str | None = None,
         cache_seconds: int = 0,
+        allow_gzip: bool = False,
     ) -> None:
         if not path.is_file():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         body = path.read_bytes()
+        encoding: str | None = None
+        # 16bit 原始帧很大(~116MB):客户端支持时 gzip 后再发(~46MB),浏览器透明解压
+        if allow_gzip and "gzip" in (self.headers.get("Accept-Encoding") or "").lower():
+            body = gzip.compress(body, 1)
+            encoding = "gzip"
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        if encoding:
+            self.send_header("Content-Encoding", encoding)
         if cache_seconds > 0:
             self.send_header("Cache-Control", f"public, max-age={cache_seconds}")
         elif content_type.startswith(("text/html", "application/javascript")):

@@ -164,7 +164,7 @@ def current_image_response(
                 "raw_bytes": len(normalized_raw),
                 "source_raw_bytes": frame.raw_bytes,
                 "png_bytes": len(png_bytes),
-                "byte_order": "big",
+                "byte_order": stretch.get("byte_order") or "little",
                 "source_byte_order": stretch.get("byte_order"),
                 "source_bytes_per_pixel": frame.bytes_per_pixel,
                 "stretch": stretch,
