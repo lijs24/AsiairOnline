@@ -481,7 +481,8 @@ async function loadRaw16(){
 async function loadImage(force){
   try{
     {const p=new URLSearchParams();if(OPS.device)p.set("device",OPS.device);if(force)p.set("refresh","1");
-    imgMeta=await OPS.fetchJSON("/api/current-image?"+p.toString());}
+    /* 全幅图取回+降采样本就要数秒,默认 6s 会被切断导致"图回不来";放宽到 30s */
+    imgMeta=await OPS.fetchJSON("/api/current-image?"+p.toString(),{timeout:30000});}
     const im=imgMeta.image||{};
     const _expS=im.exposure_ms!=null?(im.exposure_ms/1000):null;
     $("img-line").textContent=`${im.width}×${im.height} · Bin${im.bin??"--"} · 曝光 ${_expS!=null?_expS+"s":"--"} · 帧 #${im.image_id??"--"}`;
