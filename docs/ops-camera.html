@@ -497,15 +497,14 @@ async function loadImage(force){
     $("r-imgid").textContent="#"+(im.image_id??"--");
     $("r-osize").textContent=im.original_width?`${im.original_width} × ${im.original_height}`:"--";
     $("r-age").textContent=OPS.fmtAgo(imgMeta.age_seconds);
-    /* 16 位原始帧优先(本地实时拉伸,与旧版一致) */
+    /* 同一帧(image_id 未变)已在显示 → 只刷新元信息,不重载大图(自动跟随时避免重复渲染同帧)*/
+    if(im.image_id!=null&&im.image_id===lastShownImgId){return;}
+    lastShownImgId=im.image_id;
+    /* 16 位原始帧优先:交互拉伸要 16 位数据(Uint16Array,显示仍 8 位)。后端已 gzip(~116MB→~46MB),
+       浏览器走 Content-Encoding 透明解压,loadRaw16 不用改。取/解失败再退 8 位 PNG。 */
     let ok16=false;
     try{ok16=await loadRaw16();}catch(e){}
-    if(ok16){
-      buildHist();updateStats();
-      $("stage-empty").style.display="none";
-      preset("auto");frameIn();
-      return;
-    }
+    if(ok16){buildHist();updateStats();$("stage-empty").style.display="none";preset("auto");frameIn();return;}
     const img=new Image();
     img.onload=()=>{
       src16=null;hist16=null;
@@ -649,11 +648,28 @@ $("apply-exposure-btn").addEventListener("click",async()=>{
    权威进度取自 /api/capture-progress(锚定 lapse_ms/total_ms),两次轮询之间按真实时间本地插值,
    逐帧重绘以平滑推进;相机状态(3s)只用于在 cp 尚未发声时初始化轨道。星图册配色:金色,无霓虹。 */
 let cpWorking=null,cpDownload=false,expTrack=null,lastCpAt=0,loadingImage=false;
+/* 自动跟随最新帧:盒子(含 ASIAIR app 的计划序列)每拍完一帧,自动取回并显示 */
+let autoFollow=true,lastShownImgId=null,cpPrevLapse=0,autoFetchTimer=null;
+function scheduleAutoFetch(delay){
+  if(!autoFollow||(OPS.hidden&&OPS.hidden()))return;
+  clearTimeout(autoFetchTimer);
+  autoFetchTimer=setTimeout(function go(){
+    if(OPS.hidden())return;
+    if(loadingImage){autoFetchTimer=setTimeout(go,2000);return;}  /* 取图在途:稍后重试,避免并发同帧 */
+    loadImage(true);
+  },delay||2500);
+}
 function applyCP(cp){
   if(!cp)return;
   lastCpAt=performance.now();
+  const wasWorking=cpWorking;
   cpWorking=!!cp.is_working;
   cpDownload=cpWorking&&cp.state==="download";
+  /* 帧完成检测 → 自动取回:① 采集由工作转停止;② 连拍中曝光计时回绕(lapse 大幅下降=新一帧开始=上帧已保存)*/
+  const lapse=Number(cp.lapse_ms||0);
+  if(wasWorking===true&&!cpWorking)scheduleAutoFetch(2500);
+  else if(cpWorking&&cpPrevLapse>5000&&lapse<cpPrevLapse-3000)scheduleAutoFetch(2500);
+  cpPrevLapse=cpWorking?lapse:0;
   if(cpWorking&&Number(cp.total_ms)>0){
     const total=Number(cp.total_ms),cand=performance.now()-Number(cp.lapse_ms||0);
     /* 单次曝光内起点只向前(min),避免每秒按网络延迟回跳;换帧(total 变)或无轨道时才硬锚定 */
@@ -696,7 +712,7 @@ function renderExpBar(){
 setInterval(()=>{if(!OPS.hidden())pollCaptureProgress();},1500);
 
 OPS.onSkin(()=>{drawStage();drawHist();});
-loadImage();
+loadImage();scheduleAutoFetch(1500);   /* 先显示缓存帧,再自动取回当前最新帧 */
 loadState();setInterval(()=>{if(!OPS.hidden())loadState();},3000);
 </script>
 </body>
