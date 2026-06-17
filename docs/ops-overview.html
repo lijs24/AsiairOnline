@@ -152,6 +152,7 @@ html[data-skin="B"] .con-note{font-size:14px}
 <script>
 const $=id=>document.getElementById(id);
 const OPS=window.OPS;
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 let fleetData=null, monitorData=null, selDev=null, revealed=false;
 const ringRegistry=new Map();   // device -> {canvas, progress, shown}
 
@@ -257,14 +258,14 @@ function renderFleet(){
     el.className="station"+(name===selDev?" sel":"")+(dOff?" off":"");
     el.innerHTML=`
       <span class="sig lampline ${dOff?"bad":(app.capture_working?"warn":"on")}"><i></i></span>
-      <div class="dv"><b>${name}</b></div>
-      <div class="cam">${dOff?"盒子未连接":(cam.name||"相机未连接")}</div>
+      <div class="dv"><b>${esc(name)}</b></div>
+      <div class="cam">${dOff?"盒子未连接":esc(cam.name||"相机未连接")}</div>
       <div class="strip">
         <canvas class="ring" width="58" height="58" aria-label="采集进度"></canvas>
         <div class="kv">
-          <div class="hrow"><span class="k">状态</span><span class="v ${scls==="warn"?"ac":""}">${stxt}</span></div>
-          <div class="hrow"><span class="k">传感器</span><span class="v">${ctl.temperature?ctl.temperature.display:"--"} · 制冷 ${ctl.cool_power?ctl.cool_power.display:"--"}</span></div>
-          <div class="hrow"><span class="k">曝光</span><span class="v">${exp.seconds!=null?exp.seconds+" s · Bin"+(exp.bin||1):"--"}</span></div>
+          <div class="hrow"><span class="k">状态</span><span class="v ${scls==="warn"?"ac":""}">${esc(stxt)}</span></div>
+          <div class="hrow"><span class="k">传感器</span><span class="v">${esc(ctl.temperature?ctl.temperature.display:"--")} · 制冷 ${esc(ctl.cool_power?ctl.cool_power.display:"--")}</span></div>
+          <div class="hrow"><span class="k">曝光</span><span class="v">${exp.seconds!=null?esc(exp.seconds+" s · Bin"+(exp.bin||1)):"--"}</span></div>
         </div>
       </div>
       <div class="bar"><i style="width:0%"></i><span></span></div>`;
@@ -284,7 +285,7 @@ function renderFleet(){
 }
 
 /* ── 右栏 ── */
-function railRow(k,v,ac){return `<div class="hrow"><span class="k">${k}</span><span class="v ${ac?"ac":""}">${v==null||v===""?"--":v}</span></div>`;}
+function railRow(k,v,ac){return `<div class="hrow"><span class="k">${k}</span><span class="v ${ac?"ac":""}">${v==null||v===""?"--":esc(v)}</span></div>`;}
 function renderRail(){
   const d=fleetData&&fleetData.devices&&fleetData.devices[selDev];
   const hi=monitorData&&monitorData.device&&monitorData.device.name===selDev?monitorData.highlights:null;
@@ -351,7 +352,7 @@ function buildLogQueue(){
 function pushLog(e){
   const box=$("loglines");
   const ln=document.createElement("div");ln.className="ln";
-  ln.innerHTML=`<span class="t num">${String(e.t).replace("T"," ").slice(5,19)}</span>  <span class="tag ${e.tag==="WARN"?"w":""}">[${e.tag}]</span> ${e.msg}`;
+  ln.innerHTML=`<span class="t num">${esc(String(e.t).replace("T"," ").slice(5,19))}</span>  <span class="tag ${e.tag==="WARN"?"w":""}">[${esc(e.tag)}]</span> ${esc(e.msg)}`;
   box.appendChild(ln);
   while(box.children.length>9)box.removeChild(box.firstChild);
 }

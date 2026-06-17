@@ -1379,14 +1379,63 @@ def main(argv=None):
 #  so interactive orbiting costs ~20-40 ms/frame instead of ~500 ms           #
 # --------------------------------------------------------------------------- #
 _WORKER_LOCK = threading.Lock()
-_WORKER: dict = {"proc": None}
+_WORKER: dict = {"proc": None, "fail_count": 0}
+_WORKER_READ_TIMEOUT = 10  # seconds; kill worker and fall back if exceeded
+_WORKER_MAX_FAILS = 3      # consecutive failures before giving up on worker path
 
 
 def _worker_render(params: dict, root: str) -> bytes:
+    """Render via the persistent worker subprocess.
+
+    Adds a per-request read timeout so a stalled GL context cannot block the
+    web thread indefinitely.  The blocking reads run in a daemon helper thread
+    and the caller waits on a queue with a wall-clock timeout — this is portable
+    to Windows, where select() does not support subprocess pipe handles.  On
+    timeout or pipe error the worker process is killed and the failure counter
+    is incremented; after _WORKER_MAX_FAILS consecutive failures the exception
+    propagates to render_cached which falls back to _render_subprocess.
+    """
     import json as _json
+    import queue as _queue
+    import threading as _threading
+    import logging as _log
+    _logger = _log.getLogger(__name__)
+
+    def _kill_worker(proc):
+        try:
+            proc.kill()
+        except Exception:  # noqa: BLE001
+            pass
+        _WORKER["proc"] = None
+        _WORKER["fail_count"] += 1
+
+    def _read_response(stdout, result_q):
+        """Blocking read of one full worker response (header + payload).
+
+        Runs in a daemon helper thread; the caller waits on result_q with a
+        timeout.  If the worker is killed on timeout, stdout closes and the
+        pending read returns EOF, so this thread always terminates (no leak).
+        """
+        try:
+            header = stdout.readline()
+            tag, _, num = header.strip().partition(b" ")
+            n = int(num)
+            data = b""
+            while len(data) < n:
+                chunk = stdout.read(n - len(data))
+                if not chunk:
+                    raise RuntimeError("render worker closed the pipe")
+                data += chunk
+            result_q.put(("ok", tag, data))
+        except Exception as exc:  # noqa: BLE001
+            result_q.put(("err", exc, None))
+
     with _WORKER_LOCK:
+        if _WORKER["fail_count"] >= _WORKER_MAX_FAILS:
+            raise RuntimeError(f"render worker disabled after {_WORKER['fail_count']} consecutive failures")
         proc = _WORKER.get("proc")
         if proc is None or proc.poll() is not None:
+            _WORKER["fail_count"] = 0  # reset on fresh spawn
             env = os.environ.copy()
             env["PYTHONPATH"] = str(Path(root) / "src")
             env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -1397,24 +1446,24 @@ def _worker_render(params: dict, root: str) -> bytes:
         try:
             proc.stdin.write((_json.dumps(params) + "\n").encode("utf-8"))
             proc.stdin.flush()
-            header = proc.stdout.readline()
-            tag, _, num = header.strip().partition(b" ")
-            n = int(num)
-            data = b""
-            while len(data) < n:
-                chunk = proc.stdout.read(n - len(data))
-                if not chunk:
-                    raise RuntimeError("render worker closed the pipe")
-                data += chunk
-            if tag != b"OK":
-                raise RuntimeError(data.decode("utf-8", "replace"))
-            return data
-        except Exception:
+            result_q: "_queue.Queue" = _queue.Queue(maxsize=1)
+            reader = _threading.Thread(
+                target=_read_response, args=(proc.stdout, result_q), daemon=True)
+            reader.start()
             try:
-                proc.kill()
-            except Exception:  # noqa: BLE001
-                pass
-            _WORKER["proc"] = None
+                status, payload, data = result_q.get(timeout=_WORKER_READ_TIMEOUT)
+            except _queue.Empty:
+                raise TimeoutError("render worker did not respond within timeout")
+            if status == "err":
+                raise payload
+            if payload != b"OK":
+                raise RuntimeError(data.decode("utf-8", "replace"))
+            _WORKER["fail_count"] = 0  # success: reset counter
+            return data
+        except Exception as _exc:
+            _logger.warning("mount_render worker error (%s): %s — killing and restarting next call",
+                            type(_exc).__name__, _exc)
+            _kill_worker(proc)
             raise
 
 

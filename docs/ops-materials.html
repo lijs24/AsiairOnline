@@ -371,7 +371,7 @@ async function loadSummary(){
         const c=document.createElement("div");c.className="cell";
         const src=Object.prototype.hasOwnProperty.call(it,"thumb_url")?it.thumb_url:(it.id?`/api/materials/thumb?id=${encodeURIComponent(it.id)}`:"");
         c.innerHTML=`${thumbMarkup(src,it.file_name||it.target||"")}
-          <div class="cap">${it.target||it.frame_type||""} · ${it.exposure||""} · ${it.device}</div>`;
+          <div class="cap">${esc(it.target||it.frame_type||"")} · ${esc(it.exposure||"")} · ${esc(it.device)}</div>`;
         c.addEventListener("click",()=>openViewer(summary.latest,summary.latest.indexOf(it)));
         strip.appendChild(c);
         installThumbFallback(c);
@@ -488,7 +488,7 @@ function renderListing(){
     const el=document.createElement("div");el.className="folder";
     el.style.setProperty("--ri",i);   /* 逐行浮现顺序索引(仅在揭幕 .folders.reveal 期间被 CSS 使用) */
     el.innerHTML=`<span class="cov">${thumbMarkup(f.cover_thumb_url,f.name)}</span>
-      <b>${f.name}</b><span class="ct num">${f.item_count} 项</span><button class="dl" type="button" title="打包下载此文件夹">↓ 下载</button><span class="go">进入 →</span>`;
+      <b>${esc(f.name)}</b><span class="ct num">${f.item_count|0} 项</span><button class="dl" type="button" title="打包下载此文件夹">↓ 下载</button><span class="go">进入 →</span>`;
     el.addEventListener("click",()=>nav(f.path));
     el.querySelector(".dl").addEventListener("click",ev=>{ev.stopPropagation();downloadFolder(f);});
     fr.appendChild(el);
@@ -504,7 +504,7 @@ function renderListing(){
     if(selected.has(it.id))el.classList.add("picked");
     el.style.animationDelay=Math.min(i,24)*28+"ms";
     el.innerHTML=`${thumbMarkup(it.thumb_url,it.file_name)}<span class="pick"></span>
-      <div class="ov">${it.target||""} · ${it.exposure||""} · Gain${it.gain??"-"} · ${ (it.captured_at||"").slice(5,16).replace("T"," ") }</div>`;
+      <div class="ov">${esc(it.target||"")} · ${esc(it.exposure||"")} · Gain${esc(it.gain??"-")} · ${esc((it.captured_at||"").slice(5,16).replace("T"," "))}</div>`;
     el.addEventListener("click",()=>{if(selMode){togglePick(it,el);}else{openViewer(curImages,i);}});
     requestAnimationFrame(()=>el.classList.add("in"));
     g.appendChild(el);
