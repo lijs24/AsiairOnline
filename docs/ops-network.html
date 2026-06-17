@@ -26,8 +26,6 @@ html[data-skin="B"] .head .pl .bignum{font-size:30px}
   text-transform:var(--lab-tt);display:flex;align-items:baseline;gap:13px}
 html[data-skin="B"] .sect h2{font-weight:600;font-size:20px;letter-spacing:.12em}
 .sect h2 .rn{color:var(--ac);font-size:16px;letter-spacing:.06em}
-.sect .note{font:italic 300 13px var(--body);color:var(--quiet);margin:0 0 14px;max-width:48em;line-height:1.7}
-html[data-skin="A"] .sect .note,html[data-skin="C"] .sect .note{font-style:normal}
 
 /* 连接灯 */
 .lamp{width:9px;height:9px;border-radius:50%;flex:none;background:var(--quiet)}
@@ -90,18 +88,16 @@ html[data-skin="B"] .dev .id b{font:600 19px var(--display)}
   </header>
 
   <section class="sect seq d1" id="s-box">
-    <h2><span class="rn">Ⅰ</span> 盒子 → 后端 · 共享链路<span class="rn" style="margin-left:auto;font-size:11px;letter-spacing:.04em;color:var(--quiet)" id="box-host"></span></h2>
-    <p class="note">后端持续轮询各盒子(192.168.8.x)并缓存。此链路由后端维护、<b style="color:var(--text);font-weight:400">所有用户共享</b>——你看到的与其他用户一致。新鲜度=后端最近一次成功取到该盒子数据距今的时间。</p>
+    <h2><span class="rn">Ⅰ</span> 盒子 → 后端</h2>
     <div id="box-list"></div>
   </section>
 
   <section class="sect seq d2" id="s-sess">
-    <h2><span class="rn">Ⅱ</span> 后端 → 前端 · 本会话链路</h2>
-    <p class="note">你这个浏览器到后端(<span id="sess-host">--</span>)的连接,<b style="color:var(--text);font-weight:400">每个用户各自独立</b>。延迟为本浏览器每 2 秒探测 <code style="font-family:var(--mono)">/api/ping</code> 的往返耗时。</p>
+    <h2><span class="rn">Ⅱ</span> 后端 → 前端</h2>
     <div class="sess">
       <div class="lat">
         <div class="big" id="lat-now">--<span class="u">ms</span></div>
-        <div class="l">往返延迟 · RTT</div>
+        <div class="l">往返延迟</div>
         <div class="mmm" id="lat-mmm">--</div>
       </div>
       <div class="right">
@@ -172,25 +168,24 @@ async function pollStates(){
       else if(partial||errs){cls="warn";label="受限";online++;}
       else{cls="ok";label="已连接";online++;}
       const lamp=off?"off":(cls==="warn"?"warn":"on");
-      const proof=off?(`最后快照 ${fmtTime(cs.snapshot_at)}`)
-        :(cam.name?esc(cam.name)+(app.capture_state?` · ${esc(app.capture_state)}`:""):"已建立");
+      const reason=off?"盒子无响应"
+        :(cam.name?esc(cam.name)+(app.capture_state?` · ${esc(app.capture_state)}`:""):"已就绪");
+      const reasonLab=off?"状态":"相机";
       const freshV=age!=null?(age<90?Math.round(age)+" 秒前":OPS.fmtAgo(age)):"--";
-      const errNote=errs?`<div class="proof">${errs} 个 RPC 超时/不可达</div>`:`<div class="proof">${proof}</div>`;
       return `<div class="dev">
         <span class="lamp ${lamp}"></span>
         <span class="id"><b>${esc(name)}</b><span class="ip">${esc(ip)}</span></span>
         <span class="st ${cls}">${label}</span>
         <span class="meta">
-          <span class="m"><span class="v ${off?"bad":""}">${freshV}</span><span class="l">数据新鲜度</span></span>
-          <span class="m" style="min-width:14em">${errNote}<span class="l">${off?"快照":"连接证明"}</span></span>
+          <span class="m"><span class="v ${off?"bad":""}">${freshV}</span><span class="l">最近更新</span></span>
+          <span class="m" style="min-width:12em"><span class="proof">${reason}</span><span class="l">${reasonLab}</span></span>
         </span>
       </div>`;
     }).join("");
     $("box-list").innerHTML=rows||"<div class='dev'><span class='lamp'></span><span class='id'>无设备</span></div>";
     $("pl-online").textContent=`${online}/${names.length}`;
-    $("box-host").textContent="缓存快照 "+fmtTime(d.snapshot_at);
     $("status-kind").textContent="[OK]";$("status-kind").style.color="var(--good)";
-    $("status-text").textContent="网络连接监测 · 盒子↔后端 共享 / 后端↔本浏览器 独立";
+    $("status-text").textContent="网络连接监测";
     $("snapshot").textContent=fmtTime(d.snapshot_at);
   }catch(e){
     $("box-list").innerHTML="<div class='dev'><span class='lamp off'></span><span class='id'>后端不可达</span></div>";
@@ -260,7 +255,6 @@ async function ping(){
   renderSess();
 }
 
-$("sess-host").textContent=location.host;
 $("sess-addr").textContent=location.host;
 function setSessId(){$("sess-id").textContent=(OPS.sessionId||"--").slice(0,18);}
 setSessId();setTimeout(setSessId,1200);  /* OPS.sessionId 异步设,延迟补一次 */
