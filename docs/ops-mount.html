@@ -510,10 +510,9 @@ async function poll(){
     setMountOffline(false);
     renderStatic(d);
   }catch(e){
-    /* 盒子断连:直接进入"未连接"界面,不再回退演示遥测 */
-    MODE="offline";
     OPS.reportConn(false,{name:OPS.device});
-    setMountOffline(true);
+    /* 走迟滞:grace 窗口内的瞬时失败维持上次实时遥测,不闪"未连接";持续超过 grace 才进离线界面 */
+    if(OPS.conn.online===false){ MODE="offline"; setMountOffline(true); }
   }finally{
     /* 首次轮询结束(成功或失败)后统一放行入场动画,保证自上而下且内容已就位 */
     if(!revealed){revealed=true;requestAnimationFrame(()=>{
