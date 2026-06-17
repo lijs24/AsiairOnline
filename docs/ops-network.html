@@ -230,7 +230,6 @@ function drawSpark(){
     ctx.arc(x(MAX-1),y(last.rtt),2.5,0,7);ctx.fill();}
 }
 function renderSess(){
-  const online=OPS.conn&&OPS.conn.online;
   const oks=SAMPLES.filter(s=>s.rtt!=null).map(s=>s.rtt);
   const last=SAMPLES.length?SAMPLES[SAMPLES.length-1]:null;
   const now=$("lat-now");
@@ -240,8 +239,11 @@ function renderSess(){
     $("lat-mmm").textContent=`最小 ${Math.round(mn)} · 平均 ${Math.round(av)} · 最大 ${Math.round(mx)} ms`;}
   const loss=SAMPLES.filter(s=>s.rtt==null).length;
   $("sess-loss").textContent=`${loss}/${SAMPLES.length}`;
-  $("sess-state").innerHTML=online===false?'<span style="color:var(--bad)">未连接</span>'
-    :online?'<span style="color:var(--ac)">已连接</span>':"检测中…";
+  /* 本会话链路状态以 ping 自身判定(不借用 OPS.conn——那是盒子↔后端的状态) */
+  $("sess-state").innerHTML = !SAMPLES.length ? "检测中…"
+    : (last&&last.rtt!=null) ? '<span style="color:var(--ac)">已连接</span>'
+    : SAMPLES.slice(-3).some(s=>s.rtt!=null) ? '<span style="color:var(--ac-soft)">不稳定</span>'
+    : '<span style="color:var(--bad)">未连接</span>';
   $("pl-ping").textContent=(last&&last.rtt!=null)?Math.round(last.rtt)+" ms":"--";
   drawSpark();
 }
