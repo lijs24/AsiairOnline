@@ -251,17 +251,28 @@ function renderConn(){
   el.title = (c.ip ? ("无法访问 "+c.ip) : "盒子无响应") + (ago ? (" · 最后在线 "+ago) : "");
 }
 API._renderConn = renderConn;
+/* 离线迟滞:单次轮询失败/心跳 RPC 超时(Tailscale 抖动、盒子曝光读出或下载时忙)不立刻翻离线,
+   须持续无成功联系 ≥ OFFLINE_GRACE_MS 才真正判离线;恢复(任一次在线)立即生效。
+   首次加载且从未联系过(lastSeenMs==null)时立即判离线,不空等。 */
+API.OFFLINE_GRACE_MS = 12000;
 function applyConn(online, meta, fromReport){
   const c = API.conn;
   if(fromReport) c._reportedAtMs = Date.now();
   if(online==null) return;
   if(meta){ if(meta.ip) c.ip=meta.ip; if(meta.name) c.name=meta.name; }
+  const now = Date.now();
+  let eff;
+  if(online){ c.lastSeenMs = now; eff = true; }
+  else{
+    const downMs = c.lastSeenMs!=null ? (now - c.lastSeenMs) : Infinity;
+    eff = downMs >= API.OFFLINE_GRACE_MS ? false : (c.online===false ? false : null);
+  }
+  if(eff==null) return;            /* grace 窗口内的瞬时失败:维持原状态,等下一轮 */
   const was = c.online;
-  c.online = online;
-  if(online) c.lastSeenMs = Date.now();
+  c.online = eff;
   renderConn();
-  if(was!==online){
-    if(document.body) document.body.classList.toggle("box-offline", online===false);
+  if(was!==eff){
+    if(document.body) document.body.classList.toggle("box-offline", eff===false);
     API._connCbs.forEach(cb=>{ try{ cb(c); }catch(e){} });
     try{ document.dispatchEvent(new CustomEvent("ops:conn",{detail:c})); }catch(e){}
   }

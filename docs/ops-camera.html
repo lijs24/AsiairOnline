@@ -543,6 +543,7 @@ async function loadState(){
        不能用字段有无——camera_cache 会保留上次在线的相机型号/曝光旧值,会误报"在线" */
     offline=OPS.deriveOnline(camState)===false;
     OPS.reportConn(!offline,{ip:camState.device&&camState.device.ip,name:camState.device&&camState.device.name});
+    offline=OPS.conn.online===false;   /* 显示一律用迟滞后的全站连接态,避免单次心跳超时闪"未连接" */
     $("dev-name").textContent=(camState.device&&camState.device.name)||"相机";
     $("cam-name").textContent=cam.name||"--";
     /* 采集状态一律以 capture-progress(cpWorking,持续 1.5s 轮询、新鲜)为准。
@@ -571,10 +572,15 @@ async function loadState(){
     $("snapshot").textContent=camState.snapshot_at||"--";
     setCamOffline(offline);
   }catch(e){
-    setBadge("无响应","");
-    $("status-kind").textContent="[ERR]";$("status-kind").style.color="var(--bad)";
-    $("status-text").textContent="相机状态加载失败:"+(e.message||"接口不可达");
-    setCamOffline(true,"接口不可达,正在重试…");
+    OPS.reportConn(false,{name:OPS.device});
+    offline=OPS.conn.online===false;   /* 走迟滞:grace 内的瞬时失败不翻离线 */
+    if(offline){
+      setBadge("盒子未连接","");
+      $("status-kind").textContent="[OFF]";$("status-kind").style.color="var(--bad)";
+      $("status-text").textContent="盒子未连接 · "+(e.message||"接口不可达");
+      setCamOffline(true,"接口不可达,正在重试…");
+    }
+    /* else: grace 窗口内的瞬时失败 — 维持上次画面,不闪"未连接" */
   }finally{
     const gate=OPS.actionsAllowed();
     const self=OPS.heldBySelf&&gate;
