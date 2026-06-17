@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .camera_cache import CameraStateCache
+from .guide_monitor import GuideMonitor
 from .camera_ops import camera_action_response, camera_status_response, capture_progress_response
 from .mount_ops import mount_status_response
 from .mount_render import render_cached
@@ -94,12 +95,15 @@ class AsiairBridgeServer(ThreadingHTTPServer):
         self.camera_operations_lock = threading.Lock()
         self.camera_cache = CameraStateCache(config)
         self.camera_cache.start()
+        self.guide_monitor = GuideMonitor(config)
+        self.guide_monitor.start()
         self.materials = MaterialLibrary(config)
         self.materials.start_warmer()
         init_rpc_monitor_state(self)
 
     def server_close(self) -> None:
         self.camera_cache.stop()
+        self.guide_monitor.stop()
         self.materials.stop_warmer()
         super().server_close()
 
@@ -172,6 +176,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/network":
                 self._send_file(
                     self.server.config.root / "docs" / "ops-network.html",
+                    "text/html; charset=utf-8",
+                )
+            elif parsed.path == "/guide":
+                self._send_file(
+                    self.server.config.root / "docs" / "ops-guide.html",
                     "text/html; charset=utf-8",
                 )
             elif parsed.path == "/mount-classic":
@@ -428,6 +437,31 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 query = parse_qs(parsed.query)
                 session_id = query.get("session_id", [""])[0]
                 self._send_json(self.server.camera_cache.get_all(session_id=session_id))
+            elif parsed.path == "/api/guide-states":
+                query = parse_qs(parsed.query)
+                device = query.get("device", [""])[0]
+                gm = self.server.guide_monitor
+                self._send_json(gm.get_one(device) if device else gm.get_all())
+            elif parsed.path == "/api/guide-log/index":
+                query = parse_qs(parsed.query)
+                self._send_json(self.server.guide_monitor.list_nights(query.get("device", [""])[0]))
+            elif parsed.path == "/api/guide-log":
+                query = parse_qs(parsed.query)
+                self._send_json(self.server.guide_monitor.read_night(
+                    query.get("device", [""])[0], query.get("date", [""])[0]))
+            elif parsed.path == "/api/guide-log/raw":
+                query = parse_qs(parsed.query)
+                device = query.get("device", [""])[0]
+                date = query.get("date", [""])[0]
+                path = self.server.guide_monitor.night_file(device, date)
+                if path is None:
+                    self.send_error(HTTPStatus.NOT_FOUND)
+                else:
+                    self._send_file(
+                        path,
+                        "application/x-ndjson; charset=utf-8",
+                        download_name=f"guide-{device}-{date}.jsonl",
+                    )
             elif parsed.path == "/api/camera-operation":
                 query = parse_qs(parsed.query)
                 device = query.get("device", [""])[0]
