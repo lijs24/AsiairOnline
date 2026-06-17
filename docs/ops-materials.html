@@ -83,9 +83,13 @@ html[data-skin="A"] .empty-note,html[data-skin="C"] .empty-note{font-style:norma
   border-top:1px solid var(--line-dim);text-decoration:none;cursor:pointer}
 .admin-entry .ae-lab{font:var(--lab-w) var(--mat-major) var(--display);letter-spacing:.16em;color:var(--ac);text-transform:var(--lab-tt)}
 html[data-skin="B"] .admin-entry .ae-lab{font:600 18px var(--display)}
-.admin-entry .ae-sub{font:400 var(--mat-meta) var(--body);color:var(--quiet)}
+.admin-entry .ae-mon{display:flex;align-items:center;gap:8px;font:400 var(--mat-meta) var(--mono);color:var(--quiet);letter-spacing:.02em}
+.admin-entry .ae-mon .d{width:7px;height:7px;border-radius:50%;background:var(--quiet);flex:none}
+.admin-entry .ae-mon.act{color:var(--ac)}
+.admin-entry .ae-mon.act .d{background:var(--ac);animation:aeMonPulse 1.3s ease-in-out infinite}
+@keyframes aeMonPulse{0%,100%{opacity:1}50%{opacity:.3}}
 .admin-entry .ae-go{margin-left:auto;font:var(--lab-w) var(--mat-control) var(--display);letter-spacing:.1em;color:var(--quiet)}
-.admin-entry:hover .ae-go,.admin-entry:hover .ae-sub{color:var(--ac)}
+.admin-entry:hover .ae-go{color:var(--ac)}
 .statusline{margin-top:0}
 
 /* ── 看图器 ── */
@@ -180,9 +184,9 @@ html[data-skin="B"] .viewer .hrow .v{font-size:var(--mat-major)}
   <section class="grid" id="grid"></section>
   <div class="empty-note" id="empty" style="display:none">此目录暂无素材。</div>
 
-  <a class="admin-entry seq d3" href="/materials-admin">
+  <a class="admin-entry seq d3" href="/materials-admin" title="下载历史 · 空间占用 · 文件目录 · 大图预热">
     <span class="ae-lab">素材库维护</span>
-    <span class="ae-sub">下载历史 · 空间占用 · 文件目录 · 大图预热</span>
+    <span class="ae-mon" id="ae-mon"><i class="d"></i><span id="ae-mon-t">检测后端活动…</span></span>
     <span class="ae-go">进入 →</span>
   </a>
 
@@ -654,6 +658,22 @@ function zoomVAt(f,cx,cy){
   addEventListener("resize",()=>{if($("viewer").classList.contains("open"))drawV();});
 })();
 OPS.onSkin(()=>{drawV();drawVHist();});
+
+/* ── 维护行:后端实时活动监控(下载原始数据 / 生成预览 / 索引扫描) ── */
+async function pollActivity(){
+  const mon=$("ae-mon"),t=$("ae-mon-t");if(!mon)return;
+  try{
+    const a=await OPS.fetchJSON("/api/materials/activity");
+    let act=true,msg;
+    if(a.downloading){msg="正在下载原始数据"+(a.download_devices&&a.download_devices.length?" · "+a.download_devices.join("/"):"");}
+    else if(a.scanning){msg="正在索引扫描素材库";}
+    else if(a.generating){msg="正在生成大图预览"+(a.preview_raw_total?` · ${a.preview_ready}/${a.preview_raw_total}`:"");}
+    else{act=false;const cov=a.preview_raw_total?Math.round(a.preview_ready/a.preview_raw_total*100):null;
+      msg="后端空闲"+(cov!=null?` · 预览覆盖 ${cov}%`:"")+(a.warmer_enabled===false?" · 预热已暂停":"");}
+    t.textContent=msg;mon.classList.toggle("act",act);
+  }catch(e){t.textContent="活动状态不可达";mon.classList.remove("act");}
+}
+pollActivity();setInterval(()=>{if(!OPS.hidden||!OPS.hidden())pollActivity();},2500);
 </script>
 </body>
 </html>

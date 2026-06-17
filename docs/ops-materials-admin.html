@@ -25,9 +25,11 @@ html[data-skin="B"] .head .pl .bignum{font-size:30px}
 
 /* 分区 */
 .sect{padding:24px 0 8px;border-top:1px solid var(--line-dim)}
-.sect h2{margin:0 0 16px;font:var(--lab-w) 15px var(--display);letter-spacing:.22em;color:var(--text);
+/* 分节标题字号对齐总览页设备大字(.station .dv b,skin B 600 20px) */
+.sect h2{margin:0 0 16px;font:var(--lab-w) 16px var(--display);letter-spacing:.16em;color:var(--text);
   text-transform:var(--lab-tt);display:flex;align-items:baseline;gap:13px}
-.sect h2 .rn{color:var(--ac);font-size:14px;letter-spacing:.06em}
+html[data-skin="B"] .sect h2{font-weight:600;font-size:20px;letter-spacing:.12em}
+.sect h2 .rn{color:var(--ac);font-size:16px;letter-spacing:.06em}
 .sect h2 .h-note{font:400 var(--ad-meta) var(--mono);color:var(--quiet);letter-spacing:.04em;margin-left:auto;text-transform:none}
 
 /* 条 */

@@ -786,6 +786,31 @@ class MaterialLibrary:
             state["scanning"] = bool(self._scan_status.get("running"))
         return state
 
+    def activity(self) -> dict[str, Any]:
+        """素材库后端实时活动:是否在生成预览 / 索引扫描(下载原始数据由 web 层叠加备份锁判断)。"""
+        warm = self.warmer_status()
+        ph, exts = self._raw_ext_clause()
+        with self._connect() as conn:
+            building = int(conn.execute(
+                "SELECT COUNT(*) FROM materials WHERE preview_status='building'"
+            ).fetchone()[0])
+            ready = int(conn.execute(
+                "SELECT COUNT(*) FROM materials WHERE preview_status='ready'"
+            ).fetchone()[0])
+            raw_total = int(conn.execute(
+                f"SELECT COUNT(*) FROM materials WHERE LOWER(extension) IN ({ph})", exts
+            ).fetchone()[0])
+        return {
+            "generating": bool(warm.get("active")) or building > 0,
+            "warmer_active": bool(warm.get("active")),
+            "warmer_enabled": bool(warm.get("enabled")),
+            "warmer_current": warm.get("current") if warm.get("active") else None,
+            "building": building,
+            "scanning": bool(warm.get("scanning")),
+            "preview_ready": ready,
+            "preview_raw_total": raw_total,
+        }
+
     def _warmer_worker(self) -> None:
         if self._warmer_stop.wait(8.0):      # 首启稍候,避开启动/扫描争抢
             return
@@ -866,7 +891,8 @@ class MaterialLibrary:
             return runs
         try:
             days = sorted(
-                (p for p in logs_root.iterdir() if p.is_dir()),
+                (p for p in logs_root.iterdir()
+                 if p.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", p.name)),
                 key=lambda p: p.name, reverse=True,
             )[:limit]
         except OSError:
