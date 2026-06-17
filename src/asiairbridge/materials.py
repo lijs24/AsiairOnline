@@ -84,6 +84,7 @@ class MaterialLibrary:
             "active": False, "current": None,
             "done": 0, "failed": 0, "last_error": None, "last_active_at": None,
         }
+        self._dir_cache: tuple[Any, list[dict[str, Any]]] | None = None
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
@@ -909,6 +910,31 @@ class MaterialLibrary:
             })
         return runs
 
+    def _directory_tree(self) -> list[dict[str, Any]]:
+        """按真实文件夹(relative_path 的目录,相对 device/source)聚合,仅文件夹级别、不展开单文件;
+        随库更新时间缓存,避免每次轮询全表扫描。"""
+        updated = self.library_updated_at()
+        cache = self._dir_cache
+        if cache is not None and cache[0] == updated:
+            return cache[1]
+        agg: dict[tuple[str, str, str], list[int]] = {}
+        with self._connect() as conn:
+            for dev, src, rel, sz in conn.execute(
+                "SELECT device, source_label, relative_path, size_bytes FROM materials"
+            ):
+                parts = str(rel or "").replace("\\", "/").split("/")
+                folder = "/".join(parts[2:-1]) if len(parts) > 3 else "(根目录)"
+                entry = agg.setdefault((str(dev), str(src), folder), [0, 0])
+                entry[0] += 1
+                entry[1] += int(sz or 0)
+        rows = [
+            {"device": d, "source": s, "folder": f, "count": c, "bytes": b}
+            for (d, s, f), (c, b) in agg.items()
+        ]
+        rows.sort(key=lambda r: (r["device"], r["source"], -r["bytes"], r["folder"]))
+        self._dir_cache = (updated, rows)
+        return rows
+
     def admin_overview(self) -> dict[str, Any]:
         import shutil
         ph, exts = self._raw_ext_clause()
@@ -953,12 +979,6 @@ class MaterialLibrary:
                 "SELECT substr(COALESCE(NULLIF(mtime_text,''),'?'),1,10) AS day, COUNT(*) AS count, "
                 "COALESCE(SUM(size_bytes),0) AS bytes FROM materials GROUP BY day ORDER BY day DESC LIMIT 30"
             ).fetchall()]
-            directory = [dict(r) for r in conn.execute(
-                "SELECT device, source_label AS source, COALESCE(NULLIF(target,''),'(未归类)') AS target, "
-                "COUNT(*) AS count, COALESCE(SUM(size_bytes),0) AS bytes "
-                "FROM materials GROUP BY device, source_label, target "
-                "ORDER BY device, source_label, bytes DESC LIMIT 500"
-            ).fetchall()]
             recent = []
             for r in conn.execute("SELECT * FROM materials ORDER BY mtime DESC LIMIT 14").fetchall():
                 it = _row_to_item(r)
@@ -966,6 +986,7 @@ class MaterialLibrary:
                 recent.append(it)
         db_bytes = self.db_path.stat().st_size if self.db_path.is_file() else 0
         preview_dir_bytes = self._dir_size(self.preview_dir)
+        directory = self._directory_tree()
         return {
             "ok": True,
             "generated_at": datetime.now().isoformat(timespec="seconds"),

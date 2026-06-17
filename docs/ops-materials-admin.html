@@ -272,16 +272,16 @@ function renderPreview(d){
 
 function renderDirectory(d){
   const dir=d.directory||[];
-  $("dir-note").textContent=`${dir.length} 组` + (dir.length>=500?"(截断)":"");
+  $("dir-note").textContent=`${fmtInt(dir.length)} 个文件夹`;
   const byDev={};
   dir.forEach(r=>{(byDev[r.device]=byDev[r.device]||[]).push(r);});
   let html="";
   Object.keys(byDev).forEach(dev=>{
     const rows=byDev[dev];
     const c=rows.reduce((a,b)=>a+b.count,0),b=rows.reduce((a,x)=>a+x.bytes,0);
-    html+=`<div class="dev">${esc(dev)}<span class="ct">${fmtInt(c)} 张 · ${fmtBytes(b)}</span></div>`;
+    html+=`<div class="dev">${esc(dev)}<span class="ct">${fmtInt(rows.length)} 文件夹 · ${fmtInt(c)} 张 · ${fmtBytes(b)}</span></div>`;
     html+=rows.map(r=>
-      `<div class="it"><span class="tg">${esc(r.target)}<span class="src">${esc(r.source)}</span></span>`+
+      `<div class="it"><span class="tg">${esc(r.folder)}</span>`+
       `<span class="ct">${fmtInt(r.count)} 张</span><span class="by">${fmtBytes(r.bytes)}</span></div>`).join("");
   });
   $("dir").innerHTML=html||"<div class='lrow'><span class='nm'>暂无目录</span></div>";
