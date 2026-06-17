@@ -78,6 +78,22 @@ html[data-skin="C"] .thumb .ov{background:linear-gradient(0deg,rgba(247,246,241,
 .empty-note{padding:28px 0;font:italic 300 var(--mat-meta) var(--body);color:var(--quiet)}
 html[data-skin="A"] .empty-note,html[data-skin="C"] .empty-note{font-style:normal}
 
+/* ── 下载:文件夹行下载钮 / 选择模式勾选 / 选择操作条 ── */
+.folder .dl{margin-left:8px;background:none;border:0;cursor:pointer;white-space:nowrap;padding:4px 6px;
+  font:var(--lab-w) var(--mat-meta) var(--display);letter-spacing:.08em;color:var(--quiet)}
+.folder .dl:hover{color:var(--ac)}
+.thumb .pick{position:absolute;top:7px;left:7px;width:18px;height:18px;border:1.5px solid #fff;border-radius:50%;
+  background:rgba(10,14,26,.45);display:none;z-index:2}
+body.sel-mode .thumb .pick{display:block}
+body.sel-mode .thumb{cursor:pointer}
+.thumb.picked .pick{background:var(--ac);border-color:var(--ac)}
+.thumb.picked::after{border-color:var(--ac)}
+.dlbar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(20px);z-index:60;
+  display:flex;align-items:center;gap:14px;padding:11px 20px;background:rgba(10,14,26,.92);
+  border:1px solid var(--ac-soft);border-radius:999px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+.dlbar.show{opacity:1;transform:translateX(-50%);pointer-events:auto}
+.dlbar .info{font:400 var(--mat-control) var(--mono);color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+
 /* 库维护入口:顶到页面底部、状态行之上,排版式无卡片 */
 .admin-entry{display:flex;align-items:baseline;gap:16px;margin-top:auto;padding:15px 2px 13px;
   border-top:1px solid var(--line-dim);text-decoration:none;cursor:pointer}
@@ -173,6 +189,7 @@ html[data-skin="B"] .viewer .hrow .v{font-size:var(--mat-major)}
   <div class="tools seq d1">
     <select id="source-select" class="ops-sel small" aria-label="来源"></select>
     <input id="search" class="search" type="search" placeholder="在当前目录筛选(文件名 / 目标)">
+    <button id="sel-toggle" class="con" type="button">选择下载</button>
   </div>
 
   <section class="film seq d1" id="film" style="display:none">
@@ -197,12 +214,20 @@ html[data-skin="B"] .viewer .hrow .v{font-size:var(--mat-major)}
   </footer>
 </main>
 
+<div class="dlbar" id="dlbar">
+  <span class="info" id="dl-info">已选 0 张</span>
+  <button class="con" id="dl-all" type="button">全选本页</button>
+  <button class="con on" id="dl-go" type="button">下载 ZIP</button>
+  <button class="con" id="dl-exit" type="button">退出</button>
+</div>
+
 <!-- 看图器 -->
 <div class="viewer" id="viewer" aria-hidden="true">
   <canvas id="vcanvas"></canvas>
   <div class="v-load" id="v-load">正在调取档案大图…</div>
   <div class="v-top">
     <span class="name num" id="v-name">--</span>
+    <button class="con" id="v-dl" type="button">下载 FIT</button>
     <button class="con" id="v-close" type="button">关闭 Esc</button>
   </div>
   <div class="v-viewbar" id="v-viewbar">
@@ -411,6 +436,51 @@ function matchSearch(it,kw){
   if(!kw)return true;kw=kw.toLowerCase();
   return (it.file_name||"").toLowerCase().includes(kw)||(it.target||"").toLowerCase().includes(kw);
 }
+/* ── 原始素材下载:单文件 / 多选打包 / 文件夹打包(STORED ZIP,浏览器流式落盘) ── */
+let selMode=false; const selected=new Set(), selItems=new Map();
+function fmtBytes(n){n=Number(n)||0;const u=["B","KB","MB","GB","TB"];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++;}return n.toFixed(n>=100||i<=1?0:(n>=10?1:2))+" "+u[i];}
+function triggerDownload(url){const a=document.createElement("a");a.href=url;a.rel="noopener";document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),1500);}
+function downloadFolder(f){
+  const dev=currentDevice(),src=$("source-select").value;if(!dev)return;
+  const n=f.item_count||0;
+  if(n>30&&!confirm(`即将打包下载「${f.name}」整个文件夹,共 ${n} 个原始 FIT(单张约 100MB+),体积可能很大、慢链路上可能要很久。确定?`))return;
+  const u=new URLSearchParams({device:dev});if(src)u.set("source",src);u.set("path",f.path);
+  triggerDownload("/api/materials/zip?"+u.toString());
+}
+function togglePick(it,el){
+  if(selected.has(it.id)){selected.delete(it.id);selItems.delete(it.id);el&&el.classList.remove("picked");}
+  else{selected.add(it.id);selItems.set(it.id,it);el&&el.classList.add("picked");}
+  updateDlbar();
+}
+function updateDlbar(){
+  const bar=$("dlbar");if(!bar)return;
+  if(!selMode){bar.classList.remove("show");return;}
+  let bytes=0;selItems.forEach(it=>bytes+=(it.size_bytes||0));
+  $("dl-info").textContent=`已选 ${selected.size} 张 · ${fmtBytes(bytes)}`;
+  $("dl-go").disabled=selected.size===0;
+  bar.classList.add("show");
+}
+function setSelMode(on){
+  selMode=on;document.body.classList.toggle("sel-mode",on);
+  const t=$("sel-toggle");t.classList.toggle("on",on);t.textContent=on?"退出选择":"选择下载";
+  if(!on){selected.clear();selItems.clear();document.querySelectorAll(".thumb.picked").forEach(e=>e.classList.remove("picked"));}
+  updateDlbar();
+}
+function downloadSelected(){
+  if(selected.size===0)return;
+  if(selected.size>300&&!confirm(`已选 ${selected.size} 个文件,数量较多、打包很大,建议改用文件夹下载。仍要继续?`))return;
+  triggerDownload("/api/materials/zip?ids="+encodeURIComponent([...selected].join(",")));
+}
+$("sel-toggle").addEventListener("click",()=>setSelMode(!selMode));
+$("dl-go").addEventListener("click",downloadSelected);
+$("dl-exit").addEventListener("click",()=>setSelMode(false));
+$("dl-all").addEventListener("click",()=>{
+  (curImages||[]).forEach(it=>{if(!selected.has(it.id)){selected.add(it.id);selItems.set(it.id,it);}});
+  document.querySelectorAll(".thumb").forEach(el=>{if(selected.has(el.dataset.id))el.classList.add("picked");});
+  updateDlbar();
+});
+$("v-dl").addEventListener("click",()=>{const it=vList[vIdx];if(it&&it.id)triggerDownload("/api/materials/file?id="+encodeURIComponent(it.id));});
+
 function renderListing(){
   const folders=(listing.folders||[]);
   const fr=$("folders");fr.innerHTML="";
@@ -418,8 +488,9 @@ function renderListing(){
     const el=document.createElement("div");el.className="folder";
     el.style.setProperty("--ri",i);   /* 逐行浮现顺序索引(仅在揭幕 .folders.reveal 期间被 CSS 使用) */
     el.innerHTML=`<span class="cov">${thumbMarkup(f.cover_thumb_url,f.name)}</span>
-      <b>${f.name}</b><span class="ct num">${f.item_count} 项</span><span class="go">进入 →</span>`;
+      <b>${f.name}</b><span class="ct num">${f.item_count} 项</span><button class="dl" type="button" title="打包下载此文件夹">↓ 下载</button><span class="go">进入 →</span>`;
     el.addEventListener("click",()=>nav(f.path));
+    el.querySelector(".dl").addEventListener("click",ev=>{ev.stopPropagation();downloadFolder(f);});
     fr.appendChild(el);
     installThumbFallback(el);
   });
@@ -429,11 +500,12 @@ function renderListing(){
   curImages=(listing.images||[]);
   const g=$("grid");g.innerHTML="";
   curImages.forEach((it,i)=>{
-    const el=document.createElement("div");el.className="thumb";
+    const el=document.createElement("div");el.className="thumb";el.dataset.id=it.id;
+    if(selected.has(it.id))el.classList.add("picked");
     el.style.animationDelay=Math.min(i,24)*28+"ms";
-    el.innerHTML=`${thumbMarkup(it.thumb_url,it.file_name)}
+    el.innerHTML=`${thumbMarkup(it.thumb_url,it.file_name)}<span class="pick"></span>
       <div class="ov">${it.target||""} · ${it.exposure||""} · Gain${it.gain??"-"} · ${ (it.captured_at||"").slice(5,16).replace("T"," ") }</div>`;
-    el.addEventListener("click",()=>openViewer(curImages,i));
+    el.addEventListener("click",()=>{if(selMode){togglePick(it,el);}else{openViewer(curImages,i);}});
     requestAnimationFrame(()=>el.classList.add("in"));
     g.appendChild(el);
     installThumbFallback(el);

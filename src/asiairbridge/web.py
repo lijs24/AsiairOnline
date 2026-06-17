@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import time
+import zipfile
 from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,6 +28,34 @@ from .rpc_monitor import init_rpc_monitor_state, rpc_monitor_response
 from .web_control import ControlLeaseBusyError, control_state, update_control_role
 
 DASHBOARD_SOURCE_LABEL = "EMMC Images"
+
+
+class _StreamWriter:
+    """Write-only wrapper (no tell/seek) so zipfile streams to the socket via
+    data descriptors — no buffering, no temp file, any size."""
+
+    def __init__(self, wfile: Any) -> None:
+        self._w = wfile
+
+    def write(self, data: bytes) -> int:
+        self._w.write(data)
+        return len(data)
+
+    def flush(self) -> None:
+        try:
+            self._w.flush()
+        except OSError:
+            pass
+
+
+def _safe_attachment_name(name: str, default: str = "download") -> str:
+    """Sanitise a Content-Disposition filename to a safe ASCII token (keeps
+    spaces and common punctuation; non-ASCII/quotes/control chars → '_')."""
+    cleaned = "".join(
+        c if (ord(c) < 128 and (c.isalnum() or c in " ._-()")) else "_"
+        for c in str(name)
+    ).strip()
+    return cleaned or default
 
 
 def run_server(
@@ -306,6 +335,31 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 else:
                     content_type = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
                     self._send_file(path, content_type)
+            elif parsed.path == "/api/materials/file":
+                # 单文件原始素材直接下载(带 Content-Length,有进度条)
+                query = parse_qs(parsed.query)
+                path = self.server.materials.source_file_for(query.get("id", [""])[0])
+                if path is None:
+                    self.send_error(HTTPStatus.NOT_FOUND)
+                else:
+                    self._send_download_file(path)
+            elif parsed.path == "/api/materials/zip":
+                # 多选(?ids=逗号分隔)或文件夹(?device=&source=&path=)打包流式下载
+                query = parse_qs(parsed.query)
+                ids_raw = (query.get("ids", [""])[0] or "").strip()
+                if ids_raw:
+                    ids = [s for s in ids_raw.split(",") if s]
+                    files = self.server.materials.resolve_download(ids=ids)
+                    zipname = f"asiair-{len(files)}-files.zip"
+                else:
+                    device = (query.get("device", [""])[0] or "").strip()
+                    source = (query.get("source", [""])[0] or "").strip()
+                    folder = (query.get("path", [""])[0] or "").strip()
+                    files = self.server.materials.resolve_download(
+                        device=device, source=source, folder=folder)
+                    leaf = folder.rstrip("/").split("/")[-1] or source or device or "materials"
+                    zipname = _safe_attachment_name(f"{device}-{leaf}", "materials") + ".zip"
+                self._send_materials_zip(files, zipname)
             elif parsed.path == "/api/materials/preview-status":
                 query = parse_qs(parsed.query)
                 item_id = query.get("id", [""])[0]
@@ -618,6 +672,55 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_download_file(self, path: Path) -> None:
+        """单文件原始素材下载:带 Content-Length,1MB 分块流式发送(不整文件入内存)。"""
+        try:
+            size = path.stat().st_size
+        except OSError:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(size))
+        self.send_header(
+            "Content-Disposition", f'attachment; filename="{_safe_attachment_name(path.name)}"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        with open(path, "rb") as fh:
+            while True:
+                chunk = fh.read(1 << 20)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+
+    def _send_materials_zip(self, files: list, zipname: str) -> None:
+        """多选/文件夹打包下载:STORED 流式 ZIP,大小未知靠连接关闭界定(HTTP/1.0 兼容),
+        逐文件读发不占内存,单个文件读失败则跳过保住其余。"""
+        if not files:
+            self._send_json({"ok": False, "error": "没有可下载的文件"}, HTTPStatus.NOT_FOUND)
+            return
+        # 大小未知 → 靠连接关闭界定下载完成(HTTP/1.0),显式置 close 确保发完即断
+        self.close_connection = True
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Disposition", f'attachment; filename="{zipname}"')
+        self.send_header("Connection", "close")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        zf = zipfile.ZipFile(_StreamWriter(self.wfile), "w", zipfile.ZIP_STORED, allowZip64=True)
+        try:
+            for path, arc in files:
+                try:
+                    zf.write(str(path), arc)
+                except OSError:
+                    continue
+        finally:
+            try:
+                zf.close()
+                self.wfile.flush()
+            except OSError:
+                pass
 
     def _send_json(self, payload: Any, status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
