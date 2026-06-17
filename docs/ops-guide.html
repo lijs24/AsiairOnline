@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASIAIR OPS · 导星</title>
+<script src="ops-theme.js"></script>
+<style>
+#bg{position:fixed;inset:0;width:100vw;height:100vh;z-index:0}
+.wrap{position:relative;z-index:2;max-width:1460px;margin:0 auto;padding:76px 26px 26px;min-height:100vh;
+  display:flex;flex-direction:column}
+.wrap{--gw-major:16px;--gw-ctrl:14px;--gw-meta:12px;font-size:var(--gw-ctrl)}
+
+.head{display:flex;align-items:flex-end;gap:30px;flex-wrap:wrap;padding:8px 0 16px;border-bottom:1px solid var(--line)}
+.head h1{margin:0;font:var(--lab-w) 30px var(--display);letter-spacing:.08em}
+html[data-skin="B"] .head h1{font:500 38px var(--display);letter-spacing:.05em}
+.head .sub{font:italic 300 13px var(--body);color:var(--quiet);margin-left:4px}
+.head .spacer{flex:1}
+.head .pl{text-align:right}
+.head .pl .lab{font-size:var(--gw-meta);letter-spacing:.18em;color:var(--muted)}
+.head .pl .bignum{font-size:24px;margin-top:2px;font-variant-numeric:tabular-nums}
+html[data-skin="B"] .head .pl .bignum{font-size:30px}
+.head .pl .bignum.gd{color:var(--ac)} .head .pl .bignum.off{color:var(--bad)}
+.head .split{display:flex;flex-direction:column;gap:7px;align-self:flex-end;padding-bottom:3px;margin-left:4px}
+.head .split .sr{display:flex;align-items:center;gap:8px;font:400 var(--gw-ctrl) var(--mono);color:var(--quiet);font-variant-numeric:tabular-nums}
+.head .split .sr i{display:inline-block;width:16px;height:0;border-top-width:2px;border-top-style:solid}
+.head .split .ra i{border-color:var(--ac)} .head .split .dec i{border-color:var(--text)}
+.head .split .sl{color:var(--muted);letter-spacing:.06em}
+.head .split .sr b{color:var(--text);font-weight:400}
+
+.sect{padding:22px 0 8px;border-top:1px solid var(--line-dim)}
+.sect h2{margin:0 0 10px;font:var(--lab-w) 16px var(--display);letter-spacing:.16em;color:var(--text);
+  text-transform:var(--lab-tt);display:flex;align-items:baseline;gap:13px}
+html[data-skin="B"] .sect h2{font-weight:600;font-size:20px;letter-spacing:.12em}
+.sect h2 .rn{color:var(--ac);font-size:16px;letter-spacing:.06em}
+.sect h2 .cap{margin-left:auto;font:400 var(--gw-meta) var(--mono);color:var(--quiet);letter-spacing:.02em;text-transform:none}
+
+/* 缩放/模式控件 */
+.ctrls{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;margin:-2px 0 12px;font:400 var(--gw-meta) var(--mono)}
+.ctrls .cl{color:var(--muted);letter-spacing:.14em;margin-left:18px;text-transform:uppercase;font-family:var(--display)}
+.ctrls .cl:first-child{margin-left:0}
+.ctrls button{background:none;border:none;color:var(--quiet);cursor:pointer;padding:2px 4px;font:inherit;
+  letter-spacing:.04em;border-bottom:1.5px solid transparent;font-variant-numeric:tabular-nums}
+.ctrls button:hover{color:var(--text)}
+.ctrls button.on{color:var(--ac);border-bottom-color:var(--ac)}
+.ctrls select{background:none;border:none;border-bottom:1px solid var(--line);color:var(--ac);font:inherit;
+  cursor:pointer;padding:2px 4px;outline:none;font-variant-numeric:tabular-nums}
+.ctrls select option{background:var(--sky-bg);color:var(--text)}
+.ctrls a{color:var(--quiet);text-decoration:none;border-bottom:1px solid transparent;padding:2px 4px}
+.ctrls a:hover{color:var(--ac);border-bottom-color:var(--ac)}
+
+.curvebox{position:relative;height:240px}
+#curve{position:absolute;inset:0;width:100%;height:100%}
+
+.bull{display:grid;grid-template-columns:216px 1fr;gap:42px;align-items:center}
+@media (max-width:760px){.bull{grid-template-columns:1fr;gap:24px}}
+.scatterbox{position:relative;width:216px;height:216px;justify-self:start}
+#scatter{position:absolute;inset:0;width:100%;height:100%}
+.rms{display:flex;flex-direction:column;gap:2px}
+.rms .big{font:400 56px/1 var(--mono);color:var(--ac);font-variant-numeric:tabular-nums}
+.rms .big.off{color:var(--quiet)} .rms .big .u{font-size:20px;color:var(--muted);margin-left:6px}
+.rms .big .u2{font-size:18px;color:var(--quiet);margin-left:10px;font-variant-numeric:tabular-nums}
+.rms .l{font:var(--lab-w) var(--gw-meta) var(--display);letter-spacing:.16em;color:var(--muted);text-transform:var(--lab-tt);margin-bottom:8px}
+.rms .pair{display:flex;gap:40px;margin-top:18px;flex-wrap:wrap}
+.rms .pair .m .v{font:400 var(--gw-major) var(--mono);color:var(--text);font-variant-numeric:tabular-nums}
+.rms .pair .m .k{font:var(--lab-w) 10.5px var(--display);letter-spacing:.14em;color:var(--muted);text-transform:var(--lab-tt);margin-top:3px}
+
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:0 50px}
+@media (max-width:760px){.kv{grid-template-columns:1fr}}
+.kv .row{display:flex;align-items:baseline;gap:12px;padding:9px 2px;border-bottom:1px solid var(--line-dim)}
+.kv .row .k{font:var(--lab-w) var(--gw-ctrl) var(--display);letter-spacing:.1em;color:var(--muted);text-transform:var(--lab-tt)}
+.kv .row .v{margin-left:auto;font:400 var(--gw-ctrl) var(--mono);color:var(--text);font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:18em;text-align:right}
+.kv .row .v.gd{color:var(--ac)}
+
+.statusline{margin-top:auto;padding-top:18px}
+/* 自带的入场 reveal(覆盖共享 opsSeq,避免其偶发卡在 opacity:0)*/
+.seq{opacity:0;transform:translateY(8px);transition:opacity .55s ease,transform .55s ease;animation:none!important}
+.seq.d1{transition-delay:.05s}.seq.d2{transition-delay:.12s}.seq.d3{transition-delay:.19s}.seq.d4{transition-delay:.26s}
+body.ready .seq{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.seq{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<main class="wrap">
+  <header class="head seq">
+    <h1>导星<span class="sub">guiding monitor</span></h1>
+    <span class="spacer"></span>
+    <div class="pl"><div class="lab">状态</div><div class="bignum" id="pl-state">--</div></div>
+    <div class="pl"><div class="lab">总 RMS</div><div class="bignum gd" id="pl-rms">--</div></div>
+    <div class="split">
+      <div class="sr ra"><i></i><span class="sl">赤经 RA</span><b id="lg-ra">--</b></div>
+      <div class="sr dec"><i></i><span class="sl">赤纬 DEC</span><b id="lg-dec">--</b></div>
+    </div>
+  </header>
+
+  <section class="sect seq d1" id="s-curve">
+    <h2><span class="rn">Ⅰ</span> 导星误差曲线<span class="cap" id="cv-cap"></span></h2>
+    <div class="ctrls">
+      <span class="cl">模式</span>
+      <button class="modeb on" data-m="live">实时</button><button class="modeb" data-m="hist">回看</button>
+      <span class="cl liveonly">横轴</span>
+      <button class="xb liveonly" data-x="5">5分</button><button class="xb liveonly on" data-x="15">15分</button><button class="xb liveonly" data-x="30">30分</button><button class="xb liveonly" data-x="60">1时</button>
+      <span class="cl histonly" style="display:none">日期</span>
+      <select id="hist-date" class="histonly" style="display:none"></select>
+      <a id="hist-dl" class="histonly" style="display:none" href="#">下载原始</a>
+      <span class="cl">纵轴 ″</span>
+      <button class="yb on" data-y="0">自动</button><button class="yb" data-y="0.5">0.5</button><button class="yb" data-y="1">1</button><button class="yb" data-y="2">2</button><button class="yb" data-y="4">4</button>
+    </div>
+    <div class="curvebox"><canvas id="curve"></canvas></div>
+  </section>
+
+  <section class="sect seq d2" id="s-bull">
+    <h2><span class="rn">Ⅱ</span> 散点靶心 · RMS<span class="cap" id="bl-cap"></span></h2>
+    <div class="bull">
+      <div class="scatterbox"><canvas id="scatter"></canvas></div>
+      <div class="rms">
+        <div class="l">总 RMS</div>
+        <div class="big" id="rms-total">--<span class="u">″</span></div>
+        <div class="pair">
+          <div class="m"><div class="v" id="rms-ra">--</div><div class="k">RA RMS ″</div></div>
+          <div class="m"><div class="v" id="rms-dec">--</div><div class="k">DEC RMS ″</div></div>
+          <div class="m"><div class="v" id="g-snr">--</div><div class="k">SNR</div></div>
+          <div class="m"><div class="v" id="g-mass">--</div><div class="k">星点质量</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sect seq d3" id="s-set">
+    <h2><span class="rn">Ⅲ</span> 状态与设置</h2>
+    <div class="kv">
+      <div class="row"><span class="k">导星状态</span><span class="v" id="k-state">--</span></div>
+      <div class="row"><span class="k">校准</span><span class="v" id="k-cal">--</span></div>
+      <div class="row"><span class="k">导星相机</span><span class="v" id="k-cam">--</span></div>
+      <div class="row"><span class="k">赤道仪</span><span class="v" id="k-mount">--</span></div>
+      <div class="row"><span class="k">像素比例</span><span class="v" id="k-scale">--</span></div>
+      <div class="row"><span class="k">导星曝光</span><span class="v" id="k-exp">--</span></div>
+      <div class="row"><span class="k">DEC 模式</span><span class="v" id="k-dec">--</span></div>
+      <div class="row"><span class="k">搜索框</span><span class="v" id="k-region">--</span></div>
+      <div class="row"><span class="k">锁定星位置</span><span class="v" id="k-lock">--</span></div>
+      <div class="row"><span class="k">Dither</span><span class="v" id="k-dither">--</span></div>
+    </div>
+  </section>
+
+  <footer class="statusline seq d4">
+    <span class="kind" id="status-kind" style="color:var(--good)">[—]</span>
+    <span class="msg" id="status-text">导星监控…</span>
+    <span class="ts" id="snapshot">--</span>
+  </footer>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const OPS=window.OPS;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+(function bg(){
+  const cv=$("bg"),ctx=cv.getContext("2d");
+  let stars=[];let s=11;const rnd=()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return((s>>>0)/4294967296);};
+  function seed(){const n=Math.round(innerWidth*innerHeight/16000);
+    stars=Array.from({length:n},()=>({x:rnd(),y:rnd(),m:rnd(),ph:rnd()*6.28,sp:.4+rnd()}));}
+  seed();addEventListener("resize",seed);
+  (function draw(t){
+    const w=innerWidth,h=innerHeight,dpr=devicePixelRatio||1;
+    if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr;}
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle=css("--sky-bg");ctx.fillRect(0,0,w,h);
+    ctx.fillStyle=css("--sky-star");
+    for(const st of stars){const tw=REDUCED?1:(.7+.3*Math.sin(t/1000*st.sp+st.ph));
+      ctx.globalAlpha=(.08+st.m*.3)*tw;ctx.beginPath();ctx.arc(st.x*w,st.y*h,st.m>.93?1.5:.8,0,7);ctx.fill();}
+    ctx.globalAlpha=1;requestAnimationFrame(draw);
+  })(0);
+})();
+
+const STATE_CN={Guiding:"导星中",Idle:"空闲",Looping:"循环曝光",Calibrating:"校准中",
+  Stopped:"已停止",LostLock:"丢星",Paused:"已暂停",Settling:"稳定中",Selected:"已选星"};
+const stateCN=s=>s?(STATE_CN[s]||esc(String(s))):"--";
+const num=(v,d=2)=>(typeof v==="number"&&isFinite(v))?v.toFixed(d):"--";
+const pad2=n=>("0"+n).slice(-2);
+const clock=wt=>{const d=new Date(wt*1000);return pad2(d.getHours())+":"+pad2(d.getMinutes());};
+const fmtBytes=b=>b>=1e6?(b/1e6).toFixed(1)+" MB":(b/1e3).toFixed(0)+" KB";
+
+/* RADistanceRaw/DECDistanceRaw(=p.ra/p.dec)已是角秒;dx/dy 才是像素 */
+let mode="live", xMin=15, yScale=0;
+let LAST=null, HIST=null, revealed=false;
+function curDevice(){return (OPS&&OPS.device)||new URLSearchParams(location.search).get("device")||"";}
+function scaleOf(g){const s=g&&g.settings&&g.settings.pixel_scale;return (typeof s==="number"&&s>0)?s:null;}
+
+function liveWindow(curve){
+  if(!curve||!curve.length)return [];
+  const last=curve[curve.length-1].wt||0, from=last-xMin*60;
+  return curve.filter(p=>(p.wt||0)>=from);
+}
+function activePoints(){return mode==="live"?liveWindow(LAST&&LAST.curve):((HIST&&HIST.points)||[]);}
+function stats(pts,scale){
+  const ra=pts.map(p=>p.ra).filter(v=>typeof v==="number");
+  const dec=pts.map(p=>p.dec).filter(v=>typeof v==="number");
+  if(!ra.length||!dec.length)return null;
+  const r=a=>Math.sqrt(a.reduce((s,v)=>s+v*v,0)/a.length);
+  const raR=r(ra),decR=r(dec),tot=Math.sqrt(raR*raR+decR*decR);
+  return {n:Math.min(ra.length,dec.length),ra:raR,dec:decR,total:tot,total_px:scale?tot/scale:null};
+}
+
+function drawCurve(pts,fmtX){
+  const cv=$("curve"),ctx=cv.getContext("2d");
+  const w=cv.clientWidth,h=cv.clientHeight,dpr=devicePixelRatio||1;
+  if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr;}
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  const mL=50,mB=26,mT=14,mR=12, x0=mL,x1=w-mR,yTop=mT,yBot=h-mB,pw=x1-x0,ph=yBot-yTop,mid=yTop+ph/2;
+  let amp;
+  if(yScale>0)amp=yScale;
+  else{amp=0.5;for(const p of pts){if(p.ra!=null)amp=Math.max(amp,Math.abs(p.ra));if(p.dec!=null)amp=Math.max(amp,Math.abs(p.dec));}amp*=1.15;}
+  const yOf=v=>mid-(v/amp)*(ph/2), n=pts.length, xOf=i=>n<=1?x1:x0+i*pw/(n-1);
+  ctx.font="11px ui-monospace,Menlo,monospace";
+  ctx.textAlign="right";ctx.textBaseline="middle";
+  [amp,amp/2,0,-amp/2,-amp].forEach(v=>{const y=yOf(v);
+    ctx.strokeStyle=v===0?css("--line"):css("--line-dim");ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();
+    ctx.strokeStyle=css("--muted");ctx.beginPath();ctx.moveTo(x0-4,y);ctx.lineTo(x0,y);ctx.stroke();
+    ctx.fillStyle=css("--muted");ctx.fillText((v>0?"+":"")+v.toFixed(amp<2?2:1),x0-7,y);});
+  const TK=4;ctx.textBaseline="top";ctx.fillStyle=css("--muted");
+  for(let t=0;t<=TK;t++){const frac=t/TK,x=x0+frac*pw;
+    ctx.strokeStyle=css("--muted");ctx.beginPath();ctx.moveTo(x,yBot);ctx.lineTo(x,yBot+4);ctx.stroke();
+    const idx=n?Math.min(n-1,Math.round(frac*(n-1))):0;
+    const wt=n?pts[idx].wt:null;
+    ctx.textAlign=t===0?"left":(t===TK?"right":"center");ctx.fillText(fmtX(wt,t===TK),x,yBot+7);}
+  ctx.strokeStyle=css("--line-strong")||css("--text");ctx.globalAlpha=.55;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x0,yTop);ctx.lineTo(x0,yBot);ctx.lineTo(x1,yBot);ctx.stroke();ctx.globalAlpha=1;
+  ctx.textAlign="left";ctx.textBaseline="alphabetic";ctx.fillStyle=css("--quiet");
+  ctx.fillText("误差 ″",x0-2,yTop-4);
+  if(!n)return;
+  ctx.save();ctx.beginPath();ctx.rect(x0,yTop,pw,ph);ctx.clip();
+  const line=(get,color,lw)=>{ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.beginPath();let st=false;
+    pts.forEach((p,i)=>{const v=get(p);if(v==null){st=false;return;}
+      const x=xOf(i),y=yOf(v);if(!st){ctx.moveTo(x,y);st=true;}else ctx.lineTo(x,y);});
+    ctx.stroke();};
+  line(p=>p.dec, css("--text")||"#e9e2d0",1.6);
+  line(p=>p.ra,  css("--ac"),1.7);
+  ctx.restore();
+}
+
+function drawScatter(pts,scale){
+  const cv=$("scatter"),ctx=cv.getContext("2d");
+  const w=cv.clientWidth,h=cv.clientHeight,dpr=devicePixelRatio||1;
+  if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr;}
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  const cx=w/2,cy=h/2,R=Math.min(w,h)/2-14;
+  let amp;
+  if(yScale>0)amp=yScale;
+  else{amp=0.5;for(const p of pts){if(p.dx!=null&&p.dy!=null)amp=Math.max(amp,Math.hypot(p.dx,p.dy)*scale);}amp*=1.12;}
+  ctx.font="10px ui-monospace,Menlo,monospace";ctx.textAlign="left";ctx.textBaseline="bottom";
+  [1/3,2/3,1].forEach(f=>{ctx.strokeStyle=css("--line-dim");ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(cx,cy,R*f,0,7);ctx.stroke();
+    ctx.fillStyle=css("--muted");ctx.fillText((amp*f).toFixed(amp<2?2:1)+"″",cx+3,cy-R*f-2);});
+  ctx.strokeStyle=css("--line");ctx.beginPath();
+  ctx.moveTo(cx-R,cy);ctx.lineTo(cx+R,cy);ctx.moveTo(cx,cy-R);ctx.lineTo(cx,cy+R);ctx.stroke();
+  const ac=css("--ac");ctx.save();ctx.beginPath();ctx.arc(cx,cy,R+1,0,7);ctx.clip();
+  const tail=pts.slice(-300);
+  tail.forEach((p,i)=>{if(p.dx==null||p.dy==null)return;
+    const x=cx+(p.dx*scale/amp)*R,y=cy-(p.dy*scale/amp)*R,a=0.16+0.82*(i/Math.max(1,tail.length-1));
+    ctx.fillStyle=ac;ctx.globalAlpha=a;ctx.beginPath();ctx.arc(x,y,i===tail.length-1?3:1.8,0,7);ctx.fill();});
+  ctx.globalAlpha=1;ctx.restore();
+}
+
+function render(){
+  const pts=activePoints();
+  const scale = LAST?scaleOf(LAST):null;
+  let st;
+  if(mode==="hist" && HIST && HIST.rms)
+    st={n:HIST.rms.n,ra:HIST.rms.ra,dec:HIST.rms.dec,total:HIST.rms.total,total_px:scale?HIST.rms.total/scale:null};
+  else st=stats(pts,scale);
+  const fmt=v=>v!=null?v.toFixed(2)+"″":"--";
+  /* 顶栏 */
+  let connected,stateText;
+  if(mode==="live"){connected=!!(LAST&&LAST.connected);stateText=connected?stateCN(LAST.state):"未连接";}
+  else{connected=true;stateText=HIST?("回看 "+HIST.date):"回看";}
+  $("pl-state").textContent=stateText;$("pl-state").className="bignum"+(connected?"":" off");
+  $("pl-rms").textContent=st?fmt(st.total):"--";
+  $("lg-ra").textContent=st?fmt(st.ra):"--";
+  $("lg-dec").textContent=st?fmt(st.dec):"--";
+  /* Ⅰ 曲线 */
+  const lastWt=pts.length?pts[pts.length-1].wt:0;
+  const fmtX = mode==="live"
+    ? (wt,isLast)=> isLast?"现在":("-"+Math.round((lastWt-(wt||lastWt))/60)+"分")
+    : (wt)=> wt?clock(wt):"";
+  drawCurve(pts,fmtX);
+  $("cv-cap").textContent = mode==="live"
+    ? (LAST&&LAST.connected ? (pts.length?(xMin+" 分钟窗口 · "+pts.length+" 帧"):"等待导星帧…") : "4400 链路未连接")
+    : (HIST ? (HIST.total+" 帧"+(HIST.shown<HIST.total?(" · 下采样 "+HIST.shown):"")) : "选择日期");
+  /* Ⅱ 散点 + RMS */
+  drawScatter(pts,scale||1);
+  $("bl-cap").textContent = st?("共 "+st.n+" 帧"):"";
+  const lastPt=pts.length?pts[pts.length-1]:null;
+  const tEl=$("rms-total");
+  if(st){tEl.classList.remove("off");
+    tEl.innerHTML=st.total.toFixed(2)+'<span class="u">″</span>'+(st.total_px!=null?'<span class="u2">'+st.total_px.toFixed(2)+'px</span>':'');}
+  else{tEl.classList.add("off");tEl.innerHTML='--<span class="u">″</span>';}
+  $("rms-ra").textContent=st?st.ra.toFixed(2):"--";
+  $("rms-dec").textContent=st?st.dec.toFixed(2):"--";
+  $("g-snr").textContent=lastPt&&lastPt.snr!=null?num(lastPt.snr,1):"--";
+  $("g-mass").textContent=(mode==="live"&&LAST&&LAST.last&&LAST.last.star_mass!=null)?Math.round(LAST.last.star_mass):"--";
+  /* Ⅲ 设置(始终取最近一次实时数据;设备属性基本不变)*/
+  const s=(LAST&&LAST.settings)||{};
+  $("k-state").innerHTML = mode==="live"
+    ? '<span class="'+(LAST&&LAST.state==="Guiding"?"gd":"")+'">'+stateCN(LAST&&LAST.state)+"</span>"
+    : '<span style="color:var(--quiet)">回看 '+(HIST?HIST.date:"")+"</span>";
+  $("k-cal").textContent=s.calibrated==null?"--":(s.calibrated?"已校准":"未校准");
+  $("k-cam").textContent=s.camera?esc(s.camera):"--";
+  $("k-mount").textContent=s.mount?esc(s.mount):"--";
+  $("k-scale").textContent=s.pixel_scale!=null?num(s.pixel_scale,3)+" ″/px":"--";
+  $("k-exp").textContent=s.exposure_ms!=null?s.exposure_ms+" ms":"--";
+  $("k-dec").textContent=s.dec_guide_mode?esc(String(s.dec_guide_mode)):"--";
+  $("k-region").textContent=s.search_region!=null?s.search_region+" px":"--";
+  $("k-lock").textContent=Array.isArray(s.lock_position)?("["+s.lock_position.map(v=>num(v,0)).join(", ")+"]"):"--";
+  const dt=s.dither;
+  $("k-dither").textContent=dt&&typeof dt==="object"?((dt.enable?"开":"关")+(dt.amount!=null?" · 幅度 "+dt.amount:"")+(dt.ra_only?" · 仅RA":"")):"--";
+}
+
+/* ── 实时轮询 ── */
+async function pollLive(){
+  if(mode!=="live")return;
+  try{
+    const dev=curDevice();
+    const d=await OPS.fetchJSON("/api/guide-states"+(dev?("?device="+encodeURIComponent(dev)):""));
+    const devs=d.devices||{};
+    LAST=devs[dev]||Object.values(devs)[0]||null;
+    render();
+    const c=LAST&&LAST.connected;
+    $("status-kind").textContent=c?"[OK]":"[··]";$("status-kind").style.color=c?"var(--good)":"var(--muted)";
+    $("status-text").textContent=dev?("实时 · "+esc(dev)+(c?"":" · 4400 链路未连接")):"无设备";
+    $("snapshot").textContent=(d.snapshot_at||"").replace("T"," ");
+  }catch(e){
+    $("status-kind").textContent="[ERR]";$("status-kind").style.color="var(--bad)";
+    $("status-text").textContent="后端不可达:"+(e.message||"");
+  }finally{ if(!revealed){revealed=true;requestAnimationFrame(()=>document.body.classList.add("ready"));} }
+}
+
+/* ── 回看 ── */
+async function loadNights(){
+  const dev=curDevice(),sel=$("hist-date");
+  try{
+    const d=await OPS.fetchJSON("/api/guide-log/index?device="+encodeURIComponent(dev));
+    const nights=d.nights||[];
+    sel.innerHTML=nights.map(nt=>`<option value="${nt.date}">${nt.date} · ${fmtBytes(nt.bytes)}</option>`).join("");
+    if(nights.length){sel.value=nights[0].date;await loadNight(nights[0].date);}
+    else{HIST=null;render();$("status-text").textContent="回看 · "+esc(dev)+" 暂无历史记录";}
+  }catch(e){$("status-text").textContent="读取历史失败:"+(e.message||"");}
+}
+async function loadNight(date){
+  const dev=curDevice();
+  $("status-text").textContent="载入 "+date+" …";
+  try{
+    const d=await OPS.fetchJSON("/api/guide-log?device="+encodeURIComponent(dev)+"&date="+encodeURIComponent(date));
+    HIST=d.ok?d:null;render();
+    $("hist-dl").href="/api/guide-log/raw?device="+encodeURIComponent(dev)+"&date="+encodeURIComponent(date);
+    $("status-kind").textContent="[OK]";$("status-kind").style.color="var(--good)";
+    $("status-text").textContent=HIST?("回看 · "+esc(dev)+" · "+date+" · "+HIST.total+" 帧"):"该夜无数据";
+    $("snapshot").textContent=HIST&&HIST.start?(clock(HIST.start)+" → "+clock(HIST.end)):"--";
+  }catch(e){$("status-text").textContent="载入失败:"+(e.message||"");}
+}
+
+/* ── 控件 ── */
+function setMode(m){
+  if(mode===m)return;
+  mode=m;
+  document.querySelectorAll(".modeb").forEach(b=>b.classList.toggle("on",b.dataset.m===m));
+  document.querySelectorAll(".liveonly").forEach(e=>e.style.display=(m==="live")?"":"none");
+  document.querySelectorAll(".histonly").forEach(e=>e.style.display=(m==="hist")?"":"none");
+  if(m==="hist")loadNights();else{render();pollLive();}
+}
+document.querySelectorAll(".modeb").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.m)));
+document.querySelectorAll(".xb").forEach(b=>b.addEventListener("click",()=>{
+  xMin=+b.dataset.x;document.querySelectorAll(".xb").forEach(o=>o.classList.toggle("on",o===b));if(mode==="live")render();}));
+document.querySelectorAll(".yb").forEach(b=>b.addEventListener("click",()=>{
+  yScale=+b.dataset.y;document.querySelectorAll(".yb").forEach(o=>o.classList.toggle("on",o===b));render();}));
+$("hist-date").addEventListener("change",e=>loadNight(e.target.value));
+
+setTimeout(()=>document.body.classList.add("ready"),600);
+addEventListener("resize",()=>render());
+pollLive();setInterval(()=>{if(mode==="live"&&(!OPS.hidden||!OPS.hidden()))pollLive();},2000);
+</script>
+</body>
+</html>
