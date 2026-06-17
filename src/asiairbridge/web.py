@@ -260,10 +260,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 params = {k: query.get(k, [None])[0] for k in (
                     "ra", "dec", "lst", "lat", "pier", "size", "az", "el", "ha",
                     "sky", "eqgrid", "altgrid", "tra", "tdec", "fov", "ground")}
+                _size = params.get("size")
+                if _size is not None:
+                    try:
+                        _size_int = int(_size)
+                    except (ValueError, TypeError):
+                        self._send_json({"ok": False, "error": "size must be an integer"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    if not (64 <= _size_int <= 2048):
+                        self._send_json({"ok": False, "error": "size must be between 64 and 2048"}, HTTPStatus.BAD_REQUEST)
+                        return
                 self._send_bytes(render_cached(params, str(self.server.config.root)), "image/png")
             elif parsed.path == "/api/sky-render":
                 query = parse_qs(parsed.query)
                 params = {k: query.get(k, [None])[0] for k in ("ra", "dec", "lst", "lat", "tra", "tdec", "size")}
+                _size = params.get("size")
+                if _size is not None:
+                    try:
+                        _size_int = int(_size)
+                    except (ValueError, TypeError):
+                        self._send_json({"ok": False, "error": "size must be an integer"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    if not (64 <= _size_int <= 2048):
+                        self._send_json({"ok": False, "error": "size must be between 64 and 2048"}, HTTPStatus.BAD_REQUEST)
+                        return
                 self._send_bytes(render_sky_cached(params), "image/png")
             elif parsed.path == "/api/current-image":
                 query = parse_qs(parsed.query)
@@ -430,14 +450,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     )
                 )
             elif parsed.path == "/api/materials/scan":
+                self._require_local_write()
                 self._send_json(self.server.materials.start_scan(force=bool(payload.get("force"))))
             elif parsed.path == "/api/materials/warmer":
+                self._require_local_write()
                 self._send_json(self.server.materials.set_warmer_enabled(bool(payload.get("enabled"))))
             elif parsed.path == "/api/control-role":
                 device = str(payload.get("device") or "").strip()
                 session_id = str(payload.get("session_id") or "").strip()
                 role = str(payload.get("role") or "").strip().lower()
                 session_label = str(payload.get("session_label") or "").strip() or None
+                if role == "controller":
+                    # Claiming control is a write action; switching to monitor /
+                    # releasing the lease is cooperative state and never gated.
+                    self._require_actions_allowed()
                 if not device:
                     raise ValueError("device is required")
                 self._send_json(
@@ -474,6 +500,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     },
                 )
                 try:
+                    self._require_actions_allowed()  # P0-1: actions gate before controller check
                     self._require_controller_for_device(device, session_id)
                     result = camera_action_response(
                         self.server.config,
@@ -540,6 +567,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _require_actions_allowed(self) -> None:
         if not self._actions_allowed():
             raise PermissionError("此入口不允许远程操作 — 请使用可操作入口(端口 8794)")
+
+    def _require_local_write(self) -> None:
+        """Gate for write operations that modify local files (scan, warmer, preview generation).
+
+        read_only instances must refuse these operations regardless of allow_remote_actions.
+        """
+        if self.server.read_only:
+            raise PermissionError("只读入口禁止本地写操作 — 请使用可读写入口(端口 8794)")
 
     def _require_scan_allowed(self) -> None:
         if not self._scan_allowed():
