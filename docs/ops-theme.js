@@ -296,7 +296,7 @@ setInterval(() => { if(API.conn.online===false) renderConn(); }, 1000);
 /* ───────────────────────── 3. 顶栏注入 ───────────────────────── */
 function initDom(){
 
-const NAV = [["总览","/monitor-minterm"],["相机","/camera"],["赤道仪","/mount"],["素材库","/materials"],["高级","/advanced"]];
+const NAV = [["总览","/monitor-minterm"],["相机","/camera"],["赤道仪","/mount"],["素材库","/materials"],["网络","/network"],["高级","/advanced"]];
 const here = location.pathname;
 const isActive = (p) => {
   if (p === "/monitor-minterm") return here === "/" || here.startsWith("/monitor-minterm");

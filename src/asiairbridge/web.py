@@ -169,6 +169,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.server.config.root / "docs" / "ops-advanced.html",
                     "text/html; charset=utf-8",
                 )
+            elif parsed.path == "/network":
+                self._send_file(
+                    self.server.config.root / "docs" / "ops-network.html",
+                    "text/html; charset=utf-8",
+                )
             elif parsed.path == "/mount-classic":
                 # 旧版 GPU 3D 渲染赤道仪页,新前端未包含 3D 能力,保留入口
                 self._send_file(
@@ -230,6 +235,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(payload)
             elif parsed.path == "/api/devices":
                 self._send_json(devices_payload(self.server.config))
+            elif parsed.path == "/api/ping":
+                # 极轻量端点:前端计往返耗时,度量"后端→前端"本会话链路延迟
+                self._send_json({"ok": True, "t": datetime.now().isoformat(timespec="milliseconds")})
             elif parsed.path == "/api/log":
                 query = parse_qs(parsed.query)
                 path = query.get("path", [""])[0]
