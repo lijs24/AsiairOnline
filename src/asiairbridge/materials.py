@@ -680,6 +680,56 @@ class MaterialLibrary:
             return None
         return self._thumbnail_path_for_row(row)
 
+    # ── 原始素材下载:解析待下载文件,逐项校验在归档根目录内(防路径穿越) ──────
+    def _under_root(self, p: Path) -> bool:
+        try:
+            p.resolve().relative_to(self.root.resolve())
+            return True
+        except (ValueError, OSError):
+            return False
+
+    def source_file_for(self, item_id: str) -> Path | None:
+        """单文件下载:返回某条素材的原始文件路径(校验在根目录内、且存在)。"""
+        row = self._get_row(str(item_id or "").strip())
+        if row is None:
+            return None
+        p = Path(str(row["full_path"]))
+        return p if (self._under_root(p) and p.is_file()) else None
+
+    def resolve_download(
+        self,
+        ids: list[str] | None = None,
+        device: str | None = None,
+        source: str | None = None,
+        folder: str | None = None,
+        limit: int = 20000,
+    ) -> list[tuple[Path, str]]:
+        """打包下载:返回 [(原始文件路径, ZIP 内相对名)],逐项校验在根目录内。
+        给 ids 则按选中文件;否则按 device/source/folder 取该文件夹(含子目录)全部文件。"""
+        with self._connect() as conn:
+            if ids:
+                ids = [str(i) for i in ids][:limit]
+                qs = ",".join("?" * len(ids))
+                rows = conn.execute(
+                    f"SELECT relative_path, full_path FROM materials WHERE id IN ({qs})", ids
+                ).fetchall()
+            elif device:
+                rows = conn.execute(
+                    "SELECT relative_path, full_path FROM materials WHERE device=? AND source_label=?",
+                    [device, source or ""],
+                ).fetchall()
+                prefix = "/".join(x for x in (device, source, (folder or "").strip("/")) if x) + "/"
+                rows = [r for r in rows
+                        if str(r["relative_path"]).replace("\\", "/").startswith(prefix)][:limit]
+            else:
+                return []
+        out: list[tuple[Path, str]] = []
+        for r in rows:
+            p = Path(str(r["full_path"]))
+            if self._under_root(p) and p.is_file():
+                out.append((p, str(r["relative_path"]).replace("\\", "/")))
+        return out
+
     def _lock_for_item(self, item_id: str) -> threading.Lock:
         with self._preview_lock_guard:
             lock = self._preview_locks.get(item_id)
