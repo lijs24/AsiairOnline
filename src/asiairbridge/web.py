@@ -257,6 +257,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json(self.server.materials.summary())
             elif parsed.path == "/api/materials/admin":
                 self._send_json(self.server.materials.admin_overview())
+            elif parsed.path == "/api/materials/activity":
+                lock = read_lock(self.server.config.project.lock_file)
+                downloading = bool(lock.get("active")) and lock.get("pid_alive") is not False
+                payload = self.server.materials.activity()
+                payload["ok"] = True
+                payload["downloading"] = downloading
+                payload["download_devices"] = list(lock.get("devices") or []) if downloading else []
+                self._send_json(payload)
             elif parsed.path == "/api/materials/browse":
                 query = parse_qs(parsed.query)
                 self._send_json(
