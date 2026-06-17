@@ -78,7 +78,15 @@ html[data-skin="C"] .thumb .ov{background:linear-gradient(0deg,rgba(247,246,241,
 .empty-note{padding:28px 0;font:italic 300 var(--mat-meta) var(--body);color:var(--quiet)}
 html[data-skin="A"] .empty-note,html[data-skin="C"] .empty-note{font-style:normal}
 
-.statusline{margin-top:auto}
+/* 库维护入口:顶到页面底部、状态行之上,排版式无卡片 */
+.admin-entry{display:flex;align-items:baseline;gap:16px;margin-top:auto;padding:15px 2px 13px;
+  border-top:1px solid var(--line-dim);text-decoration:none;cursor:pointer}
+.admin-entry .ae-lab{font:var(--lab-w) var(--mat-major) var(--display);letter-spacing:.16em;color:var(--ac);text-transform:var(--lab-tt)}
+html[data-skin="B"] .admin-entry .ae-lab{font:600 18px var(--display)}
+.admin-entry .ae-sub{font:400 var(--mat-meta) var(--body);color:var(--quiet)}
+.admin-entry .ae-go{margin-left:auto;font:var(--lab-w) var(--mat-control) var(--display);letter-spacing:.1em;color:var(--quiet)}
+.admin-entry:hover .ae-go,.admin-entry:hover .ae-sub{color:var(--ac)}
+.statusline{margin-top:0}
 
 /* ── 看图器 ── */
 .viewer{position:fixed;inset:0;z-index:80;display:none;background:var(--bg)}
@@ -171,6 +179,12 @@ html[data-skin="B"] .viewer .hrow .v{font-size:var(--mat-major)}
   <section class="folders seq d2" id="folders"></section>
   <section class="grid" id="grid"></section>
   <div class="empty-note" id="empty" style="display:none">此目录暂无素材。</div>
+
+  <a class="admin-entry seq d3" href="/materials-admin">
+    <span class="ae-lab">素材库维护</span>
+    <span class="ae-sub">下载历史 · 空间占用 · 文件目录 · 大图预热</span>
+    <span class="ae-go">进入 →</span>
+  </a>
 
   <footer class="statusline seq d3">
     <span class="kind" id="status-kind" style="color:var(--good)">[—]</span>
