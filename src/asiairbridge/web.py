@@ -66,10 +66,12 @@ class AsiairBridgeServer(ThreadingHTTPServer):
         self.camera_cache = CameraStateCache(config)
         self.camera_cache.start()
         self.materials = MaterialLibrary(config)
+        self.materials.start_warmer()
         init_rpc_monitor_state(self)
 
     def server_close(self) -> None:
         self.camera_cache.stop()
+        self.materials.stop_warmer()
         super().server_close()
 
 
@@ -121,6 +123,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             elif parsed.path in {"/materials", "/library"}:
                 self._send_file(
                     self.server.config.root / "docs" / "ops-materials.html",
+                    "text/html; charset=utf-8",
+                )
+            elif parsed.path in {"/materials-admin", "/library-admin"}:
+                self._send_file(
+                    self.server.config.root / "docs" / "ops-materials-admin.html",
                     "text/html; charset=utf-8",
                 )
             elif parsed.path == "/mount":
@@ -248,6 +255,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 )
             elif parsed.path == "/api/materials/summary":
                 self._send_json(self.server.materials.summary())
+            elif parsed.path == "/api/materials/admin":
+                self._send_json(self.server.materials.admin_overview())
             elif parsed.path == "/api/materials/browse":
                 query = parse_qs(parsed.query)
                 self._send_json(
@@ -360,6 +369,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 )
             elif parsed.path == "/api/materials/scan":
                 self._send_json(self.server.materials.start_scan(force=bool(payload.get("force"))))
+            elif parsed.path == "/api/materials/warmer":
+                self._send_json(self.server.materials.set_warmer_enabled(bool(payload.get("enabled"))))
             elif parsed.path == "/api/control-role":
                 device = str(payload.get("device") or "").strip()
                 session_id = str(payload.get("session_id") or "").strip()
