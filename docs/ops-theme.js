@@ -142,6 +142,24 @@ html[data-skin="B"] .statusline .msg{flex:0 1 auto;max-width:56vw}
 .bignum{font:700 32px/1.1 var(--mono);font-variant-numeric:tabular-nums;color:var(--ac);text-shadow:var(--glow);white-space:nowrap}
 html[data-skin="B"] .bignum{font:500 38px/1.1 var(--display);color:var(--text)}
 
+/* —— 手机端(≤640px):仅窄屏生效,桌面零改动 —— */
+@media (max-width:640px){
+  .ops-top{flex-wrap:wrap;gap:6px 8px;padding:7px 12px}
+  .ops-brand b{font-size:13px;letter-spacing:.06em}
+  .ops-brand span{display:none}
+  .ops-spacer{display:none}
+  #ops-clock,#ops-control{display:none}
+  .ops-acts{order:1;margin-left:auto;gap:7px}
+  .ops-acts .ops-lamp{padding:2px 7px;font-size:11px}
+  select.ops-sel{min-width:0;font-size:12px;padding:3px 7px;max-width:88px}
+  .ops-nav,html[data-skin="B"] .ops-nav{order:9;flex-basis:100%;margin:3px -12px 0;padding:4px 12px 0;gap:0;
+    overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line-dim);scrollbar-width:none}
+  .ops-nav::-webkit-scrollbar{display:none}
+  .ops-nav a{font-size:15px;padding:7px 12px;white-space:nowrap;flex:none}
+  .wrap{padding-top:96px!important;padding-left:15px!important;padding-right:15px!important}
+  .statusline .msg{max-width:none}
+}
+
 /* —— 连通性:顶栏盒子灯 + 通用离线界面(全站一致) —— */
 .ops-lamp.off{color:var(--bad);border-color:var(--bad)}
 .ops-lamp.off i{background:var(--bad);animation:opsConnBlink 2.2s ease-in-out infinite}
@@ -296,7 +314,7 @@ setInterval(() => { if(API.conn.online===false) renderConn(); }, 1000);
 /* ───────────────────────── 3. 顶栏注入 ───────────────────────── */
 function initDom(){
 
-const NAV = [["总览","/monitor-minterm"],["相机","/camera"],["导星","/guide"],["赤道仪","/mount"],["素材库","/materials"],["网络","/network"],["高级","/advanced"]];
+const NAV = [["总览","/monitor-minterm"],["相机","/camera"],["导星","/guide"],["赤道仪","/mount"],["计划","/plan"],["监控","/camera-monitor"],["素材库","/materials"],["网络","/network"],["高级","/advanced"]];
 const here = location.pathname;
 const isActive = (p) => {
   if (p === "/monitor-minterm") return here === "/" || here.startsWith("/monitor-minterm");

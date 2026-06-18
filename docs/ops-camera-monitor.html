@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ASIAIR OPS · 监控</title>
+<script src="ops-theme.js"></script>
+<style>
+:root{--toph:54px}
+html,body{height:100%;overflow:hidden;margin:0}
+#stage{position:fixed;inset:var(--toph) 0 0 0;background:var(--sky-bg,#0a0a0a);z-index:0;
+  display:flex;align-items:center;justify-content:center;box-sizing:border-box;
+  padding:60px 32px 48px}
+#frame{position:relative;height:100%;aspect-ratio:16/9;max-width:100%;
+  border:1px solid var(--line);background:#000}
+#cam{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#000}
+.hdr{position:fixed;left:28px;top:calc(var(--toph) + 8px);z-index:5;pointer-events:none}
+.hdr h1{margin:0;font:var(--lab-w) 21px var(--display);letter-spacing:.1em;color:var(--text)}
+html[data-skin="B"] .hdr h1{font:500 23px var(--display);letter-spacing:.05em}
+.badge{position:fixed;right:28px;top:calc(var(--toph) + 10px);z-index:6;display:inline-flex;align-items:center;gap:7px;
+  font:var(--lab-w) 12px var(--display);letter-spacing:.18em;padding:3px 11px;border:1px solid var(--line);
+  border-radius:var(--pill);color:var(--muted);text-transform:var(--lab-tt);background:rgba(0,0,0,.4)}
+.badge i{width:7px;height:7px;border-radius:50%;background:var(--quiet)}
+.badge.on{color:var(--good);border-color:var(--good)} .badge.on i{background:var(--good)}
+html[data-skin="C"] .badge i,html[data-skin="B"] .badge i{border-radius:0}
+/* 左下:录像回放入口 */
+.foot{position:fixed;left:28px;bottom:16px;z-index:5;font:400 12px var(--mono)}
+.foot a{color:var(--ac);text-decoration:none;border-bottom:1px solid var(--ac-soft)}
+.foot a:hover{border-bottom-color:var(--ac)}
+/* 右下:实时延迟 + 传输 */
+.stats{position:fixed;right:28px;bottom:16px;z-index:5;font:400 12px var(--mono);color:var(--quiet);
+  pointer-events:none;letter-spacing:.04em}
+.stats b{color:var(--ac);font-weight:400}
+.offline{position:absolute;inset:0;z-index:3;display:none;align-items:center;justify-content:center;
+  font:var(--lab-w) 16px var(--display);letter-spacing:.3em;color:var(--quiet);text-transform:var(--lab-tt)}
+.offline.show{display:flex}
+
+@media (max-height:520px) and (min-width:641px){
+  #stage{padding:46px 16px 14px} .hdr h1{font-size:16px}
+}
+@media (max-width:640px){
+  html,body{height:auto;min-height:100%;overflow:auto;-webkit-overflow-scrolling:touch}
+  body{padding-top:var(--toph)}
+  .hdr{position:static;padding:12px 16px 6px} .hdr h1{font-size:18px}
+  #stage{position:static;inset:auto;display:block;padding:0;background:transparent}
+  #frame{height:auto;width:100%;aspect-ratio:16/9;max-width:none;border-left:0;border-right:0}
+  .badge{position:fixed;top:calc(var(--toph) + 12px);right:12px}
+  .foot{position:static;display:inline-block;padding:12px 16px}
+  .stats{position:static;display:block;padding:0 16px calc(14px + env(safe-area-inset-bottom))}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="frame">
+    <iframe id="cam" allow="autoplay; fullscreen" allowfullscreen></iframe>
+    <div class="offline" id="off">未连接</div>
+  </div>
+</div>
+<div class="hdr"><h1>乌兰察布远程台 · 实时监控</h1></div>
+<div class="badge" id="st"><i></i><span>连接中…</span></div>
+<div class="foot"><a href="/camera-recordings">录像回放 →</a></div>
+<div class="stats">延迟 <b id="lat">—</b> · 传输 <b id="rate">—</b></div>
+<script>
+(function(){
+  var host = location.hostname;
+  var cam = document.getElementById("cam");
+  var st  = document.getElementById("st");
+  var off = document.getElementById("off");
+  var elLat = document.getElementById("lat");
+  var elRate = document.getElementById("rate");
+  cam.src = "http://" + host + ":1984/stream.html?src=ulanqab";
+
+  function setTopH(){
+    var t = document.querySelector(".ops-top");
+    if(t && t.offsetHeight) document.documentElement.style.setProperty("--toph", t.offsetHeight + "px");
+  }
+  [0,150,400,900].forEach(function(d){ setTimeout(setTopH, d); });
+  window.addEventListener("resize", setTopH);
+  window.addEventListener("orientationchange", function(){ setTimeout(setTopH,200); });
+
+  function setOn(ok){
+    if(ok){ st.className="badge on"; st.querySelector("span").textContent="直播中"; off.className="offline"; }
+    else  { st.className="badge";    st.querySelector("span").textContent="未连接"; off.className="offline show"; }
+  }
+  function fmtRate(bps){
+    if(!isFinite(bps) || bps < 0) return "—";
+    return bps >= 1e6 ? (bps/1e6).toFixed(1) + " Mbps" : Math.round(bps/1e3) + " kbps";
+  }
+  var sLast = null, sLastT = 0;
+  function poll(){
+    var t0 = performance.now();
+    fetch("/api/camera/stats", {cache:"no-store"}).then(function(r){ return r.json(); }).then(function(d){
+      var rtt = Math.round(performance.now() - t0);
+      var ok = !!(d && d.ok);
+      setOn(ok);
+      elLat.textContent = ok ? (rtt + " ms") : "—";
+      if(ok && typeof d.bytes === "number"){
+        var now = performance.now();
+        if(sLast != null && now > sLastT){
+          elRate.textContent = fmtRate((d.bytes - sLast) * 8 / ((now - sLastT) / 1000));
+        }
+        sLast = d.bytes; sLastT = now;
+      }
+    }).catch(function(){ setOn(false); elLat.textContent = "—"; elRate.textContent = "—"; });
+  }
+  poll(); setInterval(poll, 2000);
+})();
+</script>
+</body>
+</html>

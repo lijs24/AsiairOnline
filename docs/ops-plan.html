@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASIAIR OPS · 计划拍摄</title>
+<script src="ops-theme.js"></script>
+<style>
+#bg{position:fixed;inset:0;width:100vw;height:100vh;z-index:0}
+.wrap{position:relative;z-index:2;max-width:1460px;margin:0 auto;padding:76px 26px 26px;min-height:100vh;display:flex;flex-direction:column}
+.wrap{--pw-major:16px;--pw-ctrl:14px;--pw-meta:12px;font-size:var(--pw-ctrl)}
+
+.head{display:flex;align-items:flex-end;gap:30px;flex-wrap:wrap;padding:8px 0 16px;border-bottom:1px solid var(--line)}
+.head h1{margin:0;font:var(--lab-w) 30px var(--display);letter-spacing:.08em}
+html[data-skin="B"] .head h1{font:500 38px var(--display);letter-spacing:.05em}
+.head .sub{font:italic 300 13px var(--body);color:var(--quiet);margin-left:4px}
+.head .spacer{flex:1}
+.head .pl{text-align:right}
+.head .pl .lab{font-size:var(--pw-meta);letter-spacing:.18em;color:var(--muted)}
+.head .pl .bignum{font-size:24px;margin-top:2px;font-variant-numeric:tabular-nums}
+html[data-skin="B"] .head .pl .bignum{font-size:30px}
+.head .pl .bignum.gd{color:var(--ac)} .head .pl .bignum.off{color:var(--quiet)}
+
+.sect{padding:22px 0 8px;border-top:1px solid var(--line-dim)}
+.sect h2{margin:0 0 12px;font:var(--lab-w) 16px var(--display);letter-spacing:.16em;color:var(--text);
+  text-transform:var(--lab-tt);display:flex;align-items:baseline;gap:13px}
+html[data-skin="B"] .sect h2{font-weight:600;font-size:20px;letter-spacing:.12em}
+.sect h2 .rn{color:var(--ac);font-size:16px;letter-spacing:.06em}
+.sect h2 .cap{margin-left:auto;font:400 var(--pw-meta) var(--mono);color:var(--quiet);letter-spacing:.02em;text-transform:none}
+
+/* Ⅰ 当前进度 */
+.now{display:grid;grid-template-columns:1fr auto;gap:14px 40px;align-items:end}
+@media (max-width:720px){.now{grid-template-columns:1fr}}
+.now .tname{font:var(--lab-w) 26px var(--display);letter-spacing:.04em;color:var(--text)}
+html[data-skin="B"] .now .tname{font-weight:500;font-size:30px}
+.now .tname.idle{color:var(--quiet)}
+.now .tmeta{margin-top:5px;font:400 var(--pw-meta) var(--mono);color:var(--quiet)}
+.now .frame{text-align:right;font:400 40px/1 var(--mono);color:var(--ac);font-variant-numeric:tabular-nums;white-space:nowrap}
+.now .frame .u{font-size:18px;color:var(--muted)}
+.now .frame .l{display:block;text-align:right;font:var(--lab-w) var(--pw-meta) var(--display);letter-spacing:.16em;color:var(--muted);text-transform:var(--lab-tt);margin-top:6px}
+.expbar{grid-column:1/-1;margin-top:6px}
+.expbar .track{position:relative;height:4px;background:var(--line-dim);overflow:hidden}
+.expbar .track i{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--ac);transition:width .4s}
+.expbar .track i.ind{width:32%;animation:pScan 1.2s linear infinite}
+@keyframes pScan{0%{transform:translateX(-110%)}100%{transform:translateX(360%)}}
+.expbar .row{display:flex;justify-content:space-between;margin-top:6px;font:400 var(--pw-meta) var(--mono);color:var(--quiet)}
+
+/* plan 选择器 */
+.plans{display:flex;gap:5px;flex-wrap:wrap;margin:-2px 0 14px;font:400 var(--pw-meta) var(--mono)}
+.plans .cl{color:var(--muted);letter-spacing:.14em;margin-right:6px;text-transform:uppercase;font-family:var(--display)}
+.plans button{background:none;border:none;color:var(--quiet);cursor:pointer;padding:3px 8px;font:inherit;letter-spacing:.02em;
+  border:1px solid var(--line);border-radius:var(--pill)}
+.plans button:hover{color:var(--text)}
+.plans button.on{color:var(--ac);border-color:var(--ac-soft)}
+.plans button .pc{color:var(--muted);margin-left:5px}
+.plans button.on .pc{color:var(--ac-soft)}
+.plans button .pd{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--quiet);margin-right:6px;vertical-align:middle}
+.plans button.run .pd{background:var(--ac);box-shadow:0 0 6px var(--ac-soft)}
+
+.behave{display:flex;flex-wrap:wrap;gap:6px 10px;margin:-4px 0 14px;font:400 var(--pw-meta) var(--mono);color:var(--quiet)}
+.behave .b{padding:2px 9px;border:1px solid var(--line);border-radius:var(--pill)}
+.behave .b.on{color:var(--ac);border-color:var(--ac-soft)}
+
+/* 目标树 */
+.tgt{border-bottom:1px solid var(--line-dim)}
+.tgt .row{display:flex;align-items:baseline;gap:14px;padding:13px 2px;cursor:pointer}
+.tgt .lamp{width:8px;height:8px;border-radius:50%;flex:none;background:var(--quiet);align-self:center}
+.tgt .lamp.run{background:var(--ac);box-shadow:0 0 6px var(--ac-soft);animation:pPulse 1.6s ease-in-out infinite}
+.tgt .lamp.done{background:var(--good)} .tgt .lamp.off{background:var(--line)}
+@keyframes pPulse{0%,100%{opacity:1}50%{opacity:.45}}
+.tgt .nm{font:var(--lab-w) var(--pw-major) var(--display);letter-spacing:.05em;color:var(--text);min-width:0;flex:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html[data-skin="B"] .tgt .nm{font-weight:500;font-size:18px}
+.tgt.cur .nm{color:var(--ac)}
+.tgt .otype{font:400 var(--pw-meta) var(--mono);color:var(--quiet);flex:none}
+.tgt .coord{font:400 var(--pw-meta) var(--mono);color:var(--muted);flex:none;font-variant-numeric:tabular-nums}
+.tgt .sn{font:400 var(--pw-meta) var(--mono);color:var(--quiet);flex:none;min-width:5.5em;text-align:right}
+.tgt .fold{color:var(--muted);font:400 13px var(--mono);width:14px;text-align:center;flex:none}
+.tgt .seqs{padding:2px 2px 12px 24px;display:none}
+.tgt.open .seqs{display:block}
+.seq{display:flex;align-items:center;gap:12px;padding:7px 0;border-top:1px solid var(--line-dim)}
+.seq .ty{font:var(--lab-w) var(--pw-ctrl) var(--display);letter-spacing:.06em;min-width:3em;color:var(--text)}
+.seq .ty.light{color:var(--ac)}
+.seq .spec{font:400 var(--pw-meta) var(--mono);color:var(--quiet);flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seq .bar{position:relative;width:120px;height:4px;background:var(--line-dim);flex:none;overflow:hidden}
+.seq .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--ac-soft);width:0%}
+.seq .cnt{font:400 var(--pw-meta) var(--mono);color:var(--muted);flex:none;min-width:5.5em;text-align:right;font-variant-numeric:tabular-nums}
+
+.empty{padding:26px 2px;color:var(--quiet);font:italic 300 14px var(--body)}
+.statusline{margin-top:auto;padding-top:18px}
+
+.statusline{margin-top:auto;padding-top:18px}
+.seq2{opacity:0;transform:translateY(8px);transition:opacity .55s ease,transform .55s ease}
+.seq2.d1{transition-delay:.05s}.seq2.d2{transition-delay:.12s}.seq2.d3{transition-delay:.19s}
+body.ready .seq2{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.seq2{transition:none}}
+
+@media (max-width:640px){
+  .head .sub{display:none} .head .spacer{display:none}
+  .head h1{font-size:25px} .head .pl .bignum{font-size:21px}
+  .now .tname{font-size:22px} .now .frame{font-size:32px}
+  .tgt .otype,.tgt .coord{display:none}
+  .seq .bar{width:72px}
+}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<main class="wrap">
+  <header class="head seq2">
+    <h1>计划拍摄<span class="sub">planned imaging</span></h1>
+    <a href="/plan-design" style="margin-left:14px;align-self:center;color:var(--quiet);text-decoration:none;font:400 13px var(--mono);border-bottom:1px solid var(--ac-soft);padding-bottom:1px">设计序列 →</a>
+    <span class="spacer"></span>
+    <div class="pl"><div class="lab">状态</div><div class="bignum" id="pl-state">--</div></div>
+    <div class="pl"><div class="lab">整盘剩余</div><div class="bignum gd" id="pl-left">--</div></div>
+  </header>
+
+  <section class="sect seq2 d1" id="s-now">
+    <h2><span class="rn">Ⅰ</span> 当前进度<span class="cap" id="now-cap"></span></h2>
+    <div class="now">
+      <div>
+        <div class="tname idle" id="now-name">空闲</div>
+        <div class="tmeta" id="now-meta"></div>
+      </div>
+      <div class="frame"><span id="now-frame">--</span><span class="l">已拍 / 总数</span></div>
+      <div class="expbar">
+        <div class="track"><i id="exp-i"></i></div>
+        <div class="row"><span id="exp-l">单张曝光</span><span id="exp-r"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sect seq2 d2" id="s-plan">
+    <h2><span class="rn">Ⅱ</span> 多目标计划<span class="cap" id="plan-cap"></span></h2>
+    <div class="plans" id="plan-sel"></div>
+    <div class="behave" id="plan-behave"></div>
+    <div id="tree"></div>
+  </section>
+
+  <footer class="statusline seq2 d3">
+    <span class="kind" id="status-kind" style="color:var(--good)">[—]</span>
+    <span class="msg" id="status-text">计划监控…</span>
+    <span class="ts" id="snapshot">--</span>
+  </footer>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const OPS=window.OPS;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+(function bg(){
+  const cv=$("bg"),ctx=cv.getContext("2d");
+  let stars=[];let s=23;const rnd=()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return((s>>>0)/4294967296);};
+  function seed(){const n=Math.round(innerWidth*innerHeight/16000);
+    stars=Array.from({length:n},()=>({x:rnd(),y:rnd(),m:rnd(),ph:rnd()*6.28,sp:.4+rnd()}));}
+  seed();addEventListener("resize",seed);
+  (function draw(t){const w=innerWidth,h=innerHeight,dpr=devicePixelRatio||1;
+    if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr;}
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=css("--sky-bg");ctx.fillRect(0,0,w,h);
+    ctx.fillStyle=css("--sky-star");
+    for(const st of stars){const tw=REDUCED?1:(.7+.3*Math.sin(t/1000*st.sp+st.ph));
+      ctx.globalAlpha=(.08+st.m*.3)*tw;ctx.beginPath();ctx.arc(st.x*w,st.y*h,st.m>.93?1.5:.8,0,7);ctx.fill();}
+    ctx.globalAlpha=1;requestAnimationFrame(draw);})(0);
+})();
+
+const TYPE_CN={light:"亮场",dark:"暗场",flat:"平场",bias:"偏置"};
+const OBJ_CN={open_galactic_cluster:"疏散星团",galaxy:"星系",nebula:"星云",emission_nebula:"发射星云",
+  planetary_nebula:"行星状星云",globular_cluster:"球状星团",supernova_remnant:"超新星遗迹"};
+const pad2=n=>("0"+n).slice(-2);
+function fmtDur(sec){if(sec==null||!isFinite(sec))return"--";sec=Math.max(0,Math.round(sec));
+  const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
+  return h?(h+"h "+pad2(m)+"m"):(m?(m+"m "+pad2(s)+"s"):(s+"s"));}
+function fmtSize(mb){if(mb==null||!isFinite(mb))return"--";return mb>=1024?(mb/1024).toFixed(1)+" GB":Math.round(mb)+" MB";}
+function fmtExp(s){if(s==null)return"--";if(s<1)return(s*1000).toFixed(0)+"ms";if(s>=120)return(s/60).toFixed(s%60?1:0)+"m";return (s%1?s.toFixed(1):s)+"s";}
+function fmtRA(h){if(h==null)return"";const hh=Math.floor(h),mm=(h-hh)*60;return hh+"h"+pad2(Math.round(mm))+"m";}
+function fmtDec(d){if(d==null)return"";return (d>=0?"+":"")+d.toFixed(1)+"°";}
+
+let LAST=null, selPlan=null, openTargets={}, revealed=false;
+function curDevice(){return (OPS&&OPS.device)||new URLSearchParams(location.search).get("device")||"";}
+
+function render(){
+  const d=LAST; if(!d)return;
+  const cap=d.capture||{}, tg=cap.target||{}, seq=tg.seq||{}, fr=seq.frame||{};
+  const working=!!cap.is_working, connected=d.connected;
+  /* 顶栏 */
+  const plans=d.plans||[];
+  const running=plans.find(p=>p.is_plan_started)||null;
+  $("pl-state").textContent = working?"拍摄中" : (connected?(d.page==="plan"?"计划就绪":"空闲"):"链路忙");
+  $("pl-state").className="bignum"+(working?" gd":(connected?"":" off"));
+  const leftSec = running?running.left_time_sec:null;
+  $("pl-left").textContent = leftSec!=null?fmtDur(leftSec):"--";
+  /* Ⅰ 当前进度 */
+  const nm=$("now-name");
+  if(working&&tg.current_name){nm.textContent=esc(tg.current_name);nm.classList.remove("idle");}
+  else{nm.textContent=connected?"空闲 · 未在拍摄":"链路忙";nm.classList.add("idle");}
+  const typ=seq.current_type?(TYPE_CN[seq.current_type]||seq.current_type):"";
+  $("now-meta").textContent=working?[typ&&("序列 "+typ),(tg.current_index!=null&&tg.total!=null)?("目标 "+tg.current_index+"/"+tg.total):"",cap.exposure_mode?("模式 "+cap.exposure_mode):""].filter(Boolean).join("  ·  "):"";
+  $("now-frame").innerHTML = (fr.complete_num!=null&&fr.total!=null)?(fr.complete_num+'<span class="u"> / '+fr.total+'</span>'):"--";
+  /* 单张曝光条 */
+  const ei=$("exp-i");
+  if(working&&cap.total_ms){const pct=Math.max(0,Math.min(100,100*(cap.lapse_ms||0)/cap.total_ms));
+    ei.classList.remove("ind");ei.style.width=pct+"%";
+    $("exp-l").textContent="单张曝光";$("exp-r").textContent=((cap.lapse_ms/1000).toFixed(0))+" / "+(cap.total_ms/1000).toFixed(0)+" s";}
+  else if(working){ei.classList.add("ind");ei.style.width="";$("exp-l").textContent=cap.state?("状态 "+cap.state):"工作中";$("exp-r").textContent="";}
+  else{ei.classList.remove("ind");ei.style.width="0%";$("exp-l").textContent="单张曝光";$("exp-r").textContent="";}
+  $("now-cap").textContent = (running&&running.total_time_sec)?("整盘 "+fmtDur(running.total_time_sec)+" · "+fmtSize(running.total_size_m)):"";
+  /* Ⅱ 计划选择器 */
+  const sel=$("plan-sel");
+  if(plans.length>1||(plans.length&&d.plan_list&&d.plan_list.length>1)){
+    if(selPlan==null||!plans.some(p=>p.id===selPlan))selPlan=(running||plans[0]).id;
+    sel.innerHTML='<span class="cl">计划</span>'+plans.map(p=>
+      `<button data-pid="${p.id}" class="${p.id===selPlan?"on":""} ${p.is_plan_started?"run":""}"><span class="pd"></span>${esc(p.plan_name||("#"+p.id))}<span class="pc">${(p.targets||[]).length||p.target_cnt||0}目标</span></button>`).join("");
+    sel.querySelectorAll("[data-pid]").forEach(b=>b.onclick=()=>{selPlan=+b.dataset.pid;render();});
+    sel.style.display="";
+  }else{sel.style.display="none"; if(plans.length)selPlan=plans[0].id;}
+  const plan=plans.find(p=>p.id===selPlan)||plans[0]||null;
+  /* 计划行为 */
+  const bh=$("plan-behave");
+  if(plan){
+    const ends={home:"归位",park:"驻留",none:"不动"};
+    const chip=(on,t)=>`<span class="b ${on?"on":""}">${t}</span>`;
+    bh.innerHTML=[
+      chip(plan.start_guide,"自动导星"),
+      chip(plan.merid_flip,"中天翻转"),
+      chip(plan.close_cooler,"结束关制冷"),
+      `<span class="b">结束 ${ends[plan.mount_end_action]||plan.mount_end_action||"--"}</span>`,
+      `<span class="b">总计 ${fmtDur(plan.total_time_sec)} · ${fmtSize(plan.total_size_m)}</span>`,
+    ].join("");
+  }else bh.innerHTML="";
+  /* 目标树 */
+  const tree=$("tree");
+  if(!plan||!(plan.targets||[]).length){
+    tree.innerHTML='<div class="empty">'+(connected?"该计划无目标":"等待计划数据…")+'</div>';
+  }else{
+    const curName=working?tg.current_name:null;
+    tree.innerHTML=plan.targets.map(t=>{
+      const seqs=t.seqs||[];
+      const totRep=seqs.reduce((a,s)=>a+(s.repeat||0),0), totLap=seqs.reduce((a,s)=>a+(s.lapsed||0),0);
+      const isCur=curName&&t.target_name===curName;
+      const done=totRep>0&&totLap>=totRep;
+      const lamp=isCur?"run":(done?"done":(t.enable===false?"off":""));
+      const open=openTargets[t.id]||isCur;
+      const obj=t.obj_type?(OBJ_CN[t.obj_type]||t.obj_type.replace(/_/g," ")):"";
+      const co=Array.isArray(t.target_coord)?(fmtRA(t.target_coord[0])+" "+fmtDec(t.target_coord[1])):"";
+      const seqRows=seqs.map(s=>{
+        const pct=s.repeat?Math.min(100,100*(s.lapsed||0)/s.repeat):0;
+        const spec=[fmtExp(s.exp),"G"+s.gain,"Bin"+s.bin,"滤镜"+s.filter,"×"+s.repeat].join("  ·  ");
+        return `<div class="seq"><span class="ty ${s.type}">${TYPE_CN[s.type]||esc(s.type)}</span>
+          <span class="spec">${spec}</span>
+          <span class="bar"><i style="width:${pct}%"></i></span>
+          <span class="cnt">${s.lapsed||0}/${s.repeat||0}</span></div>`;
+      }).join("");
+      return `<div class="tgt ${open?"open":""} ${isCur?"cur":""}" data-tid="${t.id}">
+        <div class="row"><span class="lamp ${lamp}"></span>
+          <span class="nm">${esc(t.target_name||("目标 "+t.id))}</span>
+          <span class="otype">${esc(obj)}</span><span class="coord">${co}</span>
+          <span class="sn">${totLap}/${totRep} 张</span>
+          <span class="fold">${open?"▾":"▸"}</span></div>
+        <div class="seqs">${seqRows}</div></div>`;
+    }).join("");
+    tree.querySelectorAll(".tgt .row").forEach(r=>r.onclick=()=>{
+      const id=+r.parentNode.dataset.tid; openTargets[id]=!r.parentNode.classList.contains("open"); render();});
+  }
+  $("plan-cap").textContent = plans.length?(plans.length+" 个计划"+(d.plan_age!=null?(" · "+Math.round(d.plan_age)+"s 前"):"")):"";
+}
+
+async function poll(){
+  try{
+    const dev=curDevice();
+    const d=await OPS.fetchJSON("/api/plan-state"+(dev?("?device="+encodeURIComponent(dev)):""));
+    LAST=d; render();
+    $("status-kind").textContent=d.connected?"[OK]":"[··]";
+    $("status-kind").style.color=d.connected?"var(--good)":"var(--muted)";
+    $("status-text").textContent="计划监控 · "+esc(dev||"--")+(d.connected?"":" · 4700 链路忙(显示最近)");
+    $("snapshot").textContent=(d.snapshot_at||"").replace("T"," ");
+  }catch(e){
+    $("status-kind").textContent="[ERR]";$("status-kind").style.color="var(--bad)";
+    $("status-text").textContent="后端不可达:"+(e.message||"");
+  }finally{ if(!revealed){revealed=true;requestAnimationFrame(()=>document.body.classList.add("ready"));} }
+}
+setTimeout(()=>document.body.classList.add("ready"),600);
+poll();setInterval(()=>{if(!OPS.hidden||!OPS.hidden())poll();},4500);
+</script>
+</body>
+</html>

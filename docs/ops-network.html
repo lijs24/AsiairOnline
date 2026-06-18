@@ -74,6 +74,14 @@ html[data-skin="B"] .dev .id b{font:600 19px var(--display)}
   .seq{animation-play-state:paused}
   body.ready .seq{animation-play-state:running}
 }
+/* 手机端(≤640px):设备行换行,meta 落到第二行 */
+@media (max-width:640px){
+  .dev{flex-wrap:wrap;gap:7px 12px;padding:13px 2px}
+  .dev .id{min-width:0;flex:1}
+  .dev .meta{margin-left:0;flex-basis:100%;gap:26px;justify-content:flex-start}
+  .head{gap:14px}
+  .head h1{font-size:24px}
+}
 </style>
 </head>
 <body>

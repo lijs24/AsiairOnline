@@ -31,6 +31,61 @@ _CURVE_POINTS = 3600  # points handed to the live frontend (full buffer; fronten
 _RMS_WINDOW = 100     # recent steps used for the server-side rolling RMS (frontend recomputes per window)
 _LOG_DOWNSAMPLE = 2000  # max points returned when reading back a whole night's log
 
+# ── 云检测(只读告警)────────────────────────────────────────────────
+# 流停判据用「最后一帧 GuideStep 的时间」——绝不能用 _device_view 的 age_seconds:
+# 它会被周期性快照 RPC(get_app_state 等)回包刷新,PHD2 已丢星停推 GuideStep 时仍≈0,会系统性漏报。
+# 薄云用 star_mass(主)/SNR(辅)相对各盒子「滚动基线」的百分比骤降判;固定 SNR 阈值跨盒子不可比(实测三台 snr<3 占比 0%)。
+# 仅在导星运行且锁定时有效;不导星目标应走主相机帧统计(本原型不覆盖)。
+_CLOUD_STALE_SEC = 60.0      # 最后一帧 GuideStep 距今 > 此 → 导星流停(疑似丢星/有云)
+_CLOUD_BASELINE_MIN = 8.0    # 基线窗口(分钟)
+_CLOUD_RECENT_SEC = 30.0     # 近窗(秒)
+_CLOUD_DROP = 0.5            # 相对基线下降比例阈值(50%)
+_CLOUD_DEBOUNCE_SEC = 60.0   # 疑似薄云持续此时长才确认(去抖)
+
+
+def _cloud_signals(steps: list, settings: dict, connected: bool, now: float) -> dict:
+    """瞬时云检测信号(纯函数,无状态)。steps 须含 wt/snr/star_mass。"""
+    if not steps:
+        return {"state": "NO_GUIDE", "applicable": False, "guide_step_age": None,
+                "reason": "无导星数据(未开导星或未锁定)"}
+    step_age = max(0.0, now - (steps[-1].get("wt") or 0.0))
+    if step_age > _CLOUD_STALE_SEC:
+        if connected:
+            return {"state": "STALE", "applicable": True, "guide_step_age": round(step_age, 1),
+                    "reason": "导星流已停 %ds(疑似丢星/有云)" % int(step_age)}
+        return {"state": "DISCONNECTED", "applicable": False, "guide_step_age": round(step_age, 1),
+                "reason": "导星(4400)断连"}
+    if settings.get("dither"):
+        return {"state": "DITHER", "applicable": False, "guide_step_age": round(step_age, 1),
+                "reason": "抖动中(豁免云检测)"}
+    rec_cut, base_cut = now - _CLOUD_RECENT_SEC, now - _CLOUD_BASELINE_MIN * 60.0
+    base, rec = [], []
+    for s in steps:
+        wt = s.get("wt") or 0.0
+        if wt >= rec_cut:
+            rec.append(s)
+        elif wt >= base_cut:
+            base.append(s)
+
+    def med(xs, k):
+        vals = sorted(v for v in (x.get(k) for x in xs) if isinstance(v, (int, float)) and v > 0)
+        return vals[len(vals) // 2] if vals else None
+
+    sm_b, sm_r = med(base, "star_mass"), med(rec, "star_mass")
+    snr_b, snr_r = med(base, "snr"), med(rec, "snr")
+    drops = []
+    if sm_b and sm_r is not None and sm_r < sm_b * (1 - _CLOUD_DROP):
+        drops.append("星点质量较基线降 %d%%" % int((1 - sm_r / sm_b) * 100))
+    if snr_b and snr_r is not None and snr_r < snr_b * (1 - _CLOUD_DROP):
+        drops.append("SNR 较基线降 %d%%" % int((1 - snr_r / snr_b) * 100))
+    sig = {"guide_step_age": round(step_age, 1),
+           "star_mass": {"base": sm_b, "recent": sm_r},
+           "snr": {"base": snr_b, "recent": snr_r},
+           "baseline_n": len(base), "recent_n": len(rec)}
+    if drops:
+        return dict(state="SUSPECT", applicable=True, reason="疑似薄云:" + "、".join(drops), **sig)
+    return dict(state="CLEAR", applicable=True, reason="导星正常", **sig)
+
 
 class GuideMonitor:
     """Per-device daemon that holds a persistent connection to the ASIAIR
@@ -59,6 +114,7 @@ class GuideMonitor:
         self._settings: dict[str, dict[str, Any]] = {}
         self._meta: dict[str, dict[str, Any]] = {}
         self._logfh: dict[str, tuple[str, Any]] = {}  # device -> (night_date, open append handle)
+        self._cloud_fsm: dict[str, dict[str, Any]] = {}  # device -> {suspect_since} 云检测去抖
 
     def start(self) -> None:
         if any(thread.is_alive() for thread in self._threads):
@@ -106,6 +162,22 @@ class GuideMonitor:
                         "devices": {device.name: self._device_view(device)}}
         return {"ok": True, "snapshot_at": snapshot, "devices": {}}
 
+    def _cloud_assess(self, name: str, steps: list, settings: dict, connected: bool, now: float) -> dict:
+        """瞬时信号 + 去抖:SUSPECT 持续 _CLOUD_DEBOUNCE_SEC 才 confirmed;STALE(流停>60s)即视为确认。"""
+        inst = _cloud_signals(steps, settings, connected, now)
+        with self._lock:
+            fsm = self._cloud_fsm.setdefault(name, {"suspect_since": None})
+            if inst["state"] == "SUSPECT":
+                if fsm["suspect_since"] is None:
+                    fsm["suspect_since"] = now
+                held = now - fsm["suspect_since"]
+                inst["held_sec"] = round(held, 1)
+                inst["confirmed"] = held >= _CLOUD_DEBOUNCE_SEC
+            else:
+                fsm["suspect_since"] = None
+                inst["confirmed"] = inst["state"] == "STALE"  # 流停>60s 本身即确认
+        return inst
+
     def _device_view(self, device: Device) -> dict[str, Any]:
         with self._lock:
             steps = list(self._steps.get(device.name, ()))
@@ -128,12 +200,14 @@ class GuideMonitor:
         updated_at = meta.get("updated_at")
         connected = meta.get("connected_at") is not None and meta.get("error") is None
         age = None if updated_at is None else max(0.0, time.time() - updated_at)
+        cloud = self._cloud_assess(device.name, steps, settings, connected, time.time())
         return {
             "device": {"name": device.name, "ip": device.ip},
             "connected": connected,
             "state": settings.get("state"),
             "error": meta.get("error"),
             "rms": rms,
+            "cloud": cloud,
             "last": steps[-1] if steps else None,
             "curve": curve,
             "settings": {

@@ -104,6 +104,13 @@ html[data-skin="A"] .phys-note,html[data-skin="C"] .phys-note{font-style:normal;
     animation-delay:calc(.36s + var(--ci,0) * .07s);
   }
 }
+/* 手机端(≤640px):顶栏两行更高,遥测带下移让位;桌面/平板零改动 */
+@media (max-width:640px){
+  .telemetry{margin-top:94px}
+  .controls{justify-content:flex-start;gap:6px}
+  .notes{margin:12px 14px}
+  .phys-note{margin:0 14px}
+}
 </style>
 </head>
 <body>

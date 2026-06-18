@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .camera_cache import CameraStateCache
 from .guide_monitor import GuideMonitor
+from .plan_ops import PlanMonitor, plan_action_response
 from .camera_ops import camera_action_response, camera_status_response, capture_progress_response
 from .mount_ops import mount_status_response
 from .mount_render import render_cached
@@ -97,6 +98,8 @@ class AsiairBridgeServer(ThreadingHTTPServer):
         self.camera_cache.start()
         self.guide_monitor = GuideMonitor(config)
         self.guide_monitor.start()
+        self.plan_monitor = PlanMonitor(config)
+        self.plan_monitor.start()
         self.materials = MaterialLibrary(config)
         self.materials.start_warmer()
         init_rpc_monitor_state(self)
@@ -104,6 +107,7 @@ class AsiairBridgeServer(ThreadingHTTPServer):
     def server_close(self) -> None:
         self.camera_cache.stop()
         self.guide_monitor.stop()
+        self.plan_monitor.stop()
         self.materials.stop_warmer()
         super().server_close()
 
@@ -183,12 +187,48 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.server.config.root / "docs" / "ops-guide.html",
                     "text/html; charset=utf-8",
                 )
+            elif parsed.path == "/plan":
+                self._send_file(
+                    self.server.config.root / "docs" / "ops-plan.html",
+                    "text/html; charset=utf-8",
+                )
+            elif parsed.path == "/plan-design":
+                self._send_file(
+                    self.server.config.root / "docs" / "ops-plan-design.html",
+                    "text/html; charset=utf-8",
+                )
             elif parsed.path == "/mount-classic":
                 # 旧版 GPU 3D 渲染赤道仪页,新前端未包含 3D 能力,保留入口
                 self._send_file(
                     self.server.config.root / "docs" / "asiair-mount.html",
                     "text/html; charset=utf-8",
                 )
+            elif parsed.path == "/camera-monitor":
+                self._send_file(
+                    self.server.config.root / "docs" / "ops-camera-monitor.html",
+                    "text/html; charset=utf-8",
+                )
+            elif parsed.path == "/camera-recordings":
+                self._send_file(
+                    self.server.config.root / "docs" / "ops-camera-recordings.html",
+                    "text/html; charset=utf-8",
+                )
+            elif parsed.path == "/api/camera/recordings":
+                from .camera_rec import list_recordings_payload
+                q = parse_qs(parsed.query)
+                self._send_json(list_recordings_payload(
+                    q.get("stream", [None])[0], q.get("date", [None])[0]))
+            elif parsed.path == "/api/camera/recording-file":
+                from .camera_rec import resolve_recording
+                q = parse_qs(parsed.query)
+                rec_path = resolve_recording(q.get("stream", [None])[0], q.get("name", [None])[0])
+                if rec_path is None:
+                    self.send_error(HTTPStatus.NOT_FOUND)
+                else:
+                    self._send_download_file(rec_path)
+            elif parsed.path == "/api/camera/stats":
+                from .camera_rec import stream_stats
+                self._send_json(stream_stats())
             elif parsed.path == "/ops-theme.js":
                 self._send_file(
                     self.server.config.root / "docs" / "ops-theme.js",
@@ -442,6 +482,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 device = query.get("device", [""])[0]
                 gm = self.server.guide_monitor
                 self._send_json(gm.get_one(device) if device else gm.get_all())
+            elif parsed.path == "/api/plan-state":
+                query = parse_qs(parsed.query)
+                self._send_json(self.server.plan_monitor.get(query.get("device", [""])[0]))
             elif parsed.path == "/api/guide-log/index":
                 query = parse_qs(parsed.query)
                 self._send_json(self.server.guide_monitor.list_nights(query.get("device", [""])[0]))
@@ -585,6 +628,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         },
                     )
                     raise
+            elif parsed.path == "/api/plan-action":
+                # 计划写:仅下发草稿(enable=false)/ 删 / 停用 —— 绝不在网站启用执行。
+                device = str(payload.get("device") or "").strip()
+                if not device:
+                    raise ValueError("device is required")
+                self._require_actions_allowed()
+                self._send_json(
+                    plan_action_response(
+                        self.server.config,
+                        device_name=device,
+                        action=str(payload.get("action") or "").strip(),
+                        payload=payload,
+                    )
+                )
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
         except BusyError as exc:

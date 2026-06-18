@@ -173,6 +173,11 @@ html[data-skin="B"] .viewer .hrow .v{font-size:var(--mat-major)}
     animation-delay:calc(.32s + var(--ri,0) * .07s);
   }
 }
+/* 手机端(≤640px):搜索框可缩,缩略图网格两列 */
+@media (max-width:640px){
+  input.search{min-width:0}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+}
 </style>
 </head>
 <body>

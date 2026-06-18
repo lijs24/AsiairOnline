@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASIAIR OPS · 序列设计</title>
+<script src="ops-theme.js"></script>
+<style>
+#bg{position:fixed;inset:0;width:100vw;height:100vh;z-index:0}
+.wrap{position:relative;z-index:2;max-width:1640px;margin:0 auto;padding:76px 26px 26px;min-height:100vh;display:flex;flex-direction:column}
+.wrap{--dw-major:16px;--dw-ctrl:14px;--dw-meta:12px;font-size:var(--dw-ctrl)}
+
+.head{display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap;padding:8px 0 16px;border-bottom:1px solid var(--line)}
+.head h1{margin:0;font:var(--lab-w) 30px var(--display);letter-spacing:.08em}
+html[data-skin="B"] .head h1{font:500 38px var(--display);letter-spacing:.05em}
+.head .sub{font:italic 300 13px var(--body);color:var(--quiet);margin-left:4px}
+.head .spacer{flex:1}
+.head a.lnk{color:var(--quiet);text-decoration:none;font:400 var(--dw-meta) var(--mono);border-bottom:1px solid transparent;padding-bottom:2px}
+.head a.lnk:hover{color:var(--ac);border-bottom-color:var(--ac)}
+
+.sect{padding:20px 0 8px;border-top:1px solid var(--line-dim)}
+.sect h2{margin:0 0 12px;font:var(--lab-w) 16px var(--display);letter-spacing:.16em;color:var(--text);
+  text-transform:var(--lab-tt);display:flex;align-items:baseline;gap:13px}
+html[data-skin="B"] .sect h2{font-weight:600;font-size:20px;letter-spacing:.12em}
+.sect h2 .rn{color:var(--ac);font-size:16px;letter-spacing:.06em}
+.sect h2 .cap{margin-left:auto;font:400 var(--dw-meta) var(--mono);color:var(--quiet);letter-spacing:.02em;text-transform:none}
+
+button.act{background:none;border:1px solid var(--line);color:var(--text);
+  font:var(--lab-w) var(--dw-meta) var(--display);letter-spacing:.08em;padding:6px 13px;cursor:pointer;text-transform:var(--lab-tt)}
+button.act:hover{border-color:var(--ac-soft);color:var(--ac)}
+button.gold{background:var(--ac);color:var(--bg);border-color:var(--ac)} button.gold:hover{color:var(--bg);opacity:.9}
+
+/* Ⅰ 卡片库(方角)*/
+.mk{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.card{border:1px solid var(--line);padding:11px 13px;cursor:grab;position:relative;background:linear-gradient(180deg,rgba(201,162,39,.04),transparent)}
+.card.shoot{border-left:2px solid var(--ac)} .card.init{border-left:2px solid var(--good)}
+.card.end{border-left:2px solid var(--muted)} .card.action{border-left:2px solid var(--ac-soft)}
+.card .ct{font:var(--lab-w) var(--dw-meta) var(--display);letter-spacing:.14em;color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.card .ct .dur{margin-left:auto;color:var(--ac);font-family:var(--mono);letter-spacing:0}
+.card .ttl{font:var(--lab-w) var(--dw-major) var(--display);letter-spacing:.04em;color:var(--text);margin:5px 0 7px}
+html[data-skin="B"] .card .ttl{font-weight:500;font-size:18px}
+.card .x{position:absolute;top:7px;right:9px;color:var(--quiet);cursor:pointer;font:400 14px var(--mono)}
+.card .x:hover{color:var(--bad)}
+.field{display:flex;align-items:center;gap:8px;margin:5px 0;font:400 var(--dw-meta) var(--mono);color:var(--quiet)}
+.field label{min-width:3.6em;color:var(--muted)}
+.field input,.field select{background:transparent;color:var(--text);border:1px solid var(--line);border-radius:0;
+  font:inherit;padding:2px 6px;flex:1;min-width:0;outline:none}
+.field input:focus,.field select:focus{border-color:var(--ac-soft)}
+.field.cks{flex-wrap:wrap;gap:5px 10px}
+.field.cks label{min-width:0;display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--quiet)}
+.field.cks input{flex:none;width:auto}
+
+/* Ⅱ 工作链(时间轴)*/
+.nightctl{display:flex;gap:6px 16px;flex-wrap:wrap;align-items:center;margin:-2px 0 14px;font:400 var(--dw-meta) var(--mono);color:var(--muted)}
+.nightctl label{display:inline-flex;align-items:center;gap:5px}
+.nightctl input{background:transparent;color:var(--ac);border:none;border-bottom:1px solid var(--line);font:inherit;width:54px;text-align:center;outline:none}
+.timeline{position:relative;border:1px solid var(--line-dim);overflow-x:auto;overflow-y:visible;user-select:none}
+.tlcontent{position:relative}
+.axis{position:relative;height:24px;border-bottom:1px solid var(--line);width:100%}
+.axis .tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--line-dim)}
+.axis .tick span{position:absolute;top:4px;left:4px;font:400 10.5px var(--mono);color:var(--muted);white-space:nowrap}
+/* 昏影/晨光:贯穿整列、可吸附 */
+.twfull{position:absolute;top:0;bottom:0;border-left:1px dashed var(--ac-soft);z-index:3;pointer-events:none}
+.twfull span{position:absolute;top:3px;left:3px;font:400 10px var(--mono);color:var(--ac-soft);background:var(--bg);padding:0 3px}
+.track{position:relative;height:46px;border-bottom:1px solid var(--line-dim);width:100%}
+.track .tlab{position:absolute;left:4px;top:3px;z-index:1;font:400 10px var(--mono);color:var(--quiet);pointer-events:none}
+.seg{position:absolute;top:7px;height:32px;background:rgba(201,162,39,.16);border:1px solid var(--ac-soft);
+  border-radius:0;cursor:grab;overflow:hidden;display:flex;align-items:center;padding:0 3px;min-width:0;z-index:2}
+.seg.shoot{background:rgba(201,162,39,.18)} .seg.init{background:rgba(127,174,138,.16);border-color:rgba(127,174,138,.5)}
+.seg.end{background:rgba(139,145,165,.16);border-color:var(--line)} .seg.action{background:rgba(201,162,39,.10)}
+.seg.dragging{cursor:grabbing;opacity:.2;border-style:dashed}   /* 拎起:原位留淡虚线占位 */
+.seg.sel{border-color:var(--ac);background:rgba(201,162,39,.30);box-shadow:inset 0 0 0 1px var(--ac);z-index:4}
+.seg.sel .sl{color:var(--text)}
+.seg.sel.dragging{opacity:.22}   /* 组拖:选中成员原位拎起(淡占位),落点由轮廓显示 */
+.seg.rip{opacity:.5;transition:transform .13s ease}   /* 让位:被顺延的段平移(带缓动)+ 轻微虚化 */
+.seg .sl{font:400 11px var(--mono);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trackbtns{display:flex;gap:8px;margin-top:10px}
+.ghost{position:fixed;z-index:99;pointer-events:none;background:rgba(201,162,39,.22);border:1px solid var(--ac);
+  border-radius:0;height:32px;display:flex;align-items:center;padding:0 8px;font:400 11px var(--mono);color:var(--text);white-space:nowrap;overflow:hidden}
+.marquee{position:fixed;z-index:90;pointer-events:none;border:1px dashed var(--ac);background:rgba(201,162,39,.08);border-radius:0}
+.ghost.snap{border-width:2px;box-shadow:0 0 0 1px var(--ac),0 0 9px rgba(201,162,39,.55)}   /* 组移动 ghost 标签 */
+/* PR 手感:轨道内等宽落点轮廓(贴轨道滑,显示真实落位),取代浮在鼠标下的抽象标签 */
+.dropghost{position:absolute;height:32px;z-index:6;pointer-events:none;border-radius:0;
+  background:rgba(201,162,39,.20);border:1px solid var(--ac);box-shadow:0 3px 12px rgba(0,0,0,.55),0 0 0 1px rgba(201,162,39,.4);
+  display:flex;align-items:center;padding:0 3px;overflow:hidden;transition:box-shadow .1s ease}
+.dropghost .sl{font:400 11px var(--mono);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dropghost.snap{box-shadow:0 3px 14px rgba(0,0,0,.6),0 0 0 2px var(--ac),0 0 14px rgba(201,162,39,.55)}
+/* PR 手感:贯穿轨道区的吸附对齐竖线 + 顶部箭头 */
+.snapline{position:absolute;top:0;bottom:0;width:0;border-left:1.5px solid var(--ac);z-index:7;pointer-events:none;
+  box-shadow:0 0 6px rgba(201,162,39,.6)}
+.snapline::before{content:"";position:absolute;top:25px;left:-4.5px;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:6px solid var(--ac)}
+
+.editor{border:1px solid var(--ac-soft);padding:12px 14px;margin-top:10px;display:none;background:var(--bg)}
+.editor.open{display:block}
+.editor .eh{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;font:var(--lab-w) var(--dw-ctrl) var(--display);letter-spacing:.1em;color:var(--ac);text-transform:var(--lab-tt)}
+.editor .eh .close{margin-left:auto;cursor:pointer;color:var(--quiet);font-family:var(--mono)}
+
+.warn{color:var(--bad);font:400 var(--dw-meta) var(--mono);margin-left:12px}
+.final{margin-top:14px}
+.flist .fr{display:flex;align-items:baseline;gap:14px;padding:9px 2px;border-bottom:1px solid var(--line-dim);font-variant-numeric:tabular-nums}
+.flist .fr .ti{font:400 var(--dw-meta) var(--mono);color:var(--ac);min-width:5.5em}
+.flist .fr .nm{font:var(--lab-w) var(--dw-ctrl) var(--display);color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flist .fr .du{font:400 var(--dw-meta) var(--mono);color:var(--quiet)}
+.flist .gap{padding:5px 2px;font:italic 300 12px var(--body);color:var(--quiet);border-bottom:1px dashed var(--line-dim)}
+.empty{padding:24px 2px;color:var(--quiet);font:italic 300 14px var(--body)}
+/* Ⅳ 下发预览(dry-run)*/
+.dr{margin-top:12px}
+.dr-note{font:400 var(--dw-meta) var(--mono);color:var(--ac-soft);border-left:2px solid var(--ac-soft);padding:6px 10px;margin-bottom:12px}
+.dr-h{font:var(--lab-w) var(--dw-ctrl) var(--display);letter-spacing:.08em;color:var(--ac);margin:14px 0 6px;border-bottom:1px solid var(--line-dim);padding-bottom:3px}
+.dr-h.bad{color:var(--bad);border-bottom-color:var(--bad)}
+.dr-kv{display:flex;flex-wrap:wrap;gap:6px 18px;font:400 var(--dw-meta) var(--mono);color:var(--text)}
+.dr-kv .kv i{color:var(--quiet);font-style:normal;margin-right:6px}
+.dr-tg .tg{border:1px solid var(--line-dim);margin:8px 0;padding:8px 10px}
+.dr-tg .tgh{font:400 var(--dw-ctrl) var(--display);color:var(--text);margin-bottom:6px}
+.dr-tg .tgh .q{font:400 var(--dw-meta) var(--mono);color:var(--quiet)}
+table.seqs{width:100%;border-collapse:collapse;font:400 var(--dw-meta) var(--mono)}
+table.seqs th{text-align:left;color:var(--muted);font-weight:400;border-bottom:1px solid var(--line-dim);padding:3px 10px 3px 0}
+table.seqs td{color:var(--text);padding:3px 10px 3px 0;border-bottom:1px solid var(--line-dim)}
+.dr-list{margin:4px 0;padding-left:18px;font:400 var(--dw-meta) var(--mono);color:var(--text)}
+.dr-list li{margin:3px 0}.dr-list.bad li{color:var(--bad)}.dr-list code{color:var(--ac)}
+.dr .bad{color:var(--bad)}.dr .q{color:var(--quiet)}
+.dr-json{margin-top:12px;font:400 var(--dw-meta) var(--mono)}
+.dr-json summary{cursor:pointer;color:var(--ac-soft)}
+.dr-json pre{background:rgba(255,255,255,.02);border:1px solid var(--line-dim);padding:10px;overflow:auto;max-height:360px;color:var(--text);white-space:pre}
+.dr-deploy{margin-top:16px;padding-top:12px;border-top:1px solid var(--line-dim);display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.dr-deploy .q,.dr-deploy .bad{font:400 var(--dw-meta) var(--mono)}
+#deploy-msg{flex-basis:100%}
+.dr-ok{font:400 var(--dw-meta) var(--mono);color:var(--ac);border-left:2px solid var(--ac);padding:6px 10px;margin:8px 0}
+.dr-bad{font:400 var(--dw-meta) var(--mono);color:var(--bad);border-left:2px solid var(--bad);padding:6px 10px;margin:8px 0}
+button.act.danger{color:var(--bad);border-color:var(--bad)}
+
+.seq2{opacity:0;transform:translateY(8px);transition:opacity .5s ease,transform .5s ease}
+.seq2.d1{transition-delay:.05s}.seq2.d2{transition-delay:.12s}.seq2.d3{transition-delay:.19s}
+body.ready .seq2{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.seq2{transition:none}}
+@media (max-width:640px){.head .sub{display:none} .palette{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<main class="wrap">
+  <header class="head seq2">
+    <h1>序列设计<span class="sub">sequence designer</span></h1>
+    <span class="spacer"></span>
+    <a class="lnk" id="lnk-mon" href="/plan">← 计划监控</a>
+  </header>
+
+  <section class="sect seq2 d1">
+    <h2><span class="rn">Ⅰ</span> 卡片库<span class="cap">拖卡片到下方时间轴</span></h2>
+    <div class="mk">
+      <button class="act" data-mk="shoot">+ 拍摄卡</button>
+      <button class="act" data-mk="init">+ 初始卡</button>
+      <button class="act" data-mk="end">+ 终止卡</button>
+      <button class="act" data-mk="action">+ 操作卡</button>
+    </div>
+    <div class="palette" id="palette"></div>
+  </section>
+
+  <section class="sect seq2 d2">
+    <h2><span class="rn">Ⅱ</span> 工作链<span class="cap">同轨不重叠·靠近吸附·留间隔=等待</span></h2>
+    <div class="nightctl">
+      <span style="color:var(--quiet);letter-spacing:.12em">今晚</span>
+      <label>日落 <input id="t-sunset" value="18:30"></label>
+      <label>天文昏影 <input id="t-dusk" value="20:00"></label>
+      <label>天文晨光 <input id="t-dawn" value="04:30"></label>
+      <label>日出 <input id="t-sunrise" value="06:00"></label>
+    </div>
+    <div class="timeline" id="timeline"></div>
+    <div class="editor" id="editor"></div>
+    <div class="trackbtns">
+      <button class="act" id="add-track">+ 加轨道</button>
+      <button class="act" id="del-track">− 删空轨</button>
+    </div>
+  </section>
+
+  <section class="sect seq2 d3">
+    <h2><span class="rn">Ⅲ</span> 制定序列<span class="cap" id="final-cap"></span></h2>
+    <button class="gold act" id="compile">制定序列 ▾</button>
+    <span class="warn" id="overlap-warn"></span>
+    <div class="final" id="final"></div>
+  </section>
+
+  <section class="sect seq2 d3">
+    <h2><span class="rn">Ⅳ</span> 下发预览<span class="cap">编译为 ASIAIR 计划 · dry-run 只预览不下发</span></h2>
+    <button class="gold act" id="dryrun">编译为盒子计划 ▾</button>
+    <div class="dr" id="dr-out"></div>
+  </section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const OPS=window.OPS;
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+(function bg(){const cv=$("bg"),ctx=cv.getContext("2d");let stars=[];let s=41;
+  const rnd=()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return((s>>>0)/4294967296);};
+  function seed(){const n=Math.round(innerWidth*innerHeight/16000);stars=Array.from({length:n},()=>({x:rnd(),y:rnd(),m:rnd(),ph:rnd()*6.28,sp:.4+rnd()}));}
+  seed();addEventListener("resize",seed);
+  (function draw(t){const w=innerWidth,h=innerHeight,dpr=devicePixelRatio||1;if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr;}
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=css("--sky-bg");ctx.fillRect(0,0,w,h);ctx.fillStyle=css("--sky-star");
+    for(const st of stars){const tw=REDUCED?1:(.7+.3*Math.sin(t/1000*st.sp+st.ph));ctx.globalAlpha=(.08+st.m*.3)*tw;ctx.beginPath();ctx.arc(st.x*w,st.y*h,st.m>.93?1.5:.8,0,7);ctx.fill();}
+    ctx.globalAlpha=1;requestAnimationFrame(draw);})(0);})();
+
+if(OPS&&OPS.device)$("lnk-mon").href="/plan?device="+encodeURIComponent(OPS.device);
+setTimeout(()=>document.body.classList.add("ready"),500);
+
+/* ════════ 数据模型 ════════ */
+const OVERHEAD=5;
+const ACT_DUR={autofocus:120,filter:15,recalib:150};
+const INIT_DUR={cool:180,focus:120,selstar:30,calib:150,fhome:15};
+const END_DUR={warmup:90,park:30,stopguide:5};
+const IMG_CN={light:"亮场",dark:"暗场",flat:"平场",bias:"偏置"};
+const OBJ_TYPES={"":"—",galaxy:"星系",open_galactic_cluster:"疏散星团",globular_cluster:"球状星团",nebula:"星云",planetary_nebula:"行星状星云",interstellar_matter:"星际物质",double_star:"双星",other:"其他"};
+const ACT_CN={autofocus:"自动对焦",filter:"切换滤镜",recalib:"重新校准导星"};
+let uid=1, cards=[], tracks=[[]], editing=null;
+const sel=new Set(); const MQ_THRESH=4;   /* sel:选中段对象引用(跨 renderTimeline 重建稳定);MQ_THRESH:框选/单击阈值 px */
+
+function cardDur(c){
+  if(c.kind==="shoot")return Math.max(1,(+c.repeat||0))*((+c.exp||0)+OVERHEAD);
+  if(c.kind==="action")return ACT_DUR[c.act]||30;
+  if(c.kind==="init")return Object.keys(INIT_DUR).reduce((a,k)=>a+(c.steps&&c.steps[k]?INIT_DUR[k]:0),0)||1;
+  if(c.kind==="end")return Object.keys(END_DUR).reduce((a,k)=>a+(c.steps&&c.steps[k]?END_DUR[k]:0),0)||1;
+  return 60;
+}
+function cardTitle(c){
+  if(c.kind==="shoot")return (c.imgType==="light"?(c.target||"未命名目标"):IMG_CN[c.imgType]);
+  if(c.kind==="action")return ACT_CN[c.act]||"操作";
+  if(c.kind==="init")return "初始准备";
+  if(c.kind==="end")return "终止收尾";
+  return "卡片";
+}
+function cardLabel(c){
+  if(c.kind==="shoot")return IMG_CN[c.imgType]+" "+fmtExp(c.exp)+" G"+c.gain+" ×"+c.repeat;
+  if(c.kind==="action")return ACT_CN[c.act]+(c.act==="filter"?(" → 滤镜槽 "+(c.fto??0)):(c.act==="autofocus"?(" · 曝光 "+(c.focusExp??0)+"s"):""));
+  if(c.kind==="init")return "初始 "+Object.keys(INIT_DUR).filter(k=>c.steps&&c.steps[k]).length+" 项";
+  if(c.kind==="end")return "收尾 "+Object.keys(END_DUR).filter(k=>c.steps&&c.steps[k]).length+" 项";
+  return "";
+}
+function fmtExp(s){s=+s||0;if(s<1)return(s*1000).toFixed(0)+"ms";if(s>=120)return(s/60).toFixed(s%60?1:0)+"m";return (s%1?s.toFixed(1):s)+"s";}
+function fmtDur(sec){sec=Math.max(0,Math.round(sec));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60);
+  return h?(h+"h"+(m?(" "+m+"m"):"")):(m?(m+"m"):(sec+"s"));}
+
+function t2m(hhmm){const m=/^(\d{1,2}):(\d{2})$/.exec(hhmm||"");if(!m)return null;let h=+m[1];const mm=+m[2];if(h<12)h+=24;return h*60+mm-720;}
+function m2clock(min){let total=(min+720);const h=Math.floor(total/60)%24,mm=Math.round(total%60);return ("0"+h).slice(-2)+":"+("0"+mm).slice(-2);}
+const night=()=>({sunset:t2m($("t-sunset").value)??360,dusk:t2m($("t-dusk").value)??450,dawn:t2m($("t-dawn").value)??990,sunrise:t2m($("t-sunrise").value)??1080});
+function axisRange(){const n=night();const a=Math.min(n.sunset,n.dusk)-15,b=Math.max(n.sunrise,n.dawn)+15;return [a, b>a?b:a+600];}
+
+/* ════════ Ⅰ 卡片库 ════════ */
+function newCard(kind){
+  const c={id:uid++,kind};
+  if(kind==="shoot")Object.assign(c,{imgType:"light",target:"",ra:"",dec:"",objType:"",exp:300,gain:100,repeat:20});
+  if(kind==="action")Object.assign(c,{act:"autofocus",fto:0,focusExp:3});
+  if(kind==="init")c.steps={cool:true,focus:true,selstar:true,calib:true,fhome:false};
+  if(kind==="end")c.steps={warmup:true,park:true,stopguide:true};
+  cards.push(c);renderPalette();
+}
+function cardFields(c){
+  const F=[];
+  const inp=(lab,key,attrs="")=>`<div class="field"><label>${lab}</label><input data-k="${key}" ${attrs} value="${esc(c[key])}"></div>`;
+  if(c.kind==="shoot"){
+    F.push(`<div class="field"><label>类型</label><select data-k="imgType">`+
+      Object.entries(IMG_CN).map(([v,t])=>`<option value="${v}" ${c.imgType===v?"selected":""}>${t}</option>`).join("")+`</select></div>`);
+    if(c.imgType==="light"){
+      F.push(inp("目标","target"));
+      F.push(inp("赤经h","ra",'placeholder="如 9.83"'));
+      F.push(inp("赤纬°","dec",'placeholder="如 69.46"'));
+      F.push(`<div class="field"><label>类型</label><select data-k="objType">`+
+        Object.entries(OBJ_TYPES).map(([v,t])=>`<option value="${v}" ${c.objType===v?"selected":""}>${t}</option>`).join("")+`</select></div>`);
+    }
+    F.push(inp("曝光s","exp",'type="number" min="0.001" step="1"'));
+    F.push(inp("增益","gain",'type="number" min="0" step="1"'));
+    F.push(inp("张数","repeat",'type="number" min="1" step="1"'));
+  }else if(c.kind==="action"){
+    F.push(`<div class="field"><label>动作</label><select data-k="act">`+
+      Object.entries(ACT_CN).map(([v,t])=>`<option value="${v}" ${c.act===v?"selected":""}>${t}</option>`).join("")+`</select></div>`);
+    if(c.act==="autofocus")F.push(inp("对焦曝光s","focusExp",'type="number" min="0.1" step="0.5"'));
+    if(c.act==="filter")F.push(inp("切到滤镜槽","fto",'type="number" min="0" step="1"'));
+    if(c.act==="recalib")F.push(`<div class="field"><label>说明</label><span style="color:var(--quiet)">清除旧校准后重新校准</span></div>`);
+  }else if(c.kind==="init"||c.kind==="end"){
+    const map=c.kind==="init"?{cool:"制冷",focus:"对焦",selstar:"选导星",calib:"导星校准",fhome:"滤轮归位"}:{warmup:"回温",park:"赤道仪驻留",stopguide:"停止导星"};
+    F.push(`<div class="field cks">`+Object.entries(map).map(([k,t])=>
+      `<label><input type="checkbox" data-ck="${k}" ${c.steps[k]?"checked":""}>${t}</label>`).join("")+`</div>`);
+  }
+  return F.join("");
+}
+function bindFields(root,c,onChange){
+  root.querySelectorAll("[data-k]").forEach(el=>el.addEventListener("input",()=>{
+    let v=el.value;if(el.type==="number")v=parseFloat(v);if(el.tagName==="SELECT")v=el.value;
+    c[el.dataset.k]=v;onChange();}));
+  root.querySelectorAll("[data-ck]").forEach(el=>el.addEventListener("change",()=>{c.steps[el.dataset.ck]=el.checked;onChange();}));
+}
+function renderPalette(){
+  const p=$("palette");
+  if(!cards.length){p.innerHTML='<div class="empty">点上方 + 新建卡片,再拖到时间轴</div>';return;}
+  p.innerHTML=cards.map(c=>`<div class="card ${c.kind}" data-cid="${c.id}">
+    <span class="x" data-del="${c.id}">×</span>
+    <div class="ct">${({shoot:"拍摄",init:"初始",end:"终止",action:"操作"})[c.kind]}<span class="dur">${fmtDur(cardDur(c))}</span></div>
+    <div class="ttl">${esc(cardTitle(c))}</div>
+    ${cardFields(c)}
+  </div>`).join("");
+  cards.forEach(c=>{const el=p.querySelector(`[data-cid="${c.id}"]`);bindFields(el,c,()=>{
+    el.querySelector(".dur").textContent=fmtDur(cardDur(c));el.querySelector(".ttl").textContent=cardTitle(c);
+    if(c.kind==="shoot"&&((c.imgType==="light")!==!!el.querySelector('[data-k="target"]')))renderPalette();
+    if(c.kind==="action")renderPalette();
+  });
+    el.addEventListener("pointerdown",e=>{
+      if(e.target.closest("input,select,.x"))return;
+      startDrag(e, {...c, steps:c.steps?{...c.steps}:undefined}, null, null, e.clientX-el.getBoundingClientRect().left);
+    });});
+  p.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{cards=cards.filter(c=>c.id!=b.dataset.del);renderPalette();}));
+}
+renderPalette();
+document.querySelectorAll("[data-mk]").forEach(b=>b.addEventListener("click",()=>newCard(b.dataset.mk)));
+
+/* ════════ Ⅱ 工作链时间轴 ════════ */
+function tlWidth(){return Math.max(760, $("timeline").clientWidth);}
+function pxPerMin(){const[a,b]=axisRange();return tlWidth()/(b-a);}
+function mToX(m){const[a]=axisRange();return (m-a)*pxPerMin();}
+function xToM(x){const[a]=axisRange();return a + x/pxPerMin();}
+const MINW=8;   // 段最小可见像素宽(短卡如操作/终止真实时长极短,需要下限才看得见、抓得住)
+/* 有效时长(分钟):段渲染宽 / 落点轮廓 / 吸附右缘 / 候选段右缘 全部共用,
+   保证「视觉边界 = 吸附边界」——短卡不再因 min-width 撑大而吸附对不上。*/
+function effDur(durMin, ppm){const p=ppm||pxPerMin();return Math.max(MINW/p, durMin);}
+
+function renderTimeline(){
+  const tl=$("timeline");const[a,b]=axisRange();const n=night();const ppm=pxPerMin();const W=(b-a)*ppm;
+  let html=`<div class="tlcontent" style="width:${W}px">`;
+  html+=`<div class="axis">`;
+  for(let t=Math.ceil(a/60)*60;t<=b;t+=60){html+=`<div class="tick" style="left:${(t-a)*ppm}px"><span>${m2clock(t)}</span></div>`;}
+  html+=`</div>`;
+  tracks.forEach((tr,ti)=>{
+    html+=`<div class="track" data-ti="${ti}"><span class="tlab">轨 ${ti+1}</span>`;
+    tr.forEach(seg=>{html+=`<div class="seg ${seg.card.kind}" data-sid="${seg.id}" style="left:${mToX(seg.start)}px;width:${effDur(seg.dur/60)*ppm}px">
+      <span class="sl">${esc(cardTitle(seg.card))} · ${fmtDur(seg.dur)}</span></div>`;});
+    html+=`</div>`;
+  });
+  [["dusk","昏影"],["dawn","晨光"]].forEach(([k,lab])=>{const t=n[k];if(t>a&&t<b)html+=`<div class="twfull" style="left:${(t-a)*ppm}px"><span>${lab}</span></div>`;});
+  html+=`</div>`;
+  tl.innerHTML=html;
+  tl.querySelectorAll(".seg").forEach(el=>{
+    const ti=+el.parentNode.dataset.ti, seg=tracks[ti]&&tracks[ti].find(s=>s.id==el.dataset.sid);
+    if(!seg)return;
+    if(sel.has(seg))el.classList.add("sel");                       // 重建后据 sel 恢复高亮
+    el.addEventListener("pointerdown",e=>{
+      e.stopPropagation();                                         // 挡冒泡到 #timeline 的 marquee
+      const grabX=e.clientX-el.getBoundingClientRect().left;
+      if(sel.has(seg)&&sel.size>0){startGroupDrag(e,seg,ti,grabX);}// 已选 → 整组移动
+      else{sel.clear();paintSel();startDrag(e,seg.card,seg,ti,grabX);} // 未选 → 清选+单段拖
+    });
+    el.addEventListener("dblclick",e=>{e.stopPropagation();openEditor(seg,ti);});
+  });
+  updateFinalCap();
+}
+function resolvePlace(track,seg,desiredStart,noSnap){
+  const[a,b]=axisRange();const durMin=seg.dur/60;const SNAP=5;const n=night();
+  let start=Math.max(a,desiredStart);
+  const others=track.filter(s=>s!==seg);
+  if(!noSnap){                                            // noSnap:吸附已在 computeSnap 完成,这里只碰撞
+    let snap=null,best=SNAP;
+    const cand=[a,n.sunset,n.dusk,n.dawn,n.sunrise];
+    for(const o of others){cand.push(o.start+o.dur/60);cand.push(o.start);}
+    for(const t of cand){const d=Math.abs(start-t);if(d<best){best=d;snap=t;}}
+    if(snap!=null)start=snap;
+  }
+  let moved=true,guard=0;
+  while(moved&&guard++<120){moved=false;for(const o of others){const oe=o.start+o.dur/60;
+    if(start<oe-0.001&&start+durMin>o.start+0.001){start=oe;moved=true;}}}
+  seg.start=start;
+}
+/* 新插入(从卡片库拖入):把插入点及右侧的已有段整体顺延腾位,保持相对间距;只动本轨。
+   不调用 resolvePlace(否则 push-self 会把刚腾好的位又改掉)。返回新卡左缘落点。*/
+function rippleInsert(track, desiredStart, newDurMin, noSnap){
+  const[a]=axisRange();const n=night();const SNAP=5;
+  let start=Math.max(a,desiredStart);
+  if(!noSnap){                                             // noSnap:吸附已在 computeSnap 完成
+    let snap=null,best=SNAP;
+    const cand=[a,n.sunset,n.dusk,n.dawn,n.sunrise];        // 与 resolvePlace 同源吸附候选
+    for(const o of track){cand.push(o.start);cand.push(o.start+o.dur/60);}
+    for(const t of cand){const d=Math.abs(start-t);if(d<best){best=d;snap=t;}}
+    if(snap!=null)start=snap;
+  }
+  let cut=start;                                            // 落在某段内部 → 对齐到该段左缘紧贴插入(无空档)
+  for(const o of track){if(o.start<start-0.001&&o.start+o.dur/60>start+0.001)cut=Math.min(cut,o.start);}
+  start=cut;
+  const newEnd=start+newDurMin;
+  const movers=track.filter(o=>o.start+0.001>=cut);        // 切点及右侧的段
+  if(movers.length){
+    let firstStart=Infinity;for(const o of movers)firstStart=Math.min(firstStart,o.start);
+    const shift=Math.max(0,newEnd-firstStart);             // 刚体顺延量,单次 O(n) 平移,无 while
+    if(shift>0)for(const o of movers)o.start+=shift;
+  }
+  return start;
+}
+/* 吸附:被拖段的左缘与右缘都参与,各自找最近候选(轴起点/昏影/晨光/同轨非排除段边界),
+   取全局最近者对齐 → 任意一条边接近任意目标都吸。候选与 resolvePlace、rippleInsert 同源,
+   故拖动贴的点 = 松手落的点。返回 {start:吸附后段左缘, snapped, edge:被吸边落点(吸附竖线位置)}。*/
+function computeSnap(leftStart, ti, durMin, excludeSeg, ppm){
+  const[a]=axisRange();const n=night();const SNAP=5;
+  const cand=[a,n.sunset,n.dusk,n.dawn,n.sunrise];
+  const tr=tracks[ti];
+  if(tr)for(const o of tr){if(o!==excludeSeg){cand.push(o.start);cand.push(o.start+effDur(o.dur/60,ppm));}}
+  let bestDelta=0,best=SNAP,snapped=false,edge=null;
+  for(const ed of [leftStart, leftStart+effDur(durMin,ppm)]){ // 左右缘都判(右缘用有效宽,与渲染一致),取离任意候选最近的
+    for(const c of cand){const d=c-ed;if(Math.abs(d)<best){best=Math.abs(d);bestDelta=d;snapped=true;edge=c;}}
+  }
+  return{start:leftStart+bestDelta, snapped, edge};
+}
+/* 新插入实时预览:把目标轨"将被顺延"的已有段虚化并平移到 ripple 后的位置(只改 DOM transform,不改数据)*/
+function clearRipplePreview(){
+  $("timeline").querySelectorAll(".seg.rip").forEach(el=>{el.classList.remove("rip");el.style.transform="";});
+}
+function previewRipple(ti, leftStart, durMin){
+  clearRipplePreview();
+  if(ti==null||leftStart==null)return;
+  const tr=tracks[ti];if(!tr||!tr.length)return;
+  const[a]=axisRange();const ppm=pxPerMin();
+  let start=Math.max(a,leftStart),cut=start;               // 复刻 rippleInsert 的 cut/movers/shift,只算不改
+  for(const o of tr){if(o.start<start-0.001&&o.start+o.dur/60>start+0.001)cut=Math.min(cut,o.start);}
+  start=cut;const newEnd=start+durMin;
+  const movers=tr.filter(o=>o.start+0.001>=cut);
+  if(!movers.length)return;
+  let firstStart=Infinity;for(const o of movers)firstStart=Math.min(firstStart,o.start);
+  const shift=Math.max(0,newEnd-firstStart);
+  if(shift<=0)return;
+  const tl=$("timeline");
+  movers.forEach(o=>{const el=tl.querySelector(`[data-sid="${o.id}"]`);if(el){el.classList.add("rip");el.style.transform="translateX("+(shift*ppm)+"px)";}});
+}
+
+/* —— 拖拽(PR 手感:轨道内等宽落点轮廓贴轨道滑 + 贯穿轨道的吸附竖线)—— */
+let drag=null,ghost=null,dropEl=null,snapEl=null;
+function startDrag(e,cardData,seg,fromTi,grabX){
+  e.preventDefault();
+  const dur=seg?seg.dur:cardDur(cardData);
+  const gw=Math.max(40,(dur/60)*pxPerMin());
+  drag={cardData,seg,fromTi,moved:false,grabX:Math.max(0,Math.min(grabX||0,gw-4))};
+  const tlc=$("timeline").querySelector(".tlcontent");
+  dropEl=document.createElement("div");dropEl.className="dropghost";dropEl.style.display="none";
+  dropEl.innerHTML='<span class="sl"></span>';
+  dropEl.querySelector(".sl").textContent=cardTitle(cardData)+" · "+fmtDur(dur);
+  snapEl=document.createElement("div");snapEl.className="snapline";snapEl.style.display="none";
+  if(tlc){tlc.appendChild(dropEl);tlc.appendChild(snapEl);}
+  if(seg){const el=$("timeline").querySelector(`[data-sid="${seg.id}"]`);if(el)el.classList.add("dragging");} // 原段拎起
+  moveGhost(e);
+  window.addEventListener("pointermove",onDragMove);window.addEventListener("pointerup",onDragUp);
+}
+function moveGhost(e){
+  if(!dropEl)return;
+  const tl=$("timeline"),r=tl.getBoundingClientRect();
+  const ppm=pxPerMin(), a0=axisRange()[0];                 // 单次快照:全程同一比例尺,避免中途重排改 clientWidth 致两条边对不齐
+  const durMin=(drag.seg?drag.seg.dur:cardDur(drag.cardData))/60;
+  const ti=trackAt(e);
+  if(ti==null){                                            // 离开轨道:隐藏落点轮廓/吸附线/让位预览
+    dropEl.style.display="none";snapEl.style.display="none";
+    if(!drag.seg)clearRipplePreview();
+    return;
+  }
+  const rawLeftStart=a0+(e.clientX-drag.grabX-r.left+tl.scrollLeft)/ppm;
+  const sn=computeSnap(rawLeftStart,ti,durMin,drag.seg,ppm); // 左右缘都判,取最近
+  const trackEl=tl.querySelector(`.track[data-ti="${ti}"]`);
+  const top=(trackEl?trackEl.offsetTop:0)+7;               // 落点轮廓吸到目标轨道行(纵向不跟鼠标)
+  dropEl.style.display="flex";
+  dropEl.style.left=(sn.start-a0)*ppm+"px";
+  dropEl.style.top=top+"px";
+  dropEl.style.width=Math.max(MINW,durMin*ppm)+"px";       // = effDur(durMin,ppm)*ppm,与吸附右缘同尺
+  dropEl.classList.toggle("snap",sn.snapped);
+  if(sn.snapped){snapEl.style.display="block";snapEl.style.left=(sn.edge-a0)*ppm+"px";} // 竖线=被吸边落点(同尺)
+  else snapEl.style.display="none";
+  if(!drag.seg)previewRipple(ti,sn.start,durMin);          // 新插入:实时虚化展示已有段后移
+}
+function trackAt(e){const els=document.elementsFromPoint(e.clientX,e.clientY);
+  const t=els.find(x=>x.classList&&x.classList.contains("track"));return t?+t.dataset.ti:null;}
+function onDragMove(e){if(!drag)return;drag.moved=true;moveGhost(e);}
+function onDragUp(e){
+  if(!drag)return;
+  window.removeEventListener("pointermove",onDragMove);window.removeEventListener("pointerup",onDragUp);
+  if(dropEl){dropEl.remove();dropEl=null;}
+  if(snapEl){snapEl.remove();snapEl=null;}
+  clearRipplePreview();
+  const ti=trackAt(e);
+  const tlRect=$("timeline").getBoundingClientRect();
+  const x=e.clientX-tlRect.left+$("timeline").scrollLeft-drag.grabX;   // 段左缘 = 光标 − 抓取偏移
+  if(ti!=null){
+    const durMin=(drag.seg?drag.seg.dur:cardDur(drag.cardData))/60;
+    const sn=computeSnap(xToM(x),ti,durMin,drag.seg,pxPerMin());  // 左右缘都判,与拖动预览同款
+    if(drag.seg){
+      if(ti!==drag.fromTi){tracks[drag.fromTi]=tracks[drag.fromTi].filter(s=>s!==drag.seg);tracks[ti].push(drag.seg);}
+      resolvePlace(tracks[ti],drag.seg,sn.start,true);          // 已吸附,只碰撞
+    }else{
+      const newDur=cardDur(drag.cardData);
+      const placed=rippleInsert(tracks[ti],sn.start,newDur/60,true);  // 已吸附,只顺延
+      const seg={id:uid++,card:JSON.parse(JSON.stringify(drag.cardData)),start:placed,dur:newDur};
+      tracks[ti].push(seg);
+    }
+    renderTimeline();
+  }else if(drag.seg){
+    sel.delete(drag.seg);
+    tracks[drag.fromTi]=tracks[drag.fromTi].filter(s=>s!==drag.seg);renderTimeline();
+  }
+  drag=null;
+}
+
+/* —— 框选多选(marquee):空白处左键拖出选框,相交即选;单击空白清选 —— */
+function paintSel(){
+  $("timeline").querySelectorAll(".seg").forEach(el=>{
+    const ti=+el.parentNode.dataset.ti, seg=tracks[ti]&&tracks[ti].find(s=>s.id==el.dataset.sid);
+    el.classList.toggle("sel", !!seg&&sel.has(seg));
+  });
+}
+function segHit(R,el){const b=el.getBoundingClientRect();return b.left<R.r&&b.right>R.l&&b.top<R.b&&b.bottom>R.t;}
+let marquee=null;   // {sx,sy,active,el,pid} —— 选框用屏幕坐标 + 段的 client rect 相交,绕开 border/scroll 坐标系
+function onMqDown(e){
+  if(e.button!==0)return;                                   // 仅左键
+  if(e.target.closest("input,select,button,.seg"))return;  // 只在空白起手(seg 已 stopPropagation,双保险)
+  marquee={sx:e.clientX,sy:e.clientY,active:false,el:null,pid:e.pointerId};
+  try{$("timeline").setPointerCapture(e.pointerId);}catch(_){}
+  window.addEventListener("pointermove",onMqMove);window.addEventListener("pointerup",onMqUp);
+}
+function onMqMove(e){
+  if(!marquee)return;
+  if(!marquee.active&&Math.hypot(e.clientX-marquee.sx,e.clientY-marquee.sy)<MQ_THRESH)return; // 未过阈值
+  if(!marquee.active){
+    marquee.active=true;
+    marquee.el=document.createElement("div");marquee.el.className="marquee";document.body.appendChild(marquee.el);
+  }
+  const l=Math.min(marquee.sx,e.clientX),r=Math.max(marquee.sx,e.clientX);
+  const t=Math.min(marquee.sy,e.clientY),b=Math.max(marquee.sy,e.clientY);
+  Object.assign(marquee.el.style,{left:l+"px",top:t+"px",width:(r-l)+"px",height:(b-t)+"px"});
+  const R={l,t,r,b};sel.clear();
+  $("timeline").querySelectorAll(".seg").forEach(el=>{
+    if(segHit(R,el)){const ti=+el.parentNode.dataset.ti,seg=tracks[ti]&&tracks[ti].find(s=>s.id==el.dataset.sid);if(seg)sel.add(seg);}
+  });
+  paintSel();
+}
+function onMqUp(){
+  window.removeEventListener("pointermove",onMqMove);window.removeEventListener("pointerup",onMqUp);
+  if(marquee){
+    if(marquee.el)marquee.el.remove();
+    if(!marquee.active){sel.clear();paintSel();}            // 纯单击空白 = 清选
+    try{$("timeline").releasePointerCapture(marquee.pid);}catch(_){}
+  }
+  marquee=null;
+}
+
+/* —— 整组移动(PR 手感:原段拎起 + 每成员轨道内落点轮廓 + 锚段吸附竖线;落下避让未选中段)—— */
+let gdrag=null;
+/* 整组吸附:整组每个成员的左右缘都参与,各自吸到 自己目标轨的非选中段边界 + 昏影/晨光 + 轴起点;
+   取全组全边里离任意候选最近者,整组刚体平移该量对齐 → 任意成员任意边都能吸。
+   入参 rawStartDelta=未吸附的整组平移量、tiDelta=轨道偏移。返回 {startDelta:吸附后平移量, snapped, edge}。*/
+function computeGroupSnap(rawStartDelta, tiDelta, ppm){
+  const[a]=axisRange();const n=night();const SNAP=5;
+  const twi=[a,n.sunset,n.dusk,n.dawn,n.sunrise];
+  let bestDelta=0,best=SNAP,snapped=false,edge=null;
+  for(const m of gdrag.members){
+    const nt=m.ti+tiDelta, ns=m.seg.start+rawStartDelta;
+    const cand=twi.slice();const tr=tracks[nt];
+    if(tr)for(const o of tr){if(!sel.has(o)){cand.push(o.start);cand.push(o.start+effDur(o.dur/60,ppm));}}
+    for(const ed of [ns, ns+effDur(m.seg.dur/60,ppm)]){    // 每个成员的左右缘都判(右缘用有效宽)
+      for(const c of cand){const d=c-ed;if(Math.abs(d)<best){best=Math.abs(d);bestDelta=d;snapped=true;edge=c;}}
+    }
+  }
+  return{startDelta:rawStartDelta+bestDelta, snapped, edge};
+}
+function startGroupDrag(e,anchorSeg,anchorTi,grabX){
+  e.preventDefault();
+  const tl=$("timeline"),tlc=tl.querySelector(".tlcontent");const ppm=pxPerMin();
+  const gw=Math.max(40,(anchorSeg.dur/60)*ppm);
+  const members=[];
+  tracks.forEach((tr,ti)=>tr.forEach(seg=>{if(sel.has(seg)){
+    const el=tl.querySelector(`[data-sid="${seg.id}"]`);if(el)el.classList.add("dragging");  // 原段拎起
+    const g=document.createElement("div");g.className="dropghost";g.innerHTML='<span class="sl"></span>';
+    g.querySelector(".sl").textContent=cardTitle(seg.card)+" · "+fmtDur(seg.dur);
+    if(tlc)tlc.appendChild(g);
+    members.push({seg,ti,ghost:g,dStart:seg.start-anchorSeg.start,dTi:ti-anchorTi});
+  }}));
+  const sl=document.createElement("div");sl.className="snapline";sl.style.display="none";if(tlc)tlc.appendChild(sl);
+  gdrag={anchor:anchorSeg,anchorTi,members,grabX:Math.max(0,Math.min(grabX||0,gw-4)),moved:false,pid:e.pointerId,snapEl:sl,curStartDelta:0,curTiDelta:0};
+  try{tl.setPointerCapture(e.pointerId);}catch(_){}
+  window.addEventListener("pointermove",onGroupMove);window.addEventListener("pointerup",onGroupUp);
+  positionGroupGhosts(e);
+}
+/* 整组落点轮廓 + 吸附竖线实时定位(锚段吸附,整组刚体平移预览,纵向吸到目标轨)*/
+function positionGroupGhosts(e){
+  if(!gdrag)return;
+  const tl=$("timeline"),r=tl.getBoundingClientRect();const ppm=pxPerMin();const a=axisRange()[0]; // 单次快照,同尺
+  const x=e.clientX-r.left+tl.scrollLeft-gdrag.grabX;
+  const hitTi=trackAt(e);
+  let tiDelta=(hitTi!=null)?(hitTi-gdrag.anchorTi):gdrag.curTiDelta;   // 离开轨道保留上次
+  let minTi=Infinity,maxTi=-Infinity;for(const m of gdrag.members){minTi=Math.min(minTi,m.ti);maxTi=Math.max(maxTi,m.ti);}
+  tiDelta=Math.max(-minTi,Math.min(tracks.length-1-maxTi,tiDelta));
+  let minStart=Infinity;for(const m of gdrag.members)minStart=Math.min(minStart,m.seg.start);
+  const rawStartDelta=Math.max(a-minStart, (a+x/ppm)-gdrag.anchor.start); // 锚段对光标,先 clamp 全组>=a
+  const sn=computeGroupSnap(rawStartDelta,tiDelta,ppm);                 // 全成员全边吸附,取最近
+  const startDelta=Math.max(a-minStart, sn.snapped?sn.startDelta:rawStartDelta);
+  gdrag.curStartDelta=startDelta;gdrag.curTiDelta=tiDelta;
+  gdrag.members.forEach(m=>{
+    const nt=m.ti+tiDelta, ns=m.seg.start+startDelta;
+    const trackEl=tl.querySelector(`.track[data-ti="${nt}"]`);
+    m.ghost.style.left=(ns-a)*ppm+"px";m.ghost.style.top=((trackEl?trackEl.offsetTop:0)+7)+"px";
+    m.ghost.style.width=Math.max(MINW,(m.seg.dur/60)*ppm)+"px";m.ghost.classList.toggle("snap",sn.snapped);
+  });
+  if(sn.snapped){gdrag.snapEl.style.display="block";gdrag.snapEl.style.left=(sn.edge-a)*ppm+"px";}
+  else gdrag.snapEl.style.display="none";
+}
+function onGroupMove(e){if(!gdrag)return;gdrag.moved=true;positionGroupGhosts(e);}
+function onGroupUp(e){
+  if(!gdrag)return;
+  window.removeEventListener("pointermove",onGroupMove);window.removeEventListener("pointerup",onGroupUp);
+  const g=gdrag;gdrag=null;
+  try{$("timeline").releasePointerCapture(e.pointerId);}catch(_){}
+  g.members.forEach(m=>{if(m.ghost)m.ghost.remove();});if(g.snapEl)g.snapEl.remove();
+  if(!g.moved){sel.clear();sel.add(g.anchor);renderTimeline();return;}  // 单击已选段 = 收敛为单选
+  if(trackAt(e)==null){renderTimeline();return;}             // 拖出所有轨道 = 取消移动,整组不动
+  let startDelta=g.curStartDelta, tiDelta=g.curTiDelta;       // 用预览吸附后的结果(所见即所得)
+  let extra=0,guard=0;                                       // 组级避让未选中段(公共右移,刚体不破)
+  for(;;){
+    let need=0;
+    for(const m of g.members){
+      const ti=m.ti+tiDelta, st=m.seg.start+startDelta+extra, en=st+m.seg.dur/60;
+      for(const o of tracks[ti]){
+        if(sel.has(o))continue;                              // 跳过组内成员
+        const oe=o.start+o.dur/60;
+        if(st<oe-0.001&&en>o.start+0.001)need=Math.max(need,oe-st);
+      }
+    }
+    if(need<=0.001||guard++>200)break;
+    extra+=need;
+  }
+  startDelta+=extra;
+  if(tiDelta!==0){
+    for(const m of g.members)tracks[m.ti]=tracks[m.ti].filter(s=>s!==m.seg);
+    for(const m of g.members){m.seg.start+=startDelta;tracks[m.ti+tiDelta].push(m.seg);}
+  }else{
+    for(const m of g.members)m.seg.start+=startDelta;
+  }
+  renderTimeline();                                          // 重建后据 sel 恢复 .sel 高亮
+}
+
+/* —— 段编辑 —— */
+function openEditor(seg,ti){
+  editing={seg,ti};const ed=$("editor");ed.classList.add("open");
+  ed.innerHTML=`<div class="eh">编辑段 · ${esc(cardTitle(seg.card))}<span class="close" id="ed-close">关闭 ×</span></div>
+    <div id="ed-fields"></div>
+    <div style="margin-top:8px;display:flex;gap:8px"><button class="act" id="ed-del">删除此段</button></div>`;
+  const ff=$("ed-fields");ff.innerHTML=cardFields(seg.card);
+  bindFields(ff,seg.card,()=>{seg.dur=cardDur(seg.card);resolvePlace(tracks[ti],seg,seg.start);renderTimeline();
+    if((seg.card.kind==="shoot"&&((seg.card.imgType==="light")!==!!ff.querySelector('[data-k="target"]')))||seg.card.kind==="action")openEditor(seg,ti);});
+  $("ed-close").onclick=()=>{ed.classList.remove("open");editing=null;};
+  $("ed-del").onclick=()=>{sel.delete(seg);tracks[ti]=tracks[ti].filter(s=>s!==seg);ed.classList.remove("open");editing=null;renderTimeline();};
+  ed.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+$("add-track").onclick=()=>{tracks.push([]);renderTimeline();};
+$("del-track").onclick=()=>{const i=tracks.map((t,k)=>[t,k]).reverse().find(([t])=>!t.length);
+  if(i&&tracks.length>1){tracks.splice(i[1],1);renderTimeline();}};
+$("timeline").addEventListener("pointerdown",onMqDown);   // 空白处框选(一次性绑定,勿放进 renderTimeline)
+["t-sunset","t-dusk","t-dawn","t-sunrise"].forEach(id=>$(id).addEventListener("input",renderTimeline));
+addEventListener("resize",renderTimeline);
+renderTimeline();
+
+/* ════════ Ⅲ 制定序列 ════════ */
+function updateFinalCap(){const all=tracks.flat();const tot=all.reduce((a,s)=>a+s.dur,0);
+  $("final-cap").textContent=all.length?(all.length+" 段 · 合计 "+fmtDur(tot)):"";}
+$("compile").onclick=()=>{
+  const all=tracks.flat().slice().sort((a,b)=>a.start-b.start);
+  let overlap=false;for(let i=1;i<all.length;i++){if(all[i].start < all[i-1].start+all[i-1].dur/60-0.01){overlap=true;break;}}
+  $("overlap-warn").textContent=overlap?"⚠ 存在重叠,请回到工作链把冲突的段错开到不同时间":"";
+  const fin=$("final");
+  if(!all.length){fin.innerHTML='<div class="empty">时间轴还没有段</div>';return;}
+  let html='<div class="flist">';let prevEnd=null;
+  all.forEach(s=>{
+    if(prevEnd!=null){const gap=s.start-prevEnd;if(gap>0.5)html+=`<div class="gap">⋯ 等待 ${fmtDur(gap*60)}(至 ${m2clock(s.start)})</div>`;}
+    html+=`<div class="fr"><span class="ti">${m2clock(s.start)}</span><span class="nm">${esc(cardTitle(s.card))} <span style="color:var(--quiet)">· ${esc(cardLabel(s.card))}</span></span><span class="du">${fmtDur(s.dur)}</span></div>`;
+    prevEnd=s.start+s.dur/60;
+  });
+  html+='</div>';
+  if(prevEnd!=null)html+=`<div class="gap" style="border:none;color:var(--ac-soft)">结束于 ${m2clock(prevEnd)} · 总时长 ${fmtDur(all.reduce((a,s)=>a+s.dur,0))}</div>`;
+  fin.innerHTML=html;
+};
+
+/* ════════ Ⅳ 下发预览:编译序列 → ASIAIR plan(dry-run,只预览不下发)════════ */
+function compileToPlan(){
+  const all=tracks.flat().slice().sort((a,b)=>a.start-b.start);
+  const n=night();const warnings=[],scheduler=[];
+  const inits=all.filter(s=>s.card.kind==="init"),ends=all.filter(s=>s.card.kind==="end");
+  const anyInit=k=>inits.some(s=>s.card.steps&&s.card.steps[k]);
+  const anyEnd=k=>ends.some(s=>s.card.steps&&s.card.steps[k]);
+  const plan={
+    plan_name:"桥_"+(all.length?m2clock(all[0].start).replace(":",""):"plan"),
+    merid_flip:true,
+    start_guide:true,                 // plan 级:每 target goto 后自动起导星(初始制冷阶段在首目标前,自然无导星)
+    wait_cooling:anyInit("cool"),
+    close_cooler:anyEnd("warmup"),
+    mount_end_action:anyEnd("park")?"home":"none",
+    focuser_go_home:anyInit("fhome")||false,
+    caa_go_home:false, shutdown_pi:false,
+    start_time:{type:"none"}, end_time:{type:"none"},
+    targets:[]
+  };
+  const first=all[0], last=all[all.length-1];
+  if(first){
+    if(Math.abs(first.start-n.dusk)<=30) plan.start_time={type:"dusk"};
+    else if(first.start>n.dusk+30) scheduler.push("绝对时刻启动(@ "+m2clock(first.start)+")——盒子仅支持 dusk/dawn,绝对时刻需调度器守时");
+  }
+  if(last){const le=last.start+last.dur/60; if(Math.abs(le-n.dawn)<=30) plan.end_time={type:"dawn"};}
+  let curFilter=0, cur=null, sid=0, tid=0;
+  for(const s of all){
+    const c=s.card;
+    if(c.kind==="action"){
+      if(c.act==="filter") curFilter=Math.max(0,+c.fto||0);
+      else if(c.act==="autofocus") scheduler.push("自动对焦 @ "+m2clock(s.start)+"(曝光 "+(c.focusExp??3)+"s)——原生对焦为后台触发,精确插入需调度器在 seq 边界发[对焦写方法待 probe]");
+      else if(c.act==="recalib") scheduler.push("重新校准导星 @ "+m2clock(s.start)+"——原生不支持精确插入,需调度器[校准写方法待抓包]");
+      continue;
+    }
+    if(c.kind!=="shoot") continue;
+    const isLight=c.imgType==="light", tname=isLight?(c.target||"未命名目标"):IMG_CN[c.imgType];
+    if(!cur||cur._n!==tname){
+      const ra=parseFloat(c.ra), dec=parseFloat(c.dec), ok=!isLight||(isFinite(ra)&&isFinite(dec));
+      if(isLight&&!ok) warnings.push("目标「"+tname+"」缺赤经赤纬——set_plan 需要 target_coord,请在拍摄卡补坐标");
+      cur={_n:tname, id:++tid, target_name:tname,
+        target_coord: ok&&isLight?[ra,dec]:[0,0], obj_type:c.objType||"",
+        enable:true, group_by_slot:true, delay_first:0, delay_between_frame:0, seqs:[]};
+      plan.targets.push(cur);
+    }
+    cur.seqs.push({id:++sid, type:c.imgType, filter:curFilter, exp:+c.exp||0,
+      gain:+c.gain||0, bin:1, repeat:Math.max(1,+c.repeat||1), enable:true, autoexp:false});
+  }
+  let pe=null;
+  for(const s of all){ if(s.card.kind==="shoot"){ if(pe!=null){const g=s.start-pe; if(g>0.5) scheduler.push("等待 "+fmtDur(g*60)+"(至 "+m2clock(s.start)+")——plan 顺序执行,无目标间等待,需调度器守时");} pe=s.start+s.dur/60; } }
+  plan.targets.forEach(t=>{delete t._n;});
+  if(!plan.targets.length) warnings.push("没有拍摄卡,plan 无 target");
+  const rpc=[
+    {m:"set_plan", note:"按 id 更新/创建(已实测可用,params=[plan])"},
+    {m:"<启动 plan>", note:"启动方法名待抓 App 包(start_plan 实测 103)"}
+  ];
+  return {plan, scheduler, warnings, rpc};
+}
+function renderDryRun(){
+  const out=$("dr-out");
+  if(!tracks.flat().length){out.innerHTML='<div class="empty">时间轴还没有段</div>';return;}
+  const {plan,scheduler,warnings,rpc}=compileToPlan();
+  const ST={none:"未设",dusk:"天文昏影",dawn:"天文晨光"};
+  const lvl=[["计划名",plan.plan_name],["启动",ST[plan.start_time.type]||plan.start_time.type],
+    ["结束",ST[plan.end_time.type]||plan.end_time.type],["自动导星",plan.start_guide?"开(每目标)":"关"],
+    ["中天翻转",plan.merid_flip?"开":"关"],["开始等温",plan.wait_cooling?"是":"否"],
+    ["结束关制冷",plan.close_cooler?"是":"否"],["赤道仪结束",plan.mount_end_action]];
+  let h='<div class="dr-note">⚠ dry-run:以下为编译结果与<b>将要下发</b>的命令,本页<b>不会真正下发</b>到盒子。</div>';
+  h+='<div class="dr-h">原生 Plan · 计划级</div><div class="dr-kv">'+lvl.map(([k,v])=>`<span class="kv"><i>${k}</i>${esc(String(v))}</span>`).join("")+'</div>';
+  h+='<div class="dr-h">目标与序列('+plan.targets.length+' 目标)</div>';
+  if(plan.targets.length){
+    h+='<div class="dr-tg">';
+    plan.targets.forEach(t=>{
+      const coord=(t.target_coord[0]||t.target_coord[1])?`RA ${t.target_coord[0]} / Dec ${t.target_coord[1]}`:'<span class="bad">缺坐标</span>';
+      h+=`<div class="tg"><div class="tgh"><b>${esc(t.target_name)}</b> <span class="q">${esc(OBJ_TYPES[t.obj_type]||t.obj_type||"")} · ${coord}</span></div>`;
+      h+='<table class="seqs"><tr><th>类型</th><th>曝光</th><th>增益</th><th>bin</th><th>滤镜槽</th><th>张数</th></tr>';
+      t.seqs.forEach(q=>{h+=`<tr><td>${IMG_CN[q.type]||q.type}</td><td>${fmtExp(q.exp)}</td><td>${q.gain}</td><td>${q.bin}</td><td>${q.filter}</td><td>×${q.repeat}</td></tr>`;});
+      h+='</table></div>';
+    });
+    h+='</div>';
+  }
+  h+='<div class="dr-h">需调度器补(原生 plan 表达不了)</div>';
+  h+= scheduler.length?('<ul class="dr-list">'+scheduler.map(x=>`<li>${esc(x)}</li>`).join("")+'</ul>'):'<div class="q">无 — 全部能用原生 plan 表达</div>';
+  if(warnings.length) h+='<div class="dr-h bad">需修正</div><ul class="dr-list bad">'+warnings.map(x=>`<li>${esc(x)}</li>`).join("")+'</ul>';
+  h+='<div class="dr-h">将下发的 RPC(dry-run 不发)</div><ul class="dr-list">'+rpc.map(r=>`<li><code>${esc(r.m)}</code> — <span class="q">${esc(r.note)}</span></li>`).join("")+'</ul>';
+  h+=`<details class="dr-json"><summary>set_plan 的 plan 字典(JSON)</summary><pre>${esc(JSON.stringify(plan,null,1))}</pre></details>`;
+  const hasDev=!!(OPS&&OPS.device);
+  const canDeploy=hasDev&&warnings.length===0&&plan.targets.length>0;
+  h+='<div class="dr-deploy">';
+  if(canDeploy){
+    h+='<button class="gold act" id="deploybtn">下发到盒子(新建草稿)</button>';
+    h+='<span class="q">下发为<b>停用草稿</b>(enable=false,<b>不会自动执行</b>);请在 ASIAIR App 审核,确认开顶后再手动启用。</span>';
+  }else if(!hasDev) h+='<span class="bad">未指定设备(URL 缺 ?device=),无法下发。</span>';
+  else if(warnings.length) h+='<span class="bad">有需修正项(见上),解决后再下发。</span>';
+  else h+='<span class="q">没有拍摄目标,无法下发。</span>';
+  h+='<div id="deploy-msg"></div></div>';
+  out.innerHTML=h;
+  window._compiledPlan=canDeploy?plan:null;
+  if(canDeploy)$("deploybtn").onclick=deployToBox;
+}
+$("dryrun").onclick=renderDryRun;
+
+/* ════════ 下发到盒子 —— 仅 deploy(停用草稿)/ delete。绝不在网站启用执行 ════════ */
+async function planAction(body){
+  const r=await fetch("/api/plan-action",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  return r.json();
+}
+async function deployToBox(){
+  const plan=window._compiledPlan; if(!plan||!OPS||!OPS.device)return;
+  if(!confirm("将作为【停用草稿】下发到盒子(enable=false,不会自动执行)。\n\n计划名:"+plan.plan_name+"\n目标数:"+plan.targets.length+"\n\n确认下发?"))return;
+  const btn=$("deploybtn"),msg=$("deploy-msg"),old=btn.textContent;
+  btn.disabled=true;btn.textContent="下发中…";msg.innerHTML="";
+  try{
+    const j=await planAction({device:OPS.device,action:"deploy",plan});
+    if(j&&j.ok){
+      msg.innerHTML='<div class="dr-ok">✓ 已下发草稿 <b>'+esc(j.plan_name||"")+'</b>(id '+j.plan_id+' · '+j.targets+' 目标 · enable=false 不会执行)。请在 ASIAIR App 审核,确认开顶后启用。</div>'+
+        '<button class="act danger" id="delbtn">删除该草稿(id '+j.plan_id+')</button>';
+      $("delbtn").onclick=()=>deletePlan(j.plan_id);
+    }else msg.innerHTML='<div class="dr-bad">下发失败:'+esc((j&&j.error)||"未知错误")+'</div>';
+  }catch(e){msg.innerHTML='<div class="dr-bad">下发失败:'+esc(String(e))+'</div>';}
+  btn.disabled=false;btn.textContent=old;
+}
+async function deletePlan(pid){
+  if(!OPS||!OPS.device)return;
+  if(!confirm("删除盒子上的草稿 id "+pid+"?"))return;
+  const msg=$("deploy-msg");
+  try{
+    const j=await planAction({device:OPS.device,action:"delete",plan_id:pid});
+    msg.innerHTML=(j&&j.ok)?'<div class="dr-ok">✓ 已删除草稿 id '+pid+'</div>':'<div class="dr-bad">删除失败:'+esc((j&&j.error)||"")+'</div>';
+  }catch(e){msg.innerHTML='<div class="dr-bad">删除失败:'+esc(String(e))+'</div>';}
+}
+</script>
+</body>
+</html>

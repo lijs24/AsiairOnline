@@ -79,6 +79,20 @@ html[data-skin="B"] .sect h2{font-weight:600;font-size:20px;letter-spacing:.12em
 .seq.d1{transition-delay:.05s}.seq.d2{transition-delay:.12s}.seq.d3{transition-delay:.19s}.seq.d4{transition-delay:.26s}
 body.ready .seq{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){.seq{transition:none}}
+/* 手机端(≤640px):masthead 紧凑不挤,画布缩小 */
+@media (max-width:640px){
+  .head{gap:9px 14px}
+  .head .sub{display:none}
+  .head .spacer{display:none}
+  .head h1{font-size:25px}
+  .head .pl .bignum{font-size:21px}
+  .head .split{margin-left:0;gap:6px 16px;flex-wrap:wrap}
+  .curvebox{height:200px}
+  .scatterbox{width:166px;height:166px}
+  .bull{gap:18px}
+  .ctrls{gap:4px 5px}
+  .ctrls .cl{margin-left:9px}
+}
 </style>
 </head>
 <body>
@@ -90,6 +104,7 @@ body.ready .seq{opacity:1;transform:none}
     <span class="spacer"></span>
     <div class="pl"><div class="lab">状态</div><div class="bignum" id="pl-state">--</div></div>
     <div class="pl"><div class="lab">总 RMS</div><div class="bignum gd" id="pl-rms">--</div></div>
+    <div class="pl"><div class="lab">天况</div><div class="bignum" id="pl-cloud" title="">--</div></div>
     <div class="split">
       <div class="sr ra"><i></i><span class="sl">赤经 RA</span><b id="lg-ra">--</b></div>
       <div class="sr dec"><i></i><span class="sl">赤纬 DEC</span><b id="lg-dec">--</b></div>
@@ -133,6 +148,7 @@ body.ready .seq{opacity:1;transform:none}
     <h2><span class="rn">Ⅲ</span> 状态与设置</h2>
     <div class="kv">
       <div class="row"><span class="k">导星状态</span><span class="v" id="k-state">--</span></div>
+      <div class="row"><span class="k">天况(云检测)</span><span class="v" id="k-cloud">--</span></div>
       <div class="row"><span class="k">校准</span><span class="v" id="k-cal">--</span></div>
       <div class="row"><span class="k">导星相机</span><span class="v" id="k-cam">--</span></div>
       <div class="row"><span class="k">赤道仪</span><span class="v" id="k-mount">--</span></div>
@@ -281,6 +297,14 @@ function render(){
   else{connected=true;stateText=HIST?("回看 "+HIST.date):"回看";}
   $("pl-state").textContent=stateText;$("pl-state").className="bignum"+(connected?"":" off");
   $("pl-rms").textContent=st?fmt(st.total):"--";
+  /* 天况(云检测,只告警不动盒子)*/
+  const cl=(mode==="live"&&LAST&&LAST.cloud)?LAST.cloud:null;
+  const CL={CLEAR:["晴","var(--good)"],SUSPECT:["疑云","var(--ac)"],STALE:["流停","var(--bad)"],DISCONNECTED:["断连","var(--quiet)"],NO_GUIDE:["无导星","var(--quiet)"],DITHER:["抖动","var(--quiet)"]};
+  let clTxt="--",clCol="var(--quiet)",clReason="";
+  if(cl){const m=CL[cl.state]||[cl.state,"var(--quiet)"];clTxt=m[0];clCol=m[1];clReason=cl.reason||"";
+    if(cl.state==="SUSPECT"&&cl.confirmed){clTxt="薄云";clCol="var(--bad)";}}
+  $("pl-cloud").textContent=clTxt;$("pl-cloud").style.color=clCol;$("pl-cloud").title=clReason;
+  if($("k-cloud"))$("k-cloud").textContent=cl?(clTxt+(clReason?(" · "+clReason):"")):"--";
   $("lg-ra").textContent=st?fmt(st.ra):"--";
   $("lg-dec").textContent=st?fmt(st.dec):"--";
   /* Ⅰ 曲线 */

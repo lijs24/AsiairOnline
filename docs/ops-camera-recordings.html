@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ASIAIR OPS · 录像</title>
+<script src="ops-theme.js"></script>
+<style>
+:root{--toph:54px}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text)}
+.wrap{max-width:880px;margin:0 auto;padding:calc(var(--toph) + 22px) 24px 60px;box-sizing:border-box}
+.head h1{margin:0;font:var(--lab-w) 22px var(--display);letter-spacing:.1em}
+html[data-skin="B"] .head h1{font:500 24px var(--display);letter-spacing:.05em}
+.head .sub{font:400 13px var(--mono);color:var(--muted);margin:4px 0 0}
+.head .live{font:400 13px var(--mono);color:var(--ac);text-decoration:none;border-bottom:1px solid var(--ac-soft)}
+/* 控制条 */
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;margin:20px 0 6px;
+  padding-bottom:14px;border-bottom:1px solid var(--line)}
+.ctl label{font:var(--lab-w) 12px var(--display);letter-spacing:.18em;color:var(--muted);text-transform:var(--lab-tt);margin-right:6px}
+select.sel{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:var(--pill);
+  font:400 14px var(--mono);padding:5px 10px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--pill);overflow:hidden}
+.seg button{background:transparent;color:var(--muted);border:0;font:var(--lab-w) 13px var(--display);
+  letter-spacing:.12em;padding:6px 14px;cursor:pointer}
+.seg button.on{background:var(--ac);color:var(--bg)}
+.summary{font:400 12px var(--mono);color:var(--quiet);margin:10px 0 4px}
+/* 列表 */
+.list{margin-top:6px}
+.row{display:flex;align-items:center;gap:14px;padding:12px 2px;border-bottom:1px solid var(--line-dim,var(--line))}
+.row .t{font:400 16px var(--mono);color:var(--text);min-width:92px}
+.row .tag{font:var(--lab-w) 11px var(--display);letter-spacing:.14em;color:var(--muted);
+  border:1px solid var(--line);border-radius:var(--pill);padding:2px 9px;text-transform:var(--lab-tt)}
+.row .sz{font:400 13px var(--mono);color:var(--quiet);margin-left:auto}
+.row a.dl{font:var(--lab-w) 12px var(--display);letter-spacing:.14em;text-transform:var(--lab-tt);
+  color:var(--ac);text-decoration:none;border:1px solid var(--ac-soft);border-radius:var(--pill);padding:5px 13px;white-space:nowrap}
+.row a.dl:hover{background:var(--ac);color:var(--bg)}
+.empty{color:var(--quiet);font:400 14px var(--body);padding:40px 0;text-align:center}
+@media (max-width:640px){
+  .wrap{padding:calc(var(--toph) + 14px) 14px 48px}
+  .row{flex-wrap:wrap;gap:8px 12px}
+  .row .sz{margin-left:0}
+  .row a.dl{margin-left:auto}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>乌兰察布远程台 · 录像回放</h1>
+    <div class="sub">米家 C700 · 分段录像 · <a class="live" href="/camera-monitor">← 回到实时</a></div>
+  </div>
+  <div class="ctl">
+    <div><label>日期</label><select id="date" class="sel"></select></div>
+    <div><label>编码</label>
+      <span class="seg" id="seg">
+        <button data-s="h264" class="on">H264</button><button data-s="hevc">HEVC</button>
+      </span>
+    </div>
+  </div>
+  <div class="summary" id="summary"></div>
+  <div class="list" id="list"><div class="empty">加载中…</div></div>
+</div>
+<script>
+(function(){
+  var stream = "h264", date = null, dates = [];
+  var $date = document.getElementById("date");
+  var $seg  = document.getElementById("seg");
+  var $list = document.getElementById("list");
+  var $sum  = document.getElementById("summary");
+
+  function setTopH(){
+    var t = document.querySelector(".ops-top");
+    if(t && t.offsetHeight) document.documentElement.style.setProperty("--toph", t.offsetHeight + "px");
+  }
+  [0,150,400,900].forEach(function(d){ setTimeout(setTopH,d); });
+  window.addEventListener("resize", setTopH);
+
+  function api(){
+    var q = "?stream=" + encodeURIComponent(stream) + (date ? "&date=" + encodeURIComponent(date) : "");
+    return fetch("/api/camera/recordings" + q, {cache:"no-store"}).then(function(r){ return r.json(); });
+  }
+  function fillDates(list, sel){
+    if(JSON.stringify(list) === JSON.stringify(dates)) { $date.value = sel || ""; return; }
+    dates = list;
+    $date.innerHTML = list.map(function(d){ return '<option value="'+d+'">'+d+'</option>'; }).join("");
+    $date.value = sel || (list[0] || "");
+  }
+  function render(p){
+    fillDates(p.dates || [], p.selected_date);
+    date = p.selected_date;
+    var items = p.items || [];
+    if(!items.length){ $list.innerHTML = '<div class="empty">该日期无录像</div>'; $sum.textContent = ""; return; }
+    $sum.textContent = (p.selected_date||"") + " · " + (p.count||items.length) + " 段 · 共 " +
+      ((p.total_mb||0) >= 1024 ? ((p.total_mb/1024).toFixed(1)+" GB") : ((p.total_mb||0)+" MB"));
+    $list.innerHTML = items.map(function(it){
+      var dl = "/api/camera/recording-file?stream=" + encodeURIComponent(it.stream) +
+               "&name=" + encodeURIComponent(it.name);
+      var sz = it.size_mb >= 1024 ? (it.size_mb/1024).toFixed(2)+" GB" : it.size_mb+" MB";
+      return '<div class="row"><span class="t">'+it.time+'</span>'+
+             '<span class="tag">'+it.stream.toUpperCase()+'</span>'+
+             '<span class="sz">'+sz+'</span>'+
+             '<a class="dl" href="'+dl+'">下载</a></div>';
+    }).join("");
+  }
+  function load(){ $list.innerHTML = '<div class="empty">加载中…</div>'; api().then(render).catch(function(){
+      $list.innerHTML = '<div class="empty">读取失败</div>'; }); }
+
+  $date.addEventListener("change", function(){ date = $date.value; load(); });
+  $seg.addEventListener("click", function(e){
+    var b = e.target.closest("button[data-s]"); if(!b) return;
+    stream = b.getAttribute("data-s");
+    $seg.querySelectorAll("button").forEach(function(x){ x.classList.toggle("on", x===b); });
+    load();
+  });
+  load();
+})();
+</script>
+</body>
+</html>
