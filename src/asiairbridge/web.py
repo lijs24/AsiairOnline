@@ -147,7 +147,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         try:
-            if parsed.path in {"/", "/monitor-minterm"}:
+            if parsed.path in {"/", "/overview", "/monitor-minterm"}:
                 self._send_file(
                     self.server.config.root / "docs" / "ops-overview.html",
                     "text/html; charset=utf-8",

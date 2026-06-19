@@ -1,3 +1,4 @@
+/* 已废弃:旧版青色终端风顶栏。新页面应迁移到 docs/ops-theme.js 的单一皮肤 B · 星图册主题。 */
 /* ASIAIR OPS shared topbar — the single source of truth for the bar on every page.
  *
  * Usage:  <header id="app-topbar"></header><script src="/topbar.js"></script>

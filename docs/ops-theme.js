@@ -1,13 +1,17 @@
-/* ASIAIR OPS 共享主题层 v2 — 三套皮肤(A 任务控制台 / B 星图册 / C 精密仪器)+ 顶栏 + 工具。
+/* ASIAIR OPS 共享主题层 v2 — 单一皮肤 B · 星图册(Celestial Atlas)+ 顶栏 + 工具。
  * 用法:<script src="/ops-theme.js"></script>(替代旧 topbar.js)
  * 页面骨架约定:body 内由页面自行布局;本文件负责
- *   1) html[data-skin] 三套设计 token(颜色/字体/形状)与通用组件样式
- *   2) 注入固定顶栏:品牌 / 导航 / 时钟 / 主控状态 / 协作角色 / 设备 / 皮肤切换
- *   3) window.OPS:{device, skin, fmt..., fetchJSON, onSkin, onControl}
- * 皮肤持久化:localStorage["asiair-ops:skin"],默认 B。
+ *   1) html[data-skin="B"] 单一设计 token(颜色/字体/形状)与通用组件样式
+ *   2) 注入固定顶栏:品牌 / 导航 / 时钟 / 主控状态 / 协作角色 / 设备
+ *   3) window.OPS:{device, siteName, siteNameEn, fmt..., fetchJSON, onControl}
+ * 说明:保留 html[data-skin="B"] 选择器以兼容旧页面,不提供皮肤切换。
  */
 (() => {
 if (window.__opsThemeLoaded) return; window.__opsThemeLoaded = true;
+const OPS = window.OPS || {};
+OPS.siteName = "清华天协远程天文台";
+OPS.siteNameEn = "THU ASTRO REMOTE OBSERVATORY";
+window.OPS = OPS;
 
 /* ───────────────────────── 1. 皮肤 token + 通用样式 ───────────────────────── */
 const CSS = `
@@ -18,9 +22,11 @@ const CSS = `
 @font-face{font-family:"OPS Mono";src:url("fonts/dejavu-mono-700.woff2") format("woff2");font-weight:600 800;font-display:swap}
 @font-face{font-family:"OPS Latin Serif";src:url("fonts/dejavu-serif-400.woff2") format("woff2");font-weight:300 700;font-display:swap}
 @font-face{font-family:"OPS Latin Serif";src:url("fonts/dejavu-serif-italic.woff2") format("woff2");font-style:italic;font-display:swap}
-/* 可选升级:把 cormorant-*.woff2 / spectral-*.woff2 放入 fonts/ 并解开下两行注释即可启用更优雅的拉丁衬线
-@font-face{font-family:"Cormorant Garamond";src:url("fonts/cormorant-500.woff2") format("woff2");font-weight:500 600}
-@font-face{font-family:"Spectral";src:url("fonts/spectral-300.woff2") format("woff2");font-weight:300 400} */
+@font-face{font-family:"Cormorant Garamond";src:url("fonts/cormorant-500.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
+@font-face{font-family:"Cormorant Garamond";src:url("fonts/cormorant-600.woff2") format("woff2");font-weight:600;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
+@font-face{font-family:"Spectral";src:url("fonts/spectral-300.woff2") format("woff2");font-weight:300;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
+@font-face{font-family:"Spectral";src:url("fonts/spectral-400.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
+@font-face{font-family:"Spectral";src:url("fonts/spectral-500.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
 
 /* —— B · 星图册 —— */
 :root,html[data-skin="B"]{
@@ -31,7 +37,7 @@ const CSS = `
   --line:rgba(139,145,165,.28); --line-dim:rgba(139,145,165,.13);
   --display:"Cormorant Garamond","OPS Serif SC","OPS Latin Serif","Noto Serif SC","Songti SC",serif;
   --body:"Spectral","OPS Serif SC","OPS Latin Serif","Noto Serif SC",serif;
-  --mono:"Spectral","OPS Serif SC","OPS Latin Serif",serif;
+  --mono:"OPS Mono","OPS Latin Serif",monospace;
   --pill:999px; --glow:0 2px 14px rgba(0,0,0,.7);
   --lab-ls:.3em; --lab-tt:none; --lab-w:300;
   --sky-bg:#0a0e1a; --sky-star:#e9e2d0;
@@ -67,9 +73,11 @@ html[data-skin="B"] .ops-brand b{font-weight:600;letter-spacing:.12em}
 html[data-skin="B"] .ops-nav{gap:22px}
 .ops-nav a{position:relative;color:var(--muted);text-decoration:none;font:var(--lab-w) 16px var(--display);
   letter-spacing:.08em;padding:5px 10px;text-transform:var(--lab-tt)}
+.ops-nav a,button.con,.ops-lamp,select.ops-sel{transition:color .18s ease,border-color .18s ease,background-color .18s ease}
 .ops-nav a:hover{color:var(--text)}
 .ops-nav a.active{color:var(--text)}
-html[data-skin="B"] .ops-nav a.active::after{content:"";position:absolute;left:14%;right:14%;bottom:0;height:1px;background:var(--ac)}
+html[data-skin="B"] .ops-nav a::after{content:"";position:absolute;left:14%;right:14%;bottom:0;height:1px;background:var(--ac);transform:scaleX(0);transform-origin:center;transition:transform .22s ease}
+html[data-skin="B"] .ops-nav a.active::after{transform:scaleX(1)}
 .ops-spacer{flex:1}
 .ops-acts{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
 #ops-clock{font:500 14px var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}
@@ -148,9 +156,19 @@ html[data-skin="B"] .bignum{font:500 38px/1.1 var(--display);color:var(--text)}
   .ops-brand b{font-size:13px;letter-spacing:.06em}
   .ops-brand span{display:none}
   .ops-spacer{display:none}
-  #ops-clock,#ops-control{display:none}
+  #ops-clock{display:none}
   .ops-acts{order:1;margin-left:auto;gap:7px}
   .ops-acts .ops-lamp{padding:2px 7px;font-size:11px}
+  #ops-device{order:1}
+  #ops-role{order:2}
+  #ops-control{order:3;position:relative;overflow:hidden;width:15px;height:15px;flex:0 0 15px;justify-content:center;gap:0;padding:0;border-color:var(--line)}
+  #ops-control #ops-control-text{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  #ops-control i,html[data-skin="B"] #ops-control i{width:8px;height:8px;border-radius:50%;transform:none;background:var(--quiet)}
+  #ops-control.self{border-color:var(--ac-soft)}
+  #ops-control.self i{background:var(--ac)}
+  #ops-control.busy{border-color:#a86422}
+  #ops-control.busy i{background:#b86f2a}
+  #ops-conn{order:4}
   select.ops-sel{min-width:0;font-size:12px;padding:3px 7px;max-width:88px}
   .ops-nav,html[data-skin="B"] .ops-nav{order:9;flex-basis:100%;margin:3px -12px 0;padding:4px 12px 0;gap:0;
     overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line-dim);scrollbar-width:none}
@@ -180,32 +198,22 @@ style.id = "ops-theme-style";
 style.textContent = CSS;
 document.head.appendChild(style);
 
-/* ───────────────────────── 2. 皮肤状态 ───────────────────────── */
-const SKIN_KEY = "asiair-ops:skin";
+/* ───────────────────────── 2. 固定皮肤状态 ───────────────────────── */
 const store = {
   get(k, fb){ try{ return localStorage.getItem(k) || fb; }catch(e){ return fb; } },
   set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} },
 };
 const pad = n => String(n).padStart(2,"0");
 const urlDevice = new URLSearchParams(location.search).get("device") || "";
-let skin = "B";
-document.documentElement.dataset.skin = skin;
-
-const skinCbs = [];
-function setSkin(s){
-  skin = s; store.set(SKIN_KEY, s);
-  document.documentElement.dataset.skin = s;
-  skinCbs.forEach(cb => { try{ cb(s); }catch(e){} });
-}
+document.documentElement.dataset.skin = "B";
 
 /* ───────────────────────── 3. OPS API(立即可用,DOM 无关) ───────────────────────── */
-const API = {
+const API = Object.assign(OPS, {
   fileMode: location.protocol === "file:",
-  device: urlDevice, skin: () => skin, controlState: null, heldBySelf: false,
-  _cbs: [], _skinCbs: skinCbs,
+  device: urlDevice, skin: () => "B", controlState: null, heldBySelf: false,
+  _cbs: [],
   onControl(cb){ this._cbs.push(cb); },
-  onSkin(cb){ skinCbs.push(cb); },
-  setSkin,
+  onSkin(){ /* 单一皮肤 B:保留空钩子兼容旧页面 OPS.onSkin() 调用,不再有皮肤切换 */ },
   fmtPad: pad,
   async fetchJSON(url, opts){
     const ac = new AbortController();
@@ -228,7 +236,7 @@ const API = {
     if(sec<3600) return Math.floor(sec/60)+" 分钟前";
     if(sec<86400) return Math.floor(sec/3600)+" 小时前";
     return Math.floor(sec/86400)+" 天前"; },
-};
+});
 window.OPS = API;
 /* ── 访问门禁与会话(/api/status 异步刷新;默认放行避免误锁) ── */
 API.access = { read_only:false, actions_allowed:true, scan_allowed:true };
@@ -314,10 +322,10 @@ setInterval(() => { if(API.conn.online===false) renderConn(); }, 1000);
 /* ───────────────────────── 3. 顶栏注入 ───────────────────────── */
 function initDom(){
 
-const NAV = [["总览","/monitor-minterm"],["相机","/camera"],["导星","/guide"],["赤道仪","/mount"],["计划","/plan"],["监控","/camera-monitor"],["素材库","/materials"],["网络","/network"],["高级","/advanced"]];
+const NAV = [["总览","/overview"],["相机","/camera"],["导星","/guide"],["赤道仪","/mount"],["计划","/plan"],["监控","/camera-monitor"],["素材库","/materials"],["网络","/network"],["高级","/advanced"]];
 const here = location.pathname;
 const isActive = (p) => {
-  if (p === "/monitor-minterm") return here === "/" || here.startsWith("/monitor-minterm");
+  if (p === "/overview") return here === "/" || here.startsWith("/overview") || here.startsWith("/monitor-minterm");
   if (p === "/camera") return here.startsWith("/camera") || here.startsWith("/preview");
   if (p === "/materials") return here.startsWith("/materials") || here.startsWith("/library");
   return here.startsWith(p);
@@ -326,7 +334,7 @@ const isActive = (p) => {
 const top = document.createElement("header");
 top.className = "ops-top";
 top.innerHTML = `
-  <div class="ops-brand"><b>清华天协远程天文台</b><span>THU ASTRO REMOTE OBSERVATORY</span></div>
+  <div class="ops-brand"><b>${API.siteName}</b><span>${API.siteNameEn}</span></div>
   <nav class="ops-nav">${NAV.map(([t,p]) =>
     `<a href="${p}${urlDevice?`?device=${encodeURIComponent(urlDevice)}`:""}" class="${isActive(p)?"active":""}">${t}</a>`).join("")}</nav>
   <span class="ops-spacer"></span>
