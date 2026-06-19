@@ -27,6 +27,8 @@ const CSS = `
 @font-face{font-family:"Spectral";src:url("fonts/spectral-300.woff2") format("woff2");font-weight:300;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
 @font-face{font-family:"Spectral";src:url("fonts/spectral-400.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
 @font-face{font-family:"Spectral";src:url("fonts/spectral-500.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
+@font-face{font-family:"Spectral";src:url("fonts/spectral-600.woff2") format("woff2");font-weight:600;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
+@font-face{font-family:"Spectral";src:url("fonts/spectral-700.woff2") format("woff2");font-weight:700;font-style:normal;font-display:swap;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+2000-206F,U+2074,U+20AC,U+2122,U+2212,U+FEFF,U+FFFD}
 
 /* —— B · 星图册 —— */
 :root,html[data-skin="B"]{
@@ -37,7 +39,8 @@ const CSS = `
   --line:rgba(139,145,165,.28); --line-dim:rgba(139,145,165,.13);
   --display:"Cormorant Garamond","OPS Serif SC","OPS Latin Serif","Noto Serif SC","Songti SC",serif;
   --body:"Spectral","OPS Serif SC","OPS Latin Serif","Noto Serif SC",serif;
-  --mono:"OPS Mono","OPS Latin Serif",monospace;
+  --mono:"Spectral","OPS Serif SC","OPS Latin Serif","Noto Serif SC",serif;
+  --term:"OPS Mono","OPS Latin Serif",monospace;
   --pill:999px; --glow:0 2px 14px rgba(0,0,0,.7);
   --lab-ls:.3em; --lab-tt:none; --lab-w:300;
   --sky-bg:#0a0e1a; --sky-star:#e9e2d0;
@@ -148,7 +151,7 @@ html[data-skin="B"] .statusline .msg{flex:0 1 auto;max-width:56vw}
 }
 /* 大数字 */
 .bignum{font:700 32px/1.1 var(--mono);font-variant-numeric:tabular-nums;color:var(--ac);text-shadow:var(--glow);white-space:nowrap}
-html[data-skin="B"] .bignum{font:500 38px/1.1 var(--display);color:var(--text)}
+html[data-skin="B"] .bignum{font:600 38px/1.1 var(--body);font-variant-numeric:lining-nums tabular-nums;color:var(--text)}
 
 /* —— 手机端(≤640px):仅窄屏生效,桌面零改动 —— */
 @media (max-width:640px){
