@@ -8,26 +8,27 @@
 <style>
 :root{--toph:54px}
 html,body{height:100%;overflow:hidden;margin:0}
-#stage{position:fixed;inset:var(--toph) 0 0 0;background:var(--sky-bg,#0a0a0a);z-index:0;
+#stage{position:fixed;inset:var(--toph) 0 0 0;background:var(--sky-bg,#0a0e1a);z-index:0;
   display:flex;align-items:center;justify-content:center;box-sizing:border-box;
   padding:60px 32px 48px}
 #frame{position:relative;height:100%;aspect-ratio:16/9;max-width:100%;
-  border:1px solid var(--line);background:#000}
-#cam{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#000}
+  border:1px solid var(--line);background:var(--sky-bg)}
+#cam{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:var(--sky-bg)}
 .hdr{position:fixed;left:28px;top:calc(var(--toph) + 8px);z-index:5;pointer-events:none}
 .hdr h1{margin:0;font:var(--lab-w) 21px var(--display);letter-spacing:.1em;color:var(--text)}
 html[data-skin="B"] .hdr h1{font:500 23px var(--display);letter-spacing:.05em}
 .badge{position:fixed;right:28px;top:calc(var(--toph) + 10px);z-index:6;display:inline-flex;align-items:center;gap:7px;
   font:var(--lab-w) 12px var(--display);letter-spacing:.18em;padding:3px 11px;border:1px solid var(--line);
-  border-radius:var(--pill);color:var(--muted);text-transform:var(--lab-tt);background:rgba(0,0,0,.4)}
-.badge i{width:7px;height:7px;border-radius:50%;background:var(--quiet)}
+  border-radius:var(--pill);color:var(--muted);text-transform:var(--lab-tt);background:rgba(0,0,0,.4);
+  transition:color .2s ease,border-color .2s ease}
+.badge i{width:7px;height:7px;border-radius:50%;background:var(--quiet);transition:background .2s ease}
 .badge.on{color:var(--good);border-color:var(--good)} .badge.on i{background:var(--good)}
-html[data-skin="C"] .badge i,html[data-skin="B"] .badge i{border-radius:0}
+html[data-skin="B"] .badge i{border-radius:0}
 /* 左下:录像回放入口 */
 .foot{position:fixed;left:28px;bottom:16px;z-index:5;font:400 12px var(--mono)}
-.foot a{color:var(--ac);text-decoration:none;border-bottom:1px solid var(--ac-soft)}
+.foot a{color:var(--ac);text-decoration:none;border-bottom:1px solid var(--ac-soft);transition:border-color .2s ease}
 .foot a:hover{border-bottom-color:var(--ac)}
-/* 右下:实时延迟 + 传输 */
+/* 右下:接口 RTT + 传输 */
 .stats{position:fixed;right:28px;bottom:16px;z-index:5;font:400 12px var(--mono);color:var(--quiet);
   pointer-events:none;letter-spacing:.04em}
 .stats b{color:var(--ac);font-weight:400}
@@ -57,10 +58,10 @@ html[data-skin="C"] .badge i,html[data-skin="B"] .badge i{border-radius:0}
     <div class="offline" id="off">未连接</div>
   </div>
 </div>
-<div class="hdr"><h1>乌兰察布远程台 · 实时监控</h1></div>
-<div class="badge" id="st"><i></i><span>连接中…</span></div>
-<div class="foot"><a href="/camera-recordings">录像回放 →</a></div>
-<div class="stats">延迟 <b id="lat">—</b> · 传输 <b id="rate">—</b></div>
+<div class="hdr seq d1"><h1 id="title">远程台 · 实时监控</h1></div>
+<div class="badge seq d1" id="st"><i></i><span>连接中…</span></div>
+<div class="foot seq d2"><a href="/camera-recordings">录像回放 →</a></div>
+<div class="stats seq d2">接口 RTT <b id="lat">—</b> · 传输 <b id="rate">—</b></div>
 <script>
 (function(){
   var host = location.hostname;
@@ -69,7 +70,14 @@ html[data-skin="C"] .badge i,html[data-skin="B"] .badge i{border-radius:0}
   var off = document.getElementById("off");
   var elLat = document.getElementById("lat");
   var elRate = document.getElementById("rate");
-  cam.src = "http://" + host + ":1984/stream.html?src=ulanqab";
+
+  // 站名读顶栏唯一来源,不在页面里硬编码地名
+  var siteName = (window.OPS && window.OPS.siteName) || "远程台";
+  document.getElementById("title").textContent = siteName + " · 实时监控";
+
+  // 协议跟随当前页面(HTTPS 页面下不再强行写死 http,避免静默的混合内容拦截);
+  // 端口/源仍固定 1984/ulanqab —— 经同源反代下发流地址是后端事项,见交接说明。
+  cam.src = location.protocol + "//" + host + ":1984/stream.html?src=ulanqab";
 
   function setTopH(){
     var t = document.querySelector(".ops-top");
@@ -79,30 +87,45 @@ html[data-skin="C"] .badge i,html[data-skin="B"] .badge i{border-radius:0}
   window.addEventListener("resize", setTopH);
   window.addEventListener("orientationchange", function(){ setTimeout(setTopH,200); });
 
-  function setOn(ok){
-    if(ok){ st.className="badge on"; st.querySelector("span").textContent="直播中"; off.className="offline"; }
-    else  { st.className="badge";    st.querySelector("span").textContent="未连接"; off.className="offline show"; }
+  // —— 画面可用性:不止看 stats,还看 iframe 自身是否真的加载出来 ——
+  // statsOk:后端 go2rtc 报流在;frameOk:iframe 真的 load 成功(混合内容被拦时不会触发 load)
+  var statsOk = false, frameOk = false, frameSettled = false;
+  function refreshOverlay(){
+    var live = statsOk && frameOk;
+    if(live){ st.className="badge on"; st.querySelector("span").textContent="直播中"; off.className="offline"; }
+    else if(statsOk && !frameOk){ st.className="badge"; st.querySelector("span").textContent="画面受阻"; off.className="offline show"; off.textContent="画面受阻"; }
+    else { st.className="badge"; st.querySelector("span").textContent="未连接"; off.className="offline show"; off.textContent="未连接"; }
   }
+  cam.addEventListener("load", function(){ frameOk = true; frameSettled = true; refreshOverlay(); });
+  cam.addEventListener("error", function(){ frameOk = false; frameSettled = true; refreshOverlay(); });
+  // 兜底:若 4s 内 iframe 既未 load 也未 error(典型混合内容拦截即静默),判画面不可用
+  setTimeout(function(){ if(!frameSettled){ frameOk = false; refreshOverlay(); } }, 4000);
+
   function fmtRate(bps){
     if(!isFinite(bps) || bps < 0) return "—";
     return bps >= 1e6 ? (bps/1e6).toFixed(1) + " Mbps" : Math.round(bps/1e3) + " kbps";
   }
-  var sLast = null, sLastT = 0;
+  var sLast = null, sLastT = 0, rateEma = null;
   function poll(){
     var t0 = performance.now();
     fetch("/api/camera/stats", {cache:"no-store"}).then(function(r){ return r.json(); }).then(function(d){
       var rtt = Math.round(performance.now() - t0);
-      var ok = !!(d && d.ok);
-      setOn(ok);
-      elLat.textContent = ok ? (rtt + " ms") : "—";
-      if(ok && typeof d.bytes === "number"){
+      statsOk = !!(d && d.ok);
+      refreshOverlay();
+      elLat.textContent = statsOk ? (rtt + " ms") : "—";
+      if(statsOk && typeof d.bytes === "number"){
         var now = performance.now();
         if(sLast != null && now > sLastT){
-          elRate.textContent = fmtRate((d.bytes - sLast) * 8 / ((now - sLastT) / 1000));
+          var inst = (d.bytes - sLast) * 8 / ((now - sLastT) / 1000);
+          if(isFinite(inst) && inst >= 0){
+            // 指数滑动平均:平抑 2s 采样 + 网络抖动带来的大幅跳变
+            rateEma = (rateEma == null) ? inst : (rateEma * 0.6 + inst * 0.4);
+            elRate.textContent = fmtRate(rateEma);
+          }
         }
         sLast = d.bytes; sLastT = now;
       }
-    }).catch(function(){ setOn(false); elLat.textContent = "—"; elRate.textContent = "—"; });
+    }).catch(function(){ statsOk = false; refreshOverlay(); elLat.textContent = "—"; elRate.textContent = "—"; });
   }
   poll(); setInterval(poll, 2000);
 })();

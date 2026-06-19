@@ -173,6 +173,7 @@ MAX_STRING = 1200
 BACKGROUND_REFRESH_WORKERS = 2
 MANUAL_REFRESH_WORKERS = 4
 BACKGROUND_REFRESH_BATCH_SIZE = 16
+REALTIME_MAX_WORKERS = 4
 BACKGROUND_STALE_RETRY_LIMIT = 4
 BACKGROUND_COLD_RETRY_LIMIT = 3
 FAILED_RETRY_BASE_SECONDS = 20.0
@@ -180,6 +181,8 @@ FAILED_RETRY_MAX_SECONDS = 300.0
 LINK_PROBE_INTERVAL_SECONDS = 1.0
 LINK_PING_TIMEOUT_MS = 450
 LINK_TCP_TIMEOUT_SECONDS = 0.45
+ACTIVE_DEVICE_TTL_SECONDS = 30.0
+# 无设备处于活跃窗口时回退为轮询全部 enabled。
 
 
 def rpc_monitor_response(
@@ -190,7 +193,7 @@ def rpc_monitor_response(
 ) -> dict[str, Any]:
     device = _select_device(server.config, device_name)
     with server.rpc_monitor_lock:
-        server.rpc_monitor_active_devices.add(device.name)
+        server.rpc_monitor_active_devices[device.name] = time.monotonic()
         if force:
             server.rpc_monitor_force_refresh.add(device.name)
             server.rpc_monitor_refreshing.add(device.name)
@@ -205,8 +208,10 @@ def init_rpc_monitor_state(server: Any) -> None:
     server.rpc_monitor_refreshing = set()
     server.rpc_monitor_force_refresh = set()
     server.rpc_monitor_force_progress = {}
-    server.rpc_monitor_active_devices = {device.name for device in server.config.enabled_devices()}
+    server.rpc_monitor_active_devices = {}  # device.name -> last_request_monotonic
     server.rpc_monitor_lock = threading.Lock()
+    server.rpc_monitor_dirty = set()
+    server.rpc_monitor_persist_lock = threading.Lock()
     threading.Thread(
         target=_realtime_scheduler_loop,
         args=(server,),
@@ -219,13 +224,28 @@ def init_rpc_monitor_state(server: Any) -> None:
         name="rpc-monitor-background",
         daemon=True,
     ).start()
+    threading.Thread(
+        target=_persist_scheduler_loop,
+        args=(server,),
+        name="rpc-monitor-persist",
+        daemon=True,
+    ).start()
 
 
 def _realtime_scheduler_loop(server: Any) -> None:
-    while True:
-        for device in _active_devices(server):
-            _refresh_realtime_now(server, device)
-        time.sleep(0.25)
+    with ThreadPoolExecutor(max_workers=REALTIME_MAX_WORKERS, thread_name_prefix="rpc-monitor-rt") as executor:
+        while True:
+            devices = _active_devices(server)
+            if devices:
+                list(executor.map(lambda device: _refresh_realtime_safe(server, device), devices))
+            time.sleep(0.25)
+
+
+def _refresh_realtime_safe(server: Any, device: Device) -> None:
+    try:
+        _refresh_realtime_now(server, device)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _background_scheduler_loop(server: Any) -> None:
@@ -253,11 +273,21 @@ def _background_scheduler_loop(server: Any) -> None:
 
 
 def _active_devices(server: Any) -> list[Device]:
+    now = time.monotonic()
     with server.rpc_monitor_lock:
-        active = set(server.rpc_monitor_active_devices)
-    if not active:
+        active_map = server.rpc_monitor_active_devices
+        fresh = set()
+        expired = []
+        for name, ts in list(active_map.items()):
+            if now - float(ts) <= ACTIVE_DEVICE_TTL_SECONDS:
+                fresh.add(name)
+            else:
+                expired.append(name)
+        for name in expired:
+            active_map.pop(name, None)
+    if not fresh:
         return list(server.config.enabled_devices())
-    return [device for device in server.config.enabled_devices() if device.name in active]
+    return [device for device in server.config.enabled_devices() if device.name in fresh]
 
 
 def _consume_force_refresh(server: Any, device: Device) -> bool:
@@ -280,15 +310,58 @@ def _select_device(config: AppConfig, device_name: str | None) -> Device:
 def _refresh_realtime_now(server: Any, device: Device, force: bool = False) -> None:
     now = time.monotonic()
     calls = [call for call in MONITOR_CALLS if call.interval_seconds <= 1.0]
-    for index, call in enumerate(calls, start=10_000):
+    due_calls = []
+    for call in calls:
         with server.rpc_monitor_lock:
             entry = server.rpc_monitor_cache.get(_cache_key(device, call))
             last = float(entry.get("_monotonic", 0.0)) if entry else 0.0
             is_due = force or entry is None or now - last >= call.interval_seconds
-        if not is_due:
-            continue
-        result = _run_call(device, call, index)
+        if is_due:
+            due_calls.append(call)
+
+    if not due_calls:
+        return
+
+    if len(due_calls) == 1:
+        call = due_calls[0]
+        result = _run_call(device, call, 10_000)
         _store_monitor_result(server, device, call, result)
+        return
+
+    worker_count = min(len(due_calls), 4)
+    with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix=f"rpc-monitor-rt-{device.name}") as executor:
+        futures = {
+            executor.submit(_run_call, device, call, index): call
+            for index, call in enumerate(due_calls, start=10_000)
+        }
+        for future in as_completed(futures):
+            call = futures[future]
+            try:
+                result = future.result()
+            except Exception as exc:  # noqa: BLE001
+                result = {
+                    "_monotonic": time.monotonic(),
+                    "device": device.name,
+                    "ip": device.ip,
+                    "port": call.port,
+                    "method": call.method,
+                    "params": call.params,
+                    "category": call.category,
+                    "label": call.label,
+                    "interval_seconds": call.interval_seconds,
+                    "updated_at": datetime.now().isoformat(timespec="seconds"),
+                    "ok": False,
+                    "code": None,
+                    "seconds": None,
+                    "result": None,
+                    "display_value": "不可用",
+                    "display_detail": "",
+                    "display_rows": [],
+                    "display_table": None,
+                    "display_wide": False,
+                    "error": str(exc),
+                }
+            _store_monitor_result(server, device, call, result)
 
 
 def _run_calls_parallel(
@@ -380,7 +453,31 @@ def _store_monitor_result(
             progress["fail"] = int(progress.get("fail", 0)) + (0 if result.get("ok") else 1)
             progress["current"] = call.label
             progress["updated_at"] = datetime.now().isoformat(timespec="seconds")
-    _persist_monitor_cache(server, device)
+    _mark_cache_dirty(server, device)
+
+
+def _mark_cache_dirty(server: Any, device: Device) -> None:
+    lock = getattr(server, "rpc_monitor_persist_lock", None)
+    if lock is None:
+        _persist_monitor_cache(server, device)
+        return
+    with lock:
+        server.rpc_monitor_dirty.add(device.name)
+
+
+def _persist_scheduler_loop(server: Any) -> None:
+    while True:
+        time.sleep(2.0)
+        with server.rpc_monitor_persist_lock:
+            pending = list(server.rpc_monitor_dirty)
+            server.rpc_monitor_dirty.clear()
+        if not pending:
+            continue
+        devices_by_name = {device.name: device for device in server.config.enabled_devices()}
+        for name in pending:
+            device = devices_by_name.get(name)
+            if device is not None:
+                _persist_monitor_cache(server, device)
 
 
 def _merge_monitor_entry(previous: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:

@@ -18,9 +18,12 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
+
+from .sky_stars import STARS as _STARS_LIST
 
 
 # --------------------------------------------------------------------------- #
@@ -40,7 +43,7 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
             return default
 
     from datetime import datetime as _dt
-    key = (round(f("ra"), 3), round(f("dec", 90.0), 2), round(f("lst"), 3),
+    key = (round(f("ra"), 2), round(f("dec", 90.0), 2), round(f("lst"), 2),
            str(params.get("pier")), round(f("lat", 40.0), 2), int(f("size", 560)),
            round(f("az", -999.0), 1), round(f("el", -999.0), 1), round(f("ha", -999.0), 1),
            int(f("sky", 0)), int(f("eqgrid", 1)), int(f("altgrid", 0)),
@@ -48,6 +51,8 @@ def render_cached(params: dict, root: str, max_entries: int = 32) -> bytes:
            _dt.now().strftime("%Y%m%d%H") if f("sky", 0) else "")
     with _RENDER_LOCK:
         hit = _RENDER_CACHE.get(key)
+        if hit is not None:
+            _RENDER_CACHE[key] = _RENDER_CACHE.pop(key)
     if hit is not None:
         return hit
     try:
@@ -190,6 +195,59 @@ PALETTE = {
     "metal": (0.55, 0.57, 0.60), "black": (0.07, 0.08, 0.09), "accent": (0.78, 0.20, 0.16),
     "glass": (0.05, 0.08, 0.16),
 }
+
+
+_SKY_STAR_RA = np.array([s[0] for s in _STARS_LIST], dtype=np.float64)
+_SKY_STAR_DEC = np.array([s[1] for s in _STARS_LIST], dtype=np.float64)
+_SKY_STAR_MAG = np.array([s[2] for s in _STARS_LIST], dtype=np.float64)
+
+
+def _precompute_milky_way():
+    M = ((-0.0548755604, 0.4941094279, -0.8676661490),
+         (-0.8734370902, -0.4448296300, -0.1980763734),
+         (-0.4838350155, 0.7469822445, 0.4559837762))
+    ra = []
+    dec = []
+    f1s = []
+    for i in range(2600):
+        f1 = math.modf(math.sin(i * 12.9898) * 43758.5453)[0]
+        f2 = math.modf(math.sin(i * 78.233) * 12578.1459)[0]
+        gl = (i / 2600.0) * 360.0 + f1 * 3.0
+        w = 7.0 + 5.0 * max(0.0, math.cos(math.radians(gl)))
+        gb = (abs(f2) * 2.0 - 1.0) * w
+        lr, br = math.radians(gl), math.radians(gb)
+        vg = (math.cos(br) * math.cos(lr), math.cos(br) * math.sin(lr), math.sin(br))
+        vx = M[0][0] * vg[0] + M[0][1] * vg[1] + M[0][2] * vg[2]
+        vy = M[1][0] * vg[0] + M[1][1] * vg[1] + M[1][2] * vg[2]
+        vz = M[2][0] * vg[0] + M[2][1] * vg[1] + M[2][2] * vg[2]
+        ra.append((math.degrees(math.atan2(vy, vx)) % 360.0) / 15.0)
+        dec.append(math.degrees(math.asin(max(-1.0, min(1.0, vz)))))
+        f1s.append(f1)
+    return (np.array(ra, dtype=np.float64),
+            np.array(dec, dtype=np.float64),
+            np.array(f1s, dtype=np.float64))
+
+
+_MW_RA, _MW_DEC, _MW_F1 = _precompute_milky_way()
+
+
+def _alt_az_vec(ha_deg_arr, dec_deg_arr, lat_deg):
+    H = np.radians(ha_deg_arr)
+    d = np.radians(dec_deg_arr)
+    p = np.radians(lat_deg)
+    sa = np.sin(d) * np.sin(p) + np.cos(d) * np.cos(p) * np.cos(H)
+    alt = np.degrees(np.arcsin(np.clip(sa, -1.0, 1.0)))
+    y = -np.sin(H) * np.cos(d)
+    x = np.sin(d) * np.cos(p) - np.cos(d) * np.sin(p) * np.cos(H)
+    az = np.degrees(np.arctan2(y, x)) % 360.0
+    return alt, az
+
+
+def _dirv_vec(alt_arr, az_arr):
+    a = np.radians(az_arr)
+    e = np.radians(alt_arr)
+    ce = np.cos(e)
+    return np.column_stack((np.sin(a) * ce, np.cos(a) * ce, np.sin(e)))
 
 
 # --------------------------------------------------------------------------- #
@@ -1171,7 +1229,7 @@ def build_sky(lst_hours, lat, ra_hours=None, dec_degrees=None,
     alt-az grids, mag<=5 stars, the milky way, the sun, the goto target and
     the live pointing ray. Returns (lines, points, labels) for render_png."""
     from .sky_render import _alt_az, _sun_ra_dec
-    from .sky_stars import NAMED, STARS
+    from .sky_stars import NAMED
     R = SKY_RADIUS
     lst = lst_hours if lst_hours is not None else 0.0
     s = size / 760.0
@@ -1218,48 +1276,38 @@ def build_sky(lst_hours, lat, ra_hours=None, dec_degrees=None,
     pts = [dirv(0.0, a) * R for a in range(0, 362, 2)]
     lines.append((np.array(pts, "f4"), (0.36, 0.44, 0.43, 0.95)))  # horizon ring
 
-    pos = []
-    sizes = []
-    cols = []
-    for ra_h, dec_d, mag in STARS:
-        alt, azd = eq_pos(ra_h, dec_d)
-        if alt <= 0:
-            continue
-        pos.append(dirv(alt, azd) * R * 0.995)
-        sizes.append(max(1.2, 4.8 - 0.78 * mag) * s)
-        cols.append((0.88, 0.92, 0.92, max(0.28, min(1.0, 1.04 - 0.13 * mag))))
+    pos_parts = []
+    size_parts = []
+    col_parts = []
 
-    # milky way: deterministic scatter along the galactic equator (J2000 matrix)
-    M = ((-0.0548755604, 0.4941094279, -0.8676661490),
-         (-0.8734370902, -0.4448296300, -0.1980763734),
-         (-0.4838350155, 0.7469822445, 0.4559837762))
-    for i in range(2600):
-        f1 = math.modf(math.sin(i * 12.9898) * 43758.5453)[0]
-        f2 = math.modf(math.sin(i * 78.233) * 12578.1459)[0]
-        gl = (i / 2600.0) * 360.0 + f1 * 3.0
-        w = 7.0 + 5.0 * max(0.0, math.cos(math.radians(gl)))
-        gb = (abs(f2) * 2.0 - 1.0) * w
-        lr, br = math.radians(gl), math.radians(gb)
-        vg = (math.cos(br) * math.cos(lr), math.cos(br) * math.sin(lr), math.sin(br))
-        vx = M[0][0] * vg[0] + M[0][1] * vg[1] + M[0][2] * vg[2]
-        vy = M[1][0] * vg[0] + M[1][1] * vg[1] + M[1][2] * vg[2]
-        vz = M[2][0] * vg[0] + M[2][1] * vg[1] + M[2][2] * vg[2]
-        ra_h = (math.degrees(math.atan2(vy, vx)) % 360.0) / 15.0
-        dec_d = math.degrees(math.asin(max(-1.0, min(1.0, vz))))
-        alt, azd = eq_pos(ra_h, dec_d)
-        if alt <= 0:
-            continue
-        pos.append(dirv(alt, azd) * R * 0.998)
-        sizes.append((1.6 + 1.4 * abs(f1)) * s)
-        cols.append((0.56, 0.63, 0.74, 0.17))
+    star_alt, star_az = _alt_az_vec((lst - _SKY_STAR_RA) * 15.0, _SKY_STAR_DEC, lat)
+    star_mask = star_alt > 0
+    if np.any(star_mask):
+        mag = _SKY_STAR_MAG[star_mask]
+        pos_parts.append(_dirv_vec(star_alt[star_mask], star_az[star_mask]) * (R * 0.995))
+        size_parts.append(np.maximum(1.2, 4.8 - 0.78 * mag) * s)
+        star_cols = np.empty((len(mag), 4), dtype=np.float64)
+        star_cols[:, 0] = 0.88
+        star_cols[:, 1] = 0.92
+        star_cols[:, 2] = 0.92
+        star_cols[:, 3] = np.clip(1.04 - 0.13 * mag, 0.28, 1.0)
+        col_parts.append(star_cols)
+
+    mw_alt, mw_az = _alt_az_vec((lst - _MW_RA) * 15.0, _MW_DEC, lat)
+    mw_mask = mw_alt > 0
+    if np.any(mw_mask):
+        mw_count = int(np.count_nonzero(mw_mask))
+        pos_parts.append(_dirv_vec(mw_alt[mw_mask], mw_az[mw_mask]) * (R * 0.998))
+        size_parts.append((1.6 + 1.4 * np.abs(_MW_F1[mw_mask])) * s)
+        col_parts.append(np.tile(np.array((0.56, 0.63, 0.74, 0.17), dtype=np.float64), (mw_count, 1)))
 
     sra, sdec = _sun_ra_dec()
     alt, azd = eq_pos(sra, sdec)
     if alt > 0:
         p = dirv(alt, azd) * R * 0.99
-        pos.append(p)
-        sizes.append(10.0 * s)
-        cols.append((0.91, 0.70, 0.22, 0.95))
+        pos_parts.append(np.asarray(p, dtype=np.float64).reshape(1, 3))
+        size_parts.append(np.array([10.0 * s], dtype=np.float64))
+        col_parts.append(np.array([(0.91, 0.70, 0.22, 0.95)], dtype=np.float64))
         labels.append((p * 1.05, "日", (232, 179, 57), max(11, int(13 * s))))
 
     # Pointing/target markers are anchored to the SCOPE line (not the ground
@@ -1308,8 +1356,10 @@ def build_sky(lst_hours, lat, ra_hours=None, dec_degrees=None,
         if alt > 3:
             labels.append((dirv(alt, azd) * R * 1.012, name, (95, 110, 108), max(10, int(11 * s))))
 
-    if pos:
-        points = (np.array(pos, "f4"), np.array(sizes, "f4"), np.array(cols, "f4"))
+    if pos_parts:
+        points = (np.concatenate(pos_parts).astype("f4"),
+                  np.concatenate(size_parts).astype("f4"),
+                  np.concatenate(col_parts).astype("f4"))
     else:
         points = (np.zeros((0, 3), "f4"), np.zeros((0,), "f4"), np.zeros((0, 4), "f4"))
     return lines, points, labels
@@ -1379,9 +1429,21 @@ def main(argv=None):
 #  so interactive orbiting costs ~20-40 ms/frame instead of ~500 ms           #
 # --------------------------------------------------------------------------- #
 _WORKER_LOCK = threading.Lock()
-_WORKER: dict = {"proc": None, "fail_count": 0}
+_WORKER: dict = {"proc": None, "fail_count": 0, "disabled_at": None}
 _WORKER_READ_TIMEOUT = 10  # seconds; kill worker and fall back if exceeded
 _WORKER_MAX_FAILS = 3      # consecutive failures before giving up on worker path
+_WORKER_COOLDOWN_SECONDS = 60.0
+
+
+def worker_health() -> dict:
+    with _WORKER_LOCK:
+        proc = _WORKER.get("proc")
+        return {
+            "fail_count": _WORKER["fail_count"],
+            "disabled": bool(_WORKER["fail_count"] >= _WORKER_MAX_FAILS and _WORKER.get("disabled_at") is not None),
+            "disabled_at": _WORKER.get("disabled_at"),
+            "alive": bool(proc is not None and proc.poll() is None),
+        }
 
 
 def _worker_render(params: dict, root: str) -> bytes:
@@ -1408,6 +1470,8 @@ def _worker_render(params: dict, root: str) -> bytes:
             pass
         _WORKER["proc"] = None
         _WORKER["fail_count"] += 1
+        if _WORKER["fail_count"] >= _WORKER_MAX_FAILS and _WORKER.get("disabled_at") is None:
+            _WORKER["disabled_at"] = time.monotonic()
 
     def _read_response(stdout, result_q):
         """Blocking read of one full worker response (header + payload).
@@ -1432,7 +1496,17 @@ def _worker_render(params: dict, root: str) -> bytes:
 
     with _WORKER_LOCK:
         if _WORKER["fail_count"] >= _WORKER_MAX_FAILS:
-            raise RuntimeError(f"render worker disabled after {_WORKER['fail_count']} consecutive failures")
+            disabled_at = _WORKER.get("disabled_at")
+            now = time.monotonic()
+            if disabled_at is not None and now - disabled_at >= _WORKER_COOLDOWN_SECONDS:
+                _WORKER["fail_count"] = 0
+                _WORKER["disabled_at"] = None
+            else:
+                remaining = _WORKER_COOLDOWN_SECONDS if disabled_at is None else max(
+                    0.0, _WORKER_COOLDOWN_SECONDS - (now - disabled_at))
+                raise RuntimeError(
+                    f"render worker disabled after {_WORKER['fail_count']} consecutive failures; "
+                    f"retry in {remaining:.1f}s")
         proc = _WORKER.get("proc")
         if proc is None or proc.poll() is not None:
             _WORKER["fail_count"] = 0  # reset on fresh spawn
@@ -1459,6 +1533,7 @@ def _worker_render(params: dict, root: str) -> bytes:
             if payload != b"OK":
                 raise RuntimeError(data.decode("utf-8", "replace"))
             _WORKER["fail_count"] = 0  # success: reset counter
+            _WORKER["disabled_at"] = None
             return data
         except Exception as _exc:
             _logger.warning("mount_render worker error (%s): %s — killing and restarting next call",

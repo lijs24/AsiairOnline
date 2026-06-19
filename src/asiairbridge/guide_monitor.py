@@ -133,6 +133,14 @@ class GuideMonitor:
             )
             thread.start()
             self._threads.append(thread)
+            dither_thread = threading.Thread(
+                target=self._run_dither_loop,
+                args=(device,),
+                name=f"asiair-guide-dither-{device.name}",
+                daemon=True,
+            )
+            dither_thread.start()
+            self._threads.append(dither_thread)
 
     def stop(self) -> None:
         self._stop.set()
@@ -240,6 +248,13 @@ class GuideMonitor:
                 break
             self._stop.wait(self.reconnect_seconds)
 
+    def _run_dither_loop(self, device: Device) -> None:
+        # dither 状态低频,独立线程发 4700 RPC,避免阻塞 4400 事件流主路径
+        interval = max(self.snapshot_interval * 2, 8.0)
+        while not self._stop.is_set():
+            self._snapshot_dither(device)
+            self._stop.wait(interval)
+
     def _stream(self, device: Device) -> None:
         with socket.create_connection((device.ip, GUIDER_PORT), timeout=5.0) as sock:
             sock.settimeout(1.0)
@@ -254,7 +269,6 @@ class GuideMonitor:
             pending: dict[int, str] = {}
             req_id = 90000
             last_snapshot = 0.0
-            last_dither = 0.0
             while not self._stop.is_set():
                 now = time.monotonic()
                 if now - last_snapshot >= self.snapshot_interval:
@@ -272,9 +286,6 @@ class GuideMonitor:
                             )
                         except OSError:
                             return
-                    if now - last_dither >= self.snapshot_interval * 2:
-                        last_dither = now
-                        self._snapshot_dither(device)
                     # keep only the most recent pending ids to bound memory
                     if len(pending) > 64:
                         for stale in sorted(pending)[:-32]:

@@ -43,14 +43,22 @@ class PlanMonitor:
         self._threads = []
         for device in self.config.enabled_devices():
             self._state.setdefault(device.name, {})
-            thread = threading.Thread(
-                target=self._run_device,
+            app_thread = threading.Thread(
+                target=self._run_app_loop,
                 args=(device,),
-                name=f"asiair-plan-{device.name}",
+                name=f"asiair-plan-app-{device.name}",
                 daemon=True,
             )
-            thread.start()
-            self._threads.append(thread)
+            plan_thread = threading.Thread(
+                target=self._run_plan_loop,
+                args=(device,),
+                name=f"asiair-plan-tree-{device.name}",
+                daemon=True,
+            )
+            app_thread.start()
+            plan_thread.start()
+            self._threads.append(app_thread)
+            self._threads.append(plan_thread)
 
     def stop(self) -> None:
         self._stop.set()
@@ -90,14 +98,17 @@ class PlanMonitor:
         except Exception:  # noqa: BLE001
             return None
 
-    def _run_device(self, device: Device) -> None:
-        last_plan = 0.0
+    def _run_app_loop(self, device: Device) -> None:
         while not self._stop.is_set():
-            want_plan = (time.monotonic() - last_plan) >= self.plan_interval
-            plan_ok = self._poll(device, want_plan)
-            if want_plan and plan_ok:
-                last_plan = time.monotonic()
+            self._poll_app(device)
             self._stop.wait(self.app_interval)
+
+    def _run_plan_loop(self, device: Device) -> None:
+        # Stagger plan-tree RPCs so the first slow poll does not contend with app state.
+        self._stop.wait(self.app_interval)
+        while not self._stop.is_set():
+            self._poll_plan(device)
+            self._stop.wait(self.plan_interval)
 
     def _rpc(self, device: Device, method: str, timeout: float = 4.0) -> Any:
         try:
@@ -115,7 +126,7 @@ class PlanMonitor:
             return response.get("result")
         return None
 
-    def _poll(self, device: Device, want_plan: bool) -> bool:
+    def _poll_app(self, device: Device) -> None:
         app = self._rpc(device, "get_app_state", 4.0)
         with self._lock:
             state = self._state.setdefault(device.name, {})
@@ -130,19 +141,16 @@ class PlanMonitor:
             else:
                 state["connected"] = False
 
-        plan_ok = False
-        if want_plan:
-            plan_list = self._rpc(device, "list_plan", 4.0)
-            plans = self._rpc(device, "get_plan", 6.0)
-            with self._lock:
-                state = self._state.setdefault(device.name, {})
-                if isinstance(plan_list, list):
-                    state["plan_list"] = plan_list
-                if isinstance(plans, list):
-                    state["plans"] = plans
-                    state["plan_at"] = time.time()
-                    plan_ok = True
-        return isinstance(app, dict) or plan_ok
+    def _poll_plan(self, device: Device) -> None:
+        plan_list = self._rpc(device, "list_plan", 4.0)
+        plans = self._rpc(device, "get_plan", 6.0)
+        with self._lock:
+            state = self._state.setdefault(device.name, {})
+            if isinstance(plan_list, list):
+                state["plan_list"] = plan_list
+            if isinstance(plans, list):
+                state["plans"] = plans
+                state["plan_at"] = time.time()
 
 
 def plan_action_response(

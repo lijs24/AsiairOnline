@@ -61,9 +61,10 @@ def dashboard_snapshot(
     now = time.time()
     network = collect_network_stats(config, now)
 
+    path_dirty = [False]
     job_rows = []
     for job in jobs:
-        local_stats = _cached_path_stats(config, job.destination_path, path_cache, now)
+        local_stats = _cached_path_stats(config, job.destination_path, path_cache, now, dirty=path_dirty)
         source_stats = source_cache.get(_job_key(job))
         sample_info = _update_samples(samples, _job_key(job), local_stats.bytes, now)
         job_rows.append(
@@ -75,8 +76,9 @@ def dashboard_snapshot(
             )
         )
 
-    _write_json(_state_file(config, PATH_STATS_FILE), path_cache)
-    _write_json(_state_file(config, PROGRESS_SAMPLES_FILE), samples)
+    if path_dirty[0]:
+        _write_json(_state_file(config, PATH_STATS_FILE), path_cache, fsync=False)
+    _write_json(_state_file(config, PROGRESS_SAMPLES_FILE), samples, fsync=False)
 
     lock = read_lock(config.project.lock_file)
     lock["active_jobs"] = infer_active_jobs(jobs, lock)
@@ -487,6 +489,7 @@ def _cached_path_stats(
     cache: dict[str, Any],
     now: float,
     ttl_seconds: int = 15,
+    dirty: list[bool] | None = None,
 ) -> PathStats:
     key = str(path)
     item = cache.get(key)
@@ -505,6 +508,8 @@ def _cached_path_stats(
 
     stats = collect_path_stats(path)
     cache[key] = {"cached_at": now, "stats": stats.as_dict()}
+    if dirty is not None:
+        dirty[0] = True
     return stats
 
 
@@ -581,17 +586,19 @@ def _load_json(path: Path, default: Any) -> Any:
         return default
 
 
-def _write_json(path: Path, payload: Any) -> None:
-    # Atomic write (temp + os.replace): the dashboard rewrites these caches on
-    # every /api/status poll, so a crash mid-write must not leave a truncated
-    # file. _read_json already tolerates corruption, but this avoids it.
+def _write_json(path: Path, payload: Any, fsync: bool = True) -> None:
+    # Atomic write (temp + os.replace): by default fsync keeps crash consistency.
+    # fsync=False is for high-frequency approximate caches such as dashboard
+    # path stats/samples where losing a few seconds is acceptable and avoids
+    # forcing disk writes on every poll.
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(path.name + ".tmp")
     with tmp_path.open("w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
         fh.write("\n")
         fh.flush()
-        os.fsync(fh.fileno())
+        if fsync:
+            os.fsync(fh.fileno())
     os.replace(tmp_path, path)
 
 

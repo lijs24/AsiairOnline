@@ -9,6 +9,7 @@ of milliseconds on the CPU, cached by rounded pointing + sidereal time.
 from __future__ import annotations
 
 import io
+import logging
 import math
 import threading
 from datetime import datetime, timezone
@@ -29,9 +30,15 @@ POLE = (120, 134, 132)
 
 from .sky_stars import NAMED, STARS  # noqa: F401
 
+import numpy as np
+
+_STAR_RA = np.array([s[0] for s in STARS], dtype=np.float64)
+_STAR_DEC = np.array([s[1] for s in STARS], dtype=np.float64)
+_STAR_MAG = np.array([s[2] for s in STARS], dtype=np.float64)
 
 _CACHE: dict = {}
 _LOCK = threading.Lock()
+_FONT_WARNED = False
 
 
 def _alt_az(ha_deg: float, dec_deg: float, lat_deg: float) -> tuple[float, float]:
@@ -43,6 +50,22 @@ def _alt_az(ha_deg: float, dec_deg: float, lat_deg: float) -> tuple[float, float
     y = -math.sin(H) * math.cos(d)
     x = math.sin(d) * math.cos(p) - math.cos(d) * math.sin(p) * math.cos(H)
     az = (math.degrees(math.atan2(y, x))) % 360.0
+    return alt, az
+
+
+def _alt_az_vec(
+    ha_deg_arr: np.ndarray,
+    dec_deg_arr: np.ndarray,
+    lat_deg: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    H = np.radians(ha_deg_arr)
+    d = np.radians(dec_deg_arr)
+    p = np.radians(lat_deg)
+    sa = np.sin(d) * np.sin(p) + np.cos(d) * np.cos(p) * np.cos(H)
+    alt = np.degrees(np.arcsin(np.clip(sa, -1.0, 1.0)))
+    y = -np.sin(H) * np.cos(d)
+    x = np.sin(d) * np.cos(p) - np.cos(d) * np.sin(p) * np.cos(H)
+    az = np.degrees(np.arctan2(y, x)) % 360.0
     return alt, az
 
 
@@ -64,12 +87,23 @@ import functools
 
 @functools.lru_cache(maxsize=16)
 def _font(size: int):
+    global _FONT_WARNED
     for path in (r"C:\Windows\Fonts\msyh.ttc", r"C:\Windows\Fonts\simhei.ttf",
-                 "/System/Library/Fonts/PingFang.ttc"):
+                 "/System/Library/Fonts/PingFang.ttc",
+                 "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+                 "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                 "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                 "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                 "/usr/share/fonts/google-noto-cjk/NotoSerifCJK-Regular.ttc"):
         try:
             return ImageFont.truetype(path, size)
         except Exception:  # noqa: BLE001
             continue
+    if not _FONT_WARNED:
+        logging.getLogger(__name__).warning(
+            "Chinese font not found; rendered text will fall back to PIL default font and may degrade."
+        )
+        _FONT_WARNED = True
     return ImageFont.load_default()
 
 
@@ -139,12 +173,17 @@ def render_sky_png(
     dr.line([px, py - 5 * s, px, py + 5 * s], fill=POLE, width=1)
 
     # bright stars
-    for ra_h, dec_d, mag in STARS:
-        alt, az = eq_point(ra_h, dec_d)
-        if alt <= 0:
-            continue
-        x, y = proj(alt, az)
-        r = max(0.8, (3.4 - 0.72 * mag)) * s
+    star_alt, star_az = _alt_az_vec((lst - _STAR_RA) * 15.0, _STAR_DEC, lat)
+    visible = star_alt > 0
+    visible_alt = star_alt[visible]
+    visible_az = star_az[visible]
+    visible_mag = _STAR_MAG[visible]
+    star_r = (90.0 - np.minimum(visible_alt, 90.0)) / 90.0 * R
+    star_a = np.radians(visible_az)
+    star_x = cx - star_r * np.sin(star_a)
+    star_y = cy - star_r * np.cos(star_a)
+    star_rr = np.maximum(0.8, 3.4 - 0.72 * visible_mag) * s
+    for x, y, r in zip(star_x, star_y, star_rr):
         dr.ellipse([x - r, y - r, x + r, y + r], fill=STAR)
     for ra_h, dec_d, name in NAMED:
         alt, az = eq_point(ra_h, dec_d)
@@ -225,8 +264,9 @@ def render_sky_cached(params: dict, max_entries: int = 32) -> bytes:
     )
     with _LOCK:
         hit = _CACHE.get(key)
-    if hit is not None:
-        return hit
+        if hit is not None:
+            _CACHE[key] = _CACHE.pop(key)
+            return hit
     png = render_sky_png(ra, dec, lst, lat, tra, tdec, size)
     with _LOCK:
         _CACHE[key] = png

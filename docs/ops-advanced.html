@@ -42,9 +42,10 @@
 .issue:hover .src{color:var(--ac)}
 
 /* 接口分类瀑布流 */
-.cats{flex:1;display:block;columns:3 350px;column-gap:46px;padding:18px 0}
-.cat{display:inline-block;width:100%;border-top:1px solid var(--line);padding:10px 2px 14px;margin:0 0 18px;
-  break-inside:avoid;page-break-inside:avoid;vertical-align:top}
+.cats{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 46px;align-items:start;padding:18px 0}
+@media (max-width:1040px){.cats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:680px){.cats{grid-template-columns:1fr}}
+.cat{display:block;width:100%;border-top:1px solid var(--line);padding:10px 2px 14px;margin:0 0 18px}
 .cat.has-issues{border-top-color:var(--ac-soft)}
 .cat.has-issues .lampline.bad i{background:var(--ac)}
 .cat-head{display:flex;align-items:baseline;gap:9px;cursor:pointer}
@@ -171,6 +172,7 @@ function countUp(el,target,fmt){
   const from=parseFloat(el.dataset.cur||"0")||0;
   const to=+target||0;
   el.dataset.cur=to;
+  if(from===to){el.textContent=fmt(to);return;}
   if(matchMedia("(prefers-reduced-motion: reduce)").matches){el.textContent=fmt(to);return;}
   const t0=performance.now(),dur=520;
   (function step(t){

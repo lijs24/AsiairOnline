@@ -21,6 +21,8 @@ html[data-skin="B"] .head h1{font:500 38px var(--display);letter-spacing:.05em}
 .head .pl .bignum{font-size:24px;margin-top:2px;font-variant-numeric:tabular-nums}
 html[data-skin="B"] .head .pl .bignum{font-size:30px}
 .head .pl .bignum.gd{color:var(--ac)} .head .pl .bignum.off{color:var(--bad)}
+.head .pl .note{font:italic 300 11.5px var(--body);color:var(--quiet);margin-top:4px;max-width:19em;line-height:1.45;text-align:right;display:none}
+.head .pl .note.show{display:block}
 .head .split{display:flex;flex-direction:column;gap:7px;align-self:flex-end;padding-bottom:3px;margin-left:4px}
 .head .split .sr{display:flex;align-items:center;gap:8px;font:400 var(--gw-ctrl) var(--mono);color:var(--quiet);font-variant-numeric:tabular-nums}
 .head .split .sr i{display:inline-block;width:16px;height:0;border-top-width:2px;border-top-style:solid}
@@ -48,6 +50,12 @@ html[data-skin="B"] .sect h2{font-weight:600;font-size:20px;letter-spacing:.12em
 .ctrls select option{background:var(--sky-bg);color:var(--text)}
 .ctrls a{color:var(--quiet);text-decoration:none;border-bottom:1px solid transparent;padding:2px 4px}
 .ctrls a:hover{color:var(--ac);border-bottom-color:var(--ac)}
+.ctrls a.dl{color:var(--quiet);letter-spacing:.04em;border-bottom:1.5px solid transparent}
+.ctrls a.dl::before{content:"\2193";margin-right:5px;color:var(--muted)}
+.ctrls a.dl:hover{color:var(--ac);border-bottom-color:var(--ac)}
+.ctrls a.dl:hover::before{color:var(--ac)}
+.ctrls a.dl.disabled{color:var(--line);pointer-events:none;cursor:default;border-bottom-color:transparent}
+.ctrls a.dl.disabled::before{color:var(--line)}
 
 .curvebox{position:relative;height:240px}
 #curve{position:absolute;inset:0;width:100%;height:100%}
@@ -104,7 +112,7 @@ body.ready .seq{opacity:1;transform:none}
     <span class="spacer"></span>
     <div class="pl"><div class="lab">状态</div><div class="bignum" id="pl-state">--</div></div>
     <div class="pl"><div class="lab">总 RMS</div><div class="bignum gd" id="pl-rms">--</div></div>
-    <div class="pl"><div class="lab">天况</div><div class="bignum" id="pl-cloud" title="">--</div></div>
+    <div class="pl"><div class="lab">天况</div><div class="bignum" id="pl-cloud">--</div><div class="note" id="pl-cloud-note"></div></div>
     <div class="split">
       <div class="sr ra"><i></i><span class="sl">赤经 RA</span><b id="lg-ra">--</b></div>
       <div class="sr dec"><i></i><span class="sl">赤纬 DEC</span><b id="lg-dec">--</b></div>
@@ -120,7 +128,7 @@ body.ready .seq{opacity:1;transform:none}
       <button class="xb liveonly" data-x="5">5分</button><button class="xb liveonly on" data-x="15">15分</button><button class="xb liveonly" data-x="30">30分</button><button class="xb liveonly" data-x="60">1时</button>
       <span class="cl histonly" style="display:none">日期</span>
       <select id="hist-date" class="histonly" style="display:none"></select>
-      <a id="hist-dl" class="histonly" style="display:none" href="#">下载原始</a>
+      <a id="hist-dl" class="histonly dl" style="display:none" href="#">下载原始</a>
       <span class="cl">纵轴 ″</span>
       <button class="yb on" data-y="0">自动</button><button class="yb" data-y="0.5">0.5</button><button class="yb" data-y="1">1</button><button class="yb" data-y="2">2</button><button class="yb" data-y="4">4</button>
     </div>
@@ -204,6 +212,11 @@ const fmtBytes=b=>b>=1e6?(b/1e6).toFixed(1)+" MB":(b/1e3).toFixed(0)+" KB";
 /* RADistanceRaw/DECDistanceRaw(=p.ra/p.dec)已是角秒;dx/dy 才是像素 */
 let mode="live", xMin=15, yScale=0;
 let LAST=null, HIST=null, revealed=false;
+let ampCurveSm=0, ampScatterSm=0;            /* 自动纵轴平滑值 */
+let NIGHT_BYTES={};                          /* 回看:每夜原始日志字节数,供下载按钮显示 */
+function pct95(arr){if(!arr.length)return 0;const a=arr.slice().sort((x,y)=>x-y);return a[Math.min(a.length-1,Math.floor(a.length*0.95))];}
+/* 向目标缓动:超界放大快(0.35)、回落慢(0.08),并设最小迟滞 */
+function easeAmp(cur,target){const k=target>cur?0.35:0.08;const nx=cur+(target-cur)*k;return Math.abs(nx-target)<0.001?target:nx;}
 function curDevice(){return (OPS&&OPS.device)||new URLSearchParams(location.search).get("device")||"";}
 function scaleOf(g){const s=g&&g.settings&&g.settings.pixel_scale;return (typeof s==="number"&&s>0)?s:null;}
 
@@ -229,10 +242,12 @@ function drawCurve(pts,fmtX){
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
   const mL=50,mB=26,mT=14,mR=12, x0=mL,x1=w-mR,yTop=mT,yBot=h-mB,pw=x1-x0,ph=yBot-yTop,mid=yTop+ph/2;
   let amp;
-  if(yScale>0)amp=yScale;
-  else{amp=0.5;for(const p of pts){if(p.ra!=null)amp=Math.max(amp,Math.abs(p.ra));if(p.dec!=null)amp=Math.max(amp,Math.abs(p.dec));}amp*=1.15;}
+  if(yScale>0){amp=yScale;ampCurveSm=amp;}
+  else{const mags=[];for(const p of pts){if(p.ra!=null)mags.push(Math.abs(p.ra));if(p.dec!=null)mags.push(Math.abs(p.dec));}
+    const target=Math.max(0.5,pct95(mags)*1.15);
+    ampCurveSm=ampCurveSm>0?easeAmp(ampCurveSm,target):target;amp=ampCurveSm;}
   const yOf=v=>mid-(v/amp)*(ph/2), n=pts.length, xOf=i=>n<=1?x1:x0+i*pw/(n-1);
-  ctx.font="11px ui-monospace,Menlo,monospace";
+  ctx.font="11px "+css("--mono");
   ctx.textAlign="right";ctx.textBaseline="middle";
   [amp,amp/2,0,-amp/2,-amp].forEach(v=>{const y=yOf(v);
     ctx.strokeStyle=v===0?css("--line"):css("--line-dim");ctx.lineWidth=1;
@@ -267,9 +282,11 @@ function drawScatter(pts,scale){
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
   const cx=w/2,cy=h/2,R=Math.min(w,h)/2-14;
   let amp;
-  if(yScale>0)amp=yScale;
-  else{amp=0.5;for(const p of pts){if(p.dx!=null&&p.dy!=null)amp=Math.max(amp,Math.hypot(p.dx,p.dy)*scale);}amp*=1.12;}
-  ctx.font="10px ui-monospace,Menlo,monospace";ctx.textAlign="left";ctx.textBaseline="bottom";
+  if(yScale>0){amp=yScale;ampScatterSm=amp;}
+  else{const mags=[];for(const p of pts){if(p.dx!=null&&p.dy!=null)mags.push(Math.hypot(p.dx,p.dy)*scale);}
+    const target=Math.max(0.5,pct95(mags)*1.12);
+    ampScatterSm=ampScatterSm>0?easeAmp(ampScatterSm,target):target;amp=ampScatterSm;}
+  ctx.font="10px "+css("--mono");ctx.textAlign="left";ctx.textBaseline="bottom";
   [1/3,2/3,1].forEach(f=>{ctx.strokeStyle=css("--line-dim");ctx.lineWidth=1;
     ctx.beginPath();ctx.arc(cx,cy,R*f,0,7);ctx.stroke();
     ctx.fillStyle=css("--muted");ctx.fillText((amp*f).toFixed(amp<2?2:1)+"″",cx+3,cy-R*f-2);});
@@ -299,11 +316,16 @@ function render(){
   $("pl-rms").textContent=st?fmt(st.total):"--";
   /* 天况(云检测,只告警不动盒子)*/
   const cl=(mode==="live"&&LAST&&LAST.cloud)?LAST.cloud:null;
-  const CL={CLEAR:["晴","var(--good)"],SUSPECT:["疑云","var(--ac)"],STALE:["流停","var(--bad)"],DISCONNECTED:["断连","var(--quiet)"],NO_GUIDE:["无导星","var(--quiet)"],DITHER:["抖动","var(--quiet)"]};
-  let clTxt="--",clCol="var(--quiet)",clReason="";
+  const CL={CLEAR:["晴","var(--good)"],SUSPECT:["疑云","var(--ac)"],STALE:["数据停更","var(--bad)"],DISCONNECTED:["断连","var(--quiet)"],NO_GUIDE:["无导星","var(--quiet)"],DITHER:["抖动","var(--quiet)"]};
+  /* 每种天况的就地白话释义(状态行风格,非弹窗):告诉用户需不需要介入 */
+  const CL_NOTE={CLEAR:"导星正常 · 无需介入",SUSPECT:"信噪略有波动 · 持续观察 · 仅告警不会自动停拍",THIN:"信噪下降但仍在导星 · 仅告警不会自动停拍",STALE:"导星数据停止更新 · 检查链路或导星运行",DISCONNECTED:"4400 导星链路未连接",NO_GUIDE:"当前未在导星",DITHER:"抖动重定位中 · 属正常流程"};
+  let clTxt="--",clCol="var(--quiet)",clReason="",clNote="";
   if(cl){const m=CL[cl.state]||[cl.state,"var(--quiet)"];clTxt=m[0];clCol=m[1];clReason=cl.reason||"";
-    if(cl.state==="SUSPECT"&&cl.confirmed){clTxt="薄云";clCol="var(--bad)";}}
-  $("pl-cloud").textContent=clTxt;$("pl-cloud").style.color=clCol;$("pl-cloud").title=clReason;
+    clNote=CL_NOTE[cl.state]||"";
+    if(cl.state==="SUSPECT"&&cl.confirmed){clTxt="薄云";clCol="var(--bad)";clNote=CL_NOTE.THIN;}}
+  $("pl-cloud").textContent=clTxt;$("pl-cloud").style.color=clCol;
+  const noteEl=$("pl-cloud-note");
+  if(noteEl){const full=clNote+(clReason?(" · "+clReason):"");noteEl.textContent=full;noteEl.classList.toggle("show",!!clNote);}
   if($("k-cloud"))$("k-cloud").textContent=cl?(clTxt+(clReason?(" · "+clReason):"")):"--";
   $("lg-ra").textContent=st?fmt(st.ra):"--";
   $("lg-dec").textContent=st?fmt(st.dec):"--";
@@ -370,6 +392,7 @@ async function loadNights(){
   try{
     const d=await OPS.fetchJSON("/api/guide-log/index?device="+encodeURIComponent(dev));
     const nights=d.nights||[];
+    NIGHT_BYTES={};nights.forEach(nt=>{NIGHT_BYTES[nt.date]=nt.bytes;});
     sel.innerHTML=nights.map(nt=>`<option value="${nt.date}">${nt.date} · ${fmtBytes(nt.bytes)}</option>`).join("");
     if(nights.length){sel.value=nights[0].date;await loadNight(nights[0].date);}
     else{HIST=null;render();$("status-text").textContent="回看 · "+esc(dev)+" 暂无历史记录";}
@@ -380,8 +403,11 @@ async function loadNight(date){
   $("status-text").textContent="载入 "+date+" …";
   try{
     const d=await OPS.fetchJSON("/api/guide-log?device="+encodeURIComponent(dev)+"&date="+encodeURIComponent(date));
-    HIST=d.ok?d:null;render();
-    $("hist-dl").href="/api/guide-log/raw?device="+encodeURIComponent(dev)+"&date="+encodeURIComponent(date);
+    ampCurveSm=0;ampScatterSm=0;HIST=d.ok?d:null;render();
+    const dl=$("hist-dl"),bytes=NIGHT_BYTES[date],hasData=!!(HIST&&HIST.total);
+    dl.href="/api/guide-log/raw?device="+encodeURIComponent(dev)+"&date="+encodeURIComponent(date);
+    dl.textContent="下载原始"+(bytes!=null?(" · "+fmtBytes(bytes)):"");
+    dl.classList.toggle("disabled",!hasData);
     $("status-kind").textContent="[OK]";$("status-kind").style.color="var(--good)";
     $("status-text").textContent=HIST?("回看 · "+esc(dev)+" · "+date+" · "+HIST.total+" 帧"):"该夜无数据";
     $("snapshot").textContent=HIST&&HIST.start?(clock(HIST.start)+" → "+clock(HIST.end)):"--";
@@ -391,7 +417,7 @@ async function loadNight(date){
 /* ── 控件 ── */
 function setMode(m){
   if(mode===m)return;
-  mode=m;
+  mode=m;ampCurveSm=0;ampScatterSm=0;
   document.querySelectorAll(".modeb").forEach(b=>b.classList.toggle("on",b.dataset.m===m));
   document.querySelectorAll(".liveonly").forEach(e=>e.style.display=(m==="live")?"":"none");
   document.querySelectorAll(".histonly").forEach(e=>e.style.display=(m==="hist")?"":"none");

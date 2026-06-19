@@ -12,7 +12,8 @@ html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text)}
 .head h1{margin:0;font:var(--lab-w) 22px var(--display);letter-spacing:.1em}
 html[data-skin="B"] .head h1{font:500 24px var(--display);letter-spacing:.05em}
 .head .sub{font:400 13px var(--mono);color:var(--muted);margin:4px 0 0}
-.head .live{font:400 13px var(--mono);color:var(--ac);text-decoration:none;border-bottom:1px solid var(--ac-soft)}
+.head .live{font:400 13px var(--mono);color:var(--ac);text-decoration:none;border-bottom:1px solid var(--ac-soft);transition:border-color .2s ease}
+.head .live:hover{border-bottom-color:var(--ac)}
 /* 控制条 */
 .ctl{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;margin:20px 0 6px;
   padding-bottom:14px;border-bottom:1px solid var(--line)}
@@ -21,35 +22,48 @@ select.sel{background:var(--bg);color:var(--text);border:1px solid var(--line);b
   font:400 14px var(--mono);padding:5px 10px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--pill);overflow:hidden}
 .seg button{background:transparent;color:var(--muted);border:0;font:var(--lab-w) 13px var(--display);
-  letter-spacing:.12em;padding:6px 14px;cursor:pointer}
+  letter-spacing:.12em;padding:6px 14px;cursor:pointer;transition:color .2s ease}
 .seg button.on{background:var(--ac);color:var(--bg)}
-.summary{font:400 12px var(--mono);color:var(--quiet);margin:10px 0 4px}
-/* 列表 */
+.summary{font:400 12px var(--mono);color:var(--quiet);margin:10px 0 4px;letter-spacing:.03em}
+.summary .busy{color:var(--ac)}
+/* 列表:去卡片化 —— 整行可点,细线分隔,下载为行尾金色文字链 */
 .list{margin-top:6px}
-.row{display:flex;align-items:center;gap:14px;padding:12px 2px;border-bottom:1px solid var(--line-dim,var(--line))}
+.list.loading{opacity:.5;transition:opacity .25s ease}
+.row{display:flex;align-items:baseline;gap:14px;padding:12px 4px;
+  border-bottom:1px solid var(--line-dim,var(--line));text-decoration:none;color:inherit;cursor:pointer;
+  transition:background .18s ease}
+.row:hover{background:rgba(201,162,39,.05)}
 .row .t{font:400 16px var(--mono);color:var(--text);min-width:92px}
-.row .tag{font:var(--lab-w) 11px var(--display);letter-spacing:.14em;color:var(--muted);
-  border:1px solid var(--line);border-radius:var(--pill);padding:2px 9px;text-transform:var(--lab-tt)}
+.row .tag{font:var(--lab-w) 11px var(--display);letter-spacing:.14em;color:var(--quiet);text-transform:var(--lab-tt)}
 .row .sz{font:400 13px var(--mono);color:var(--quiet);margin-left:auto}
-.row a.dl{font:var(--lab-w) 12px var(--display);letter-spacing:.14em;text-transform:var(--lab-tt);
-  color:var(--ac);text-decoration:none;border:1px solid var(--ac-soft);border-radius:var(--pill);padding:5px 13px;white-space:nowrap}
-.row a.dl:hover{background:var(--ac);color:var(--bg)}
+.row .dl{font:var(--lab-w) 12px var(--display);letter-spacing:.14em;text-transform:var(--lab-tt);
+  color:var(--ac);border-bottom:1px solid var(--ac-soft);white-space:nowrap;transition:border-color .2s ease}
+.row:hover .dl{border-bottom-color:var(--ac)}
+@media (prefers-reduced-motion:no-preference){
+  .row.stag{opacity:0;transform:translateY(6px);animation:recRow .5s cubic-bezier(.2,.7,.3,1) forwards}
+  @keyframes recRow{to{opacity:1;transform:none}}
+}
 .empty{color:var(--quiet);font:400 14px var(--body);padding:40px 0;text-align:center}
+.state{padding:8vh 1em}
+.state .retry{font:400 13px var(--mono);color:var(--ac);text-decoration:none;border-bottom:1px solid var(--ac-soft);cursor:pointer}
+.state .retry:hover{border-bottom-color:var(--ac)}
+.skel{padding:6px 0}
+.skel .line{height:1px;background:var(--line-dim);margin:34px 4px}
 @media (max-width:640px){
   .wrap{padding:calc(var(--toph) + 14px) 14px 48px}
   .row{flex-wrap:wrap;gap:8px 12px}
   .row .sz{margin-left:0}
-  .row a.dl{margin-left:auto}
+  .row .dl{margin-left:auto}
 }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="head">
-    <h1>乌兰察布远程台 · 录像回放</h1>
+  <div class="head seq d1">
+    <h1 id="title">远程台 · 录像回放</h1>
     <div class="sub">米家 C700 · 分段录像 · <a class="live" href="/camera-monitor">← 回到实时</a></div>
   </div>
-  <div class="ctl">
+  <div class="ctl seq d2">
     <div><label>日期</label><select id="date" class="sel"></select></div>
     <div><label>编码</label>
       <span class="seg" id="seg">
@@ -57,16 +71,22 @@ select.sel{background:var(--bg);color:var(--text);border:1px solid var(--line);b
       </span>
     </div>
   </div>
-  <div class="summary" id="summary"></div>
-  <div class="list" id="list"><div class="empty">加载中…</div></div>
+  <div class="summary seq d3" id="summary"></div>
+  <div class="list seq d3" id="list">
+    <div class="skel"><div class="line"></div><div class="line"></div><div class="line"></div></div>
+  </div>
 </div>
 <script>
 (function(){
-  var stream = "h264", date = null, dates = [];
+  var stream = "h264", date = null, dates = [], hasRendered = false, reqSeq = 0;
   var $date = document.getElementById("date");
   var $seg  = document.getElementById("seg");
   var $list = document.getElementById("list");
   var $sum  = document.getElementById("summary");
+
+  // 站名读顶栏唯一来源,不在页面里硬编码地名
+  var siteName = (window.OPS && window.OPS.siteName) || "远程台";
+  document.getElementById("title").textContent = siteName + " · 录像回放";
 
   function setTopH(){
     var t = document.querySelector(".ops-top");
@@ -85,25 +105,61 @@ select.sel{background:var(--bg);color:var(--text);border:1px solid var(--line);b
     $date.innerHTML = list.map(function(d){ return '<option value="'+d+'">'+d+'</option>'; }).join("");
     $date.value = sel || (list[0] || "");
   }
+  function fmtMb(mb){
+    mb = mb || 0;
+    return mb >= 1024 ? (mb/1024).toFixed(mb >= 10240 ? 1 : 2) + " GB" : mb + " MB";
+  }
+  function rowHtml(it, i){
+    var dl = "/api/camera/recording-file?stream=" + encodeURIComponent(it.stream) +
+             "&name=" + encodeURIComponent(it.name);
+    return '<a class="row stag" style="animation-delay:'+(i*0.04).toFixed(2)+'s" href="'+dl+'">'+
+           '<span class="t">'+it.time+'</span>'+
+           '<span class="tag">'+it.stream+'</span>'+
+           '<span class="sz">'+fmtMb(it.size_mb)+'</span>'+
+           '<span class="dl">下载</span></a>';
+  }
   function render(p){
     fillDates(p.dates || [], p.selected_date);
     date = p.selected_date;
     var items = p.items || [];
-    if(!items.length){ $list.innerHTML = '<div class="empty">该日期无录像</div>'; $sum.textContent = ""; return; }
-    $sum.textContent = (p.selected_date||"") + " · " + (p.count||items.length) + " 段 · 共 " +
-      ((p.total_mb||0) >= 1024 ? ((p.total_mb/1024).toFixed(1)+" GB") : ((p.total_mb||0)+" MB"));
-    $list.innerHTML = items.map(function(it){
-      var dl = "/api/camera/recording-file?stream=" + encodeURIComponent(it.stream) +
-               "&name=" + encodeURIComponent(it.name);
-      var sz = it.size_mb >= 1024 ? (it.size_mb/1024).toFixed(2)+" GB" : it.size_mb+" MB";
-      return '<div class="row"><span class="t">'+it.time+'</span>'+
-             '<span class="tag">'+it.stream.toUpperCase()+'</span>'+
-             '<span class="sz">'+sz+'</span>'+
-             '<a class="dl" href="'+dl+'">下载</a></div>';
-    }).join("");
+    if(!items.length){
+      $list.innerHTML = '<div class="empty">该日期无录像</div>';
+      $sum.textContent = ""; hasRendered = true; return;
+    }
+    $sum.textContent = (p.selected_date||"") + " · " + (p.count||items.length) + " 段 · 共 " + fmtMb(p.total_mb);
+    $list.innerHTML = items.map(rowHtml).join("");
+    hasRendered = true;
   }
-  function load(){ $list.innerHTML = '<div class="empty">加载中…</div>'; api().then(render).catch(function(){
-      $list.innerHTML = '<div class="empty">读取失败</div>'; }); }
+  function showState(title, sub, withRetry){
+    var retry = withRetry ? '<div class="sub" style="margin-top:.6em"><a class="retry" id="retry">重试</a></div>' : '';
+    $list.innerHTML = '<div class="ops-disconnected state"><div class="ring"></div>'+
+      '<h4>'+title+'</h4><div class="note">'+sub+'</div>'+retry+'</div>';
+    var r = document.getElementById("retry");
+    if(r) r.addEventListener("click", function(){ load(); });
+  }
+  function load(){
+    var my = ++reqSeq;
+    // 已有内容:不清空,只在控制区给一个轻"载入中"提示并淡化列表;首屏:保留骨架
+    if(hasRendered){
+      $list.classList.add("loading");
+      if($sum.textContent) $sum.insertAdjacentHTML("beforeend", ' <span class="busy" id="busy">· 载入中…</span>');
+    }
+    api().then(function(p){
+      if(my !== reqSeq) return;            // 已被更新的请求取代,丢弃
+      $list.classList.remove("loading");
+      render(p);
+    }).catch(function(){
+      if(my !== reqSeq) return;
+      $list.classList.remove("loading");
+      var b = document.getElementById("busy"); if(b) b.remove();
+      if(!hasRendered){
+        showState("读取失败", "无法获取录像列表,请检查链路后重试。", true);
+      } else {
+        // 已有内容:保留旧列表,只在 summary 提示,不清空
+        $sum.insertAdjacentHTML("beforeend", ' <span class="busy">· 刷新失败,仍显示上次结果</span>');
+      }
+    });
+  }
 
   $date.addEventListener("change", function(){ date = $date.value; load(); });
   $seg.addEventListener("click", function(e){

@@ -33,7 +33,8 @@ button.gold{background:var(--ac);color:var(--bg);border-color:var(--ac)} button.
 /* Ⅰ 卡片库(方角)*/
 .mk{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-.card{border:1px solid var(--line);padding:11px 13px;cursor:grab;position:relative;background:linear-gradient(180deg,rgba(201,162,39,.04),transparent)}
+.card{border:none;border-left:2px solid var(--line);border-bottom:1px solid var(--line-dim);padding:10px 13px 10px 14px;cursor:grab;position:relative;background:none;transition:border-left-color .18s ease,background .18s ease}
+.card:hover{background:linear-gradient(90deg,rgba(201,162,39,.05),transparent)}
 .card.shoot{border-left:2px solid var(--ac)} .card.init{border-left:2px solid var(--good)}
 .card.end{border-left:2px solid var(--muted)} .card.action{border-left:2px solid var(--ac-soft)}
 .card .ct{font:var(--lab-w) var(--dw-meta) var(--display);letter-spacing:.14em;color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:8px}
@@ -65,12 +66,14 @@ html[data-skin="B"] .card .ttl{font-weight:500;font-size:18px}
 .twfull span{position:absolute;top:3px;left:3px;font:400 10px var(--mono);color:var(--ac-soft);background:var(--bg);padding:0 3px}
 .track{position:relative;height:46px;border-bottom:1px solid var(--line-dim);width:100%}
 .track .tlab{position:absolute;left:4px;top:3px;z-index:1;font:400 10px var(--mono);color:var(--quiet);pointer-events:none}
+.track .tlhint{position:absolute;left:60px;top:14px;font:italic 300 13px var(--body);color:var(--quiet);pointer-events:none;white-space:nowrap}
 .seg{position:absolute;top:7px;height:32px;background:rgba(201,162,39,.16);border:1px solid var(--ac-soft);
   border-radius:0;cursor:grab;overflow:hidden;display:flex;align-items:center;padding:0 3px;min-width:0;z-index:2}
 .seg.shoot{background:rgba(201,162,39,.18)} .seg.init{background:rgba(127,174,138,.16);border-color:rgba(127,174,138,.5)}
 .seg.end{background:rgba(139,145,165,.16);border-color:var(--line)} .seg.action{background:rgba(201,162,39,.10)}
 .seg.dragging{cursor:grabbing;opacity:.2;border-style:dashed}   /* 拎起:原位留淡虚线占位 */
 .seg.sel{border-color:var(--ac);background:rgba(201,162,39,.30);box-shadow:inset 0 0 0 1px var(--ac);z-index:4}
+.seg.conflict{border-color:var(--bad)!important;box-shadow:0 0 0 1px var(--bad),0 0 8px rgba(196,106,90,.5)}
 .seg.sel .sl{color:var(--text)}
 .seg.sel.dragging{opacity:.22}   /* 组拖:选中成员原位拎起(淡占位),落点由轮廓显示 */
 .seg.rip{opacity:.5;transition:transform .13s ease}   /* 让位:被顺延的段平移(带缓动)+ 轻微虚化 */
@@ -130,10 +133,6 @@ table.seqs td{color:var(--text);padding:3px 10px 3px 0;border-bottom:1px solid v
 .dr-bad{font:400 var(--dw-meta) var(--mono);color:var(--bad);border-left:2px solid var(--bad);padding:6px 10px;margin:8px 0}
 button.act.danger{color:var(--bad);border-color:var(--bad)}
 
-.seq2{opacity:0;transform:translateY(8px);transition:opacity .5s ease,transform .5s ease}
-.seq2.d1{transition-delay:.05s}.seq2.d2{transition-delay:.12s}.seq2.d3{transition-delay:.19s}
-body.ready .seq2{opacity:1;transform:none}
-@media (prefers-reduced-motion:reduce){.seq2{transition:none}}
 @media (max-width:640px){.head .sub{display:none} .palette{grid-template-columns:1fr 1fr}}
 </style>
 </head>
@@ -141,13 +140,13 @@ body.ready .seq2{opacity:1;transform:none}
 <canvas id="bg" aria-hidden="true"></canvas>
 
 <main class="wrap">
-  <header class="head seq2">
+  <header class="head seq">
     <h1>序列设计<span class="sub">sequence designer</span></h1>
     <span class="spacer"></span>
     <a class="lnk" id="lnk-mon" href="/plan">← 计划监控</a>
   </header>
 
-  <section class="sect seq2 d1">
+  <section class="sect seq d1">
     <h2><span class="rn">Ⅰ</span> 卡片库<span class="cap">拖卡片到下方时间轴</span></h2>
     <div class="mk">
       <button class="act" data-mk="shoot">+ 拍摄卡</button>
@@ -158,7 +157,7 @@ body.ready .seq2{opacity:1;transform:none}
     <div class="palette" id="palette"></div>
   </section>
 
-  <section class="sect seq2 d2">
+  <section class="sect seq d2">
     <h2><span class="rn">Ⅱ</span> 工作链<span class="cap">同轨不重叠·靠近吸附·留间隔=等待</span></h2>
     <div class="nightctl">
       <span style="color:var(--quiet);letter-spacing:.12em">今晚</span>
@@ -172,18 +171,20 @@ body.ready .seq2{opacity:1;transform:none}
     <div class="trackbtns">
       <button class="act" id="add-track">+ 加轨道</button>
       <button class="act" id="del-track">− 删空轨</button>
+      <button class="act danger" id="clear-all">清空全部</button>
     </div>
   </section>
 
-  <section class="sect seq2 d3">
+  <section class="sect seq d3">
     <h2><span class="rn">Ⅲ</span> 制定序列<span class="cap" id="final-cap"></span></h2>
     <button class="gold act" id="compile">制定序列 ▾</button>
     <span class="warn" id="overlap-warn"></span>
     <div class="final" id="final"></div>
   </section>
 
-  <section class="sect seq2 d3">
+  <section class="sect seq d4">
     <h2><span class="rn">Ⅳ</span> 下发预览<span class="cap">编译为 ASIAIR 计划 · dry-run 只预览不下发</span></h2>
+    <p class="dr-note" style="margin:0 0 12px">dry-run 只编译预览、不下发。下发只创建<b>停用草稿</b>(enable=false,不会自动执行),需到 ASIAIR App 内审核并手动启用。</p>
     <button class="gold act" id="dryrun">编译为盒子计划 ▾</button>
     <div class="dr" id="dr-out"></div>
   </section>
@@ -206,7 +207,6 @@ const esc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>
     ctx.globalAlpha=1;requestAnimationFrame(draw);})(0);})();
 
 if(OPS&&OPS.device)$("lnk-mon").href="/plan?device="+encodeURIComponent(OPS.device);
-setTimeout(()=>document.body.classList.add("ready"),500);
 
 /* ════════ 数据模型 ════════ */
 const OVERHEAD=5;
@@ -218,6 +218,9 @@ const OBJ_TYPES={"":"—",galaxy:"星系",open_galactic_cluster:"疏散星团",g
 const ACT_CN={autofocus:"自动对焦",filter:"切换滤镜",recalib:"重新校准导星"};
 let uid=1, cards=[], tracks=[[]], editing=null;
 const sel=new Set(); const MQ_THRESH=4;   /* sel:选中段对象引用(跨 renderTimeline 重建稳定);MQ_THRESH:框选/单击阈值 px */
+const conflictIds=new Set();
+const DRAFT_KEY='ops-plan-design-draft';
+let _saveT=null;
 
 function cardDur(c){
   if(c.kind==="shoot")return Math.max(1,(+c.repeat||0))*((+c.exp||0)+OVERHEAD);
@@ -248,6 +251,27 @@ function t2m(hhmm){const m=/^(\d{1,2}):(\d{2})$/.exec(hhmm||"");if(!m)return nul
 function m2clock(min){let total=(min+720);const h=Math.floor(total/60)%24,mm=Math.round(total%60);return ("0"+h).slice(-2)+":"+("0"+mm).slice(-2);}
 const night=()=>({sunset:t2m($("t-sunset").value)??360,dusk:t2m($("t-dusk").value)??450,dawn:t2m($("t-dawn").value)??990,sunrise:t2m($("t-sunrise").value)??1080});
 function axisRange(){const n=night();const a=Math.min(n.sunset,n.dusk)-15,b=Math.max(n.sunrise,n.dawn)+15;return [a, b>a?b:a+600];}
+function saveDraft(){
+  try{
+    if(_saveT)clearTimeout(_saveT);
+    _saveT=setTimeout(()=>{
+      const data={uid,cards,tracks:tracks.map(tr=>tr.map(s=>({id:s.id,card:s.card,start:s.start,dur:s.dur}))),
+        night:{sunset:$("t-sunset").value,dusk:$("t-dusk").value,dawn:$("t-dawn").value,sunrise:$("t-sunrise").value}};
+      localStorage.setItem(DRAFT_KEY,JSON.stringify(data));
+    },400);
+  }catch(_){}
+}
+function restoreDraft(){
+  try{
+    const raw=localStorage.getItem(DRAFT_KEY);if(!raw)return false;
+    const d=JSON.parse(raw);if(!d)return false;
+    if(Array.isArray(d.cards))cards=d.cards;
+    if(Array.isArray(d.tracks)&&d.tracks.length)tracks=d.tracks;
+    if(typeof d.uid==='number')uid=d.uid;
+    if(d.night){if(d.night.sunset)$("t-sunset").value=d.night.sunset;if(d.night.dusk)$("t-dusk").value=d.night.dusk;if(d.night.dawn)$("t-dawn").value=d.night.dawn;if(d.night.sunrise)$("t-sunrise").value=d.night.sunrise;}
+    return true;
+  }catch(_){return false;}
+}
 
 /* ════════ Ⅰ 卡片库 ════════ */
 function newCard(kind){
@@ -290,12 +314,12 @@ function cardFields(c){
 function bindFields(root,c,onChange){
   root.querySelectorAll("[data-k]").forEach(el=>el.addEventListener("input",()=>{
     let v=el.value;if(el.type==="number")v=parseFloat(v);if(el.tagName==="SELECT")v=el.value;
-    c[el.dataset.k]=v;onChange();}));
-  root.querySelectorAll("[data-ck]").forEach(el=>el.addEventListener("change",()=>{c.steps[el.dataset.ck]=el.checked;onChange();}));
+    c[el.dataset.k]=v;onChange();saveDraft();}));
+  root.querySelectorAll("[data-ck]").forEach(el=>el.addEventListener("change",()=>{c.steps[el.dataset.ck]=el.checked;onChange();saveDraft();}));
 }
 function renderPalette(){
   const p=$("palette");
-  if(!cards.length){p.innerHTML='<div class="empty">点上方 + 新建卡片,再拖到时间轴</div>';return;}
+  if(!cards.length){p.innerHTML='<div class="empty">点上方 + 新建卡片,再拖到时间轴</div>';saveDraft();return;}
   p.innerHTML=cards.map(c=>`<div class="card ${c.kind}" data-cid="${c.id}">
     <span class="x" data-del="${c.id}">×</span>
     <div class="ct">${({shoot:"拍摄",init:"初始",end:"终止",action:"操作"})[c.kind]}<span class="dur">${fmtDur(cardDur(c))}</span></div>
@@ -312,8 +336,9 @@ function renderPalette(){
       startDrag(e, {...c, steps:c.steps?{...c.steps}:undefined}, null, null, e.clientX-el.getBoundingClientRect().left);
     });});
   p.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{cards=cards.filter(c=>c.id!=b.dataset.del);renderPalette();}));
+  saveDraft();
 }
-renderPalette();
+restoreDraft();renderPalette();
 document.querySelectorAll("[data-mk]").forEach(b=>b.addEventListener("click",()=>newCard(b.dataset.mk)));
 
 /* ════════ Ⅱ 工作链时间轴 ════════ */
@@ -333,8 +358,8 @@ function renderTimeline(){
   for(let t=Math.ceil(a/60)*60;t<=b;t+=60){html+=`<div class="tick" style="left:${(t-a)*ppm}px"><span>${m2clock(t)}</span></div>`;}
   html+=`</div>`;
   tracks.forEach((tr,ti)=>{
-    html+=`<div class="track" data-ti="${ti}"><span class="tlab">轨 ${ti+1}</span>`;
-    tr.forEach(seg=>{html+=`<div class="seg ${seg.card.kind}" data-sid="${seg.id}" style="left:${mToX(seg.start)}px;width:${effDur(seg.dur/60)*ppm}px">
+    html+=`<div class="track" data-ti="${ti}"><span class="tlab">轨 ${ti+1}</span>${(ti===0&&!tracks.flat().length)?'<span class="tlhint">从上方卡片库拖一张拍摄卡到这里开始排序列</span>':''}`;
+    tr.forEach(seg=>{html+=`<div class="seg ${seg.card.kind}${conflictIds.has(seg.id)?' conflict':''}" data-sid="${seg.id}" style="left:${mToX(seg.start)}px;width:${effDur(seg.dur/60)*ppm}px">
       <span class="sl">${esc(cardTitle(seg.card))} · ${fmtDur(seg.dur)}</span></div>`;});
     html+=`</div>`;
   });
@@ -354,6 +379,7 @@ function renderTimeline(){
     el.addEventListener("dblclick",e=>{e.stopPropagation();openEditor(seg,ti);});
   });
   updateFinalCap();
+  saveDraft();
 }
 function resolvePlace(track,seg,desiredStart,noSnap){
   const[a,b]=axisRange();const durMin=seg.dur/60;const SNAP=5;const n=night();
@@ -656,6 +682,7 @@ function openEditor(seg,ti){
 $("add-track").onclick=()=>{tracks.push([]);renderTimeline();};
 $("del-track").onclick=()=>{const i=tracks.map((t,k)=>[t,k]).reverse().find(([t])=>!t.length);
   if(i&&tracks.length>1){tracks.splice(i[1],1);renderTimeline();}};
+$("clear-all").onclick=()=>{confirmInline($("clear-all"),'清空全部卡片与时间轴段?此操作不可撤销',()=>{cards=[];tracks=[[]];sel.clear();conflictIds.clear();uid=1;$("overlap-warn").textContent='';$("final").innerHTML='';$("dr-out").innerHTML='';renderPalette();renderTimeline();});};
 $("timeline").addEventListener("pointerdown",onMqDown);   // 空白处框选(一次性绑定,勿放进 renderTimeline)
 ["t-sunset","t-dusk","t-dawn","t-sunrise"].forEach(id=>$(id).addEventListener("input",renderTimeline));
 addEventListener("resize",renderTimeline);
@@ -666,8 +693,10 @@ function updateFinalCap(){const all=tracks.flat();const tot=all.reduce((a,s)=>a+
   $("final-cap").textContent=all.length?(all.length+" 段 · 合计 "+fmtDur(tot)):"";}
 $("compile").onclick=()=>{
   const all=tracks.flat().slice().sort((a,b)=>a.start-b.start);
-  let overlap=false;for(let i=1;i<all.length;i++){if(all[i].start < all[i-1].start+all[i-1].dur/60-0.01){overlap=true;break;}}
-  $("overlap-warn").textContent=overlap?"⚠ 存在重叠,请回到工作链把冲突的段错开到不同时间":"";
+  conflictIds.clear();let firstConflictAt=null;
+  for(let i=1;i<all.length;i++){if(all[i].start < all[i-1].start+all[i-1].dur/60-0.01){conflictIds.add(all[i].id);conflictIds.add(all[i-1].id);if(firstConflictAt==null)firstConflictAt=all[i].start;}}
+  $("overlap-warn").textContent=conflictIds.size?("⚠ 存在重叠(始于 "+m2clock(firstConflictAt)+"),已在工作链高亮冲突段,请错开"):"";
+  renderTimeline();
   const fin=$("final");
   if(!all.length){fin.innerHTML='<div class="empty">时间轴还没有段</div>';return;}
   let html='<div class="flist">';let prevEnd=null;
@@ -711,8 +740,8 @@ function compileToPlan(){
     const c=s.card;
     if(c.kind==="action"){
       if(c.act==="filter") curFilter=Math.max(0,+c.fto||0);
-      else if(c.act==="autofocus") scheduler.push("自动对焦 @ "+m2clock(s.start)+"(曝光 "+(c.focusExp??3)+"s)——原生对焦为后台触发,精确插入需调度器在 seq 边界发[对焦写方法待 probe]");
-      else if(c.act==="recalib") scheduler.push("重新校准导星 @ "+m2clock(s.start)+"——原生不支持精确插入,需调度器[校准写方法待抓包]");
+      else if(c.act==="autofocus") scheduler.push("自动对焦 @ "+m2clock(s.start)+"(曝光 "+(c.focusExp??3)+"s)——盒子在序列边界自动触发对焦,精确插入需由调度器在目标切换时发起");
+      else if(c.act==="recalib") scheduler.push("重新校准导星 @ "+m2clock(s.start)+"——盒子计划内无法精确插入校准,需由调度器在序列边界发起");
       continue;
     }
     if(c.kind!=="shoot") continue;
@@ -733,8 +762,8 @@ function compileToPlan(){
   plan.targets.forEach(t=>{delete t._n;});
   if(!plan.targets.length) warnings.push("没有拍摄卡,plan 无 target");
   const rpc=[
-    {m:"set_plan", note:"按 id 更新/创建(已实测可用,params=[plan])"},
-    {m:"<启动 plan>", note:"启动方法名待抓 App 包(start_plan 实测 103)"}
+    {m:"set_plan", note:"按 id 更新或新建计划草稿"},
+    {m:"<启动计划>", note:"下发后请在 ASIAIR App 内审核并手动启用"}
   ];
   return {plan, scheduler, warnings, rpc};
 }
@@ -765,7 +794,7 @@ function renderDryRun(){
   h+= scheduler.length?('<ul class="dr-list">'+scheduler.map(x=>`<li>${esc(x)}</li>`).join("")+'</ul>'):'<div class="q">无 — 全部能用原生 plan 表达</div>';
   if(warnings.length) h+='<div class="dr-h bad">需修正</div><ul class="dr-list bad">'+warnings.map(x=>`<li>${esc(x)}</li>`).join("")+'</ul>';
   h+='<div class="dr-h">将下发的 RPC(dry-run 不发)</div><ul class="dr-list">'+rpc.map(r=>`<li><code>${esc(r.m)}</code> — <span class="q">${esc(r.note)}</span></li>`).join("")+'</ul>';
-  h+=`<details class="dr-json"><summary>set_plan 的 plan 字典(JSON)</summary><pre>${esc(JSON.stringify(plan,null,1))}</pre></details>`;
+  h+=`<details class="dr-json"><summary>下发原文(JSON · 普通使用无需查看)</summary><pre>${esc(JSON.stringify(plan,null,1))}</pre></details>`;
   const hasDev=!!(OPS&&OPS.device);
   const canDeploy=hasDev&&warnings.length===0&&plan.targets.length>0;
   h+='<div class="dr-deploy">';
@@ -789,27 +818,48 @@ async function planAction(body){
 }
 async function deployToBox(){
   const plan=window._compiledPlan; if(!plan||!OPS||!OPS.device)return;
-  if(!confirm("将作为【停用草稿】下发到盒子(enable=false,不会自动执行)。\n\n计划名:"+plan.plan_name+"\n目标数:"+plan.targets.length+"\n\n确认下发?"))return;
-  const btn=$("deploybtn"),msg=$("deploy-msg"),old=btn.textContent;
-  btn.disabled=true;btn.textContent="下发中…";msg.innerHTML="";
-  try{
-    const j=await planAction({device:OPS.device,action:"deploy",plan});
-    if(j&&j.ok){
-      msg.innerHTML='<div class="dr-ok">✓ 已下发草稿 <b>'+esc(j.plan_name||"")+'</b>(id '+j.plan_id+' · '+j.targets+' 目标 · enable=false 不会执行)。请在 ASIAIR App 审核,确认开顶后启用。</div>'+
-        '<button class="act danger" id="delbtn">删除该草稿(id '+j.plan_id+')</button>';
-      $("delbtn").onclick=()=>deletePlan(j.plan_id);
-    }else msg.innerHTML='<div class="dr-bad">下发失败:'+esc((j&&j.error)||"未知错误")+'</div>';
-  }catch(e){msg.innerHTML='<div class="dr-bad">下发失败:'+esc(String(e))+'</div>';}
-  btn.disabled=false;btn.textContent=old;
+  const doDeploy=async()=>{
+    const btn=$("deploybtn"),msg=$("deploy-msg"),old=btn?btn.textContent:'';
+    if(btn){btn.disabled=true;btn.textContent="下发中…";} if(msg)msg.innerHTML="";
+    try{
+      const j=await planAction({device:OPS.device,action:"deploy",plan});
+      if(j&&j.ok){
+        msg.innerHTML='<div class="dr-ok">✓ 已下发草稿 <b>'+esc(j.plan_name||"")+'</b>(id '+j.plan_id+' · '+j.targets+' 目标 · enable=false 不会执行)。请在 ASIAIR App 审核,确认开顶后启用。</div>'+
+          '<button class="act danger" id="delbtn">删除该草稿(id '+j.plan_id+')</button>';
+        $("delbtn").onclick=()=>deletePlan(j.plan_id);
+      }else msg.innerHTML='<div class="dr-bad">下发失败:'+esc((j&&j.error)||"未知错误")+'</div>';
+    }catch(e){msg.innerHTML='<div class="dr-bad">下发失败:'+esc(String(e))+'</div>';}
+    if(btn){btn.disabled=false;btn.textContent=old;}
+  };
+  confirmInline($("deploybtn"), '将作为停用草稿下发(enable=false 不会自动执行)· 计划「'+plan.plan_name+'」· '+plan.targets.length+' 目标 · 确认下发?', doDeploy);
 }
 async function deletePlan(pid){
   if(!OPS||!OPS.device)return;
-  if(!confirm("删除盒子上的草稿 id "+pid+"?"))return;
-  const msg=$("deploy-msg");
-  try{
-    const j=await planAction({device:OPS.device,action:"delete",plan_id:pid});
-    msg.innerHTML=(j&&j.ok)?'<div class="dr-ok">✓ 已删除草稿 id '+pid+'</div>':'<div class="dr-bad">删除失败:'+esc((j&&j.error)||"")+'</div>';
-  }catch(e){msg.innerHTML='<div class="dr-bad">删除失败:'+esc(String(e))+'</div>';}
+  const doDel=async()=>{
+    const msg=$("deploy-msg");
+    try{
+      const j=await planAction({device:OPS.device,action:"delete",plan_id:pid});
+      msg.innerHTML=(j&&j.ok)?'<div class="dr-ok">✓ 已删除草稿 id '+pid+'</div>':'<div class="dr-bad">删除失败:'+esc((j&&j.error)||"")+'</div>';
+    }catch(e){msg.innerHTML='<div class="dr-bad">删除失败:'+esc(String(e))+'</div>';}
+  };
+  confirmInline($("delbtn"), '删除盒子上的草稿 id '+pid+' ?', doDel);
+}
+function confirmInline(btn, text, onYes){
+  if(!btn) return;
+  const parent=btn.parentNode; if(!parent) return;
+  const holder=document.createElement('span');
+  holder.style.cssText='display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap';
+  const q=document.createElement('span');
+  q.className='q'; q.style.cssText='font:400 var(--dw-meta) var(--mono);color:var(--ac-soft)';
+  q.textContent=text;
+  const yes=document.createElement('button'); yes.className='gold act'; yes.textContent='✓ 确认';
+  const no=document.createElement('button'); no.className='act'; no.textContent='取消';
+  holder.appendChild(q); holder.appendChild(yes); holder.appendChild(no);
+  btn.style.display='none';
+  parent.insertBefore(holder, btn.nextSibling);
+  const restore=()=>{ holder.remove(); btn.style.display=''; };
+  no.onclick=restore;
+  yes.onclick=()=>{ restore(); onYes(); };
 }
 </script>
 </body>

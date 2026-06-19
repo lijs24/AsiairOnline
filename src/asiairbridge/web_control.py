@@ -13,6 +13,8 @@ ROLE_CONTROLLER = "controller"
 LEASE_SECONDS = 45
 
 _STATE_LOCK = threading.Lock()
+_STATE_CACHE: dict[str, Any] | None = None
+_STATE_CACHE_MTIME: float | None = None
 
 
 class ControlLeaseBusyError(RuntimeError):
@@ -22,11 +24,9 @@ class ControlLeaseBusyError(RuntimeError):
 def control_state(config: AppConfig, device_name: str, session_id: str | None = None) -> dict[str, Any]:
     now = datetime.now()
     with _STATE_LOCK:
-        payload = _load_state(_state_path(config))
-        changed = _prune_expired(payload, now)
+        payload = _ensure_state_loaded(_state_path(config))
+        _prune_expired(payload, now)
         device_state = payload.get("devices", {}).get(device_name)
-        if changed:
-            _save_state(_state_path(config), payload)
     return _describe_state(device_name, device_state, session_id=session_id, now=now)
 
 
@@ -39,6 +39,8 @@ def update_control_role(
     role: str,
     session_label: str | None = None,
 ) -> dict[str, Any]:
+    global _STATE_CACHE, _STATE_CACHE_MTIME
+
     normalized_role = str(role or ROLE_MONITOR).strip().lower()
     if normalized_role not in {ROLE_MONITOR, ROLE_CONTROLLER}:
         raise ValueError(f"Unsupported role: {role}")
@@ -48,7 +50,7 @@ def update_control_role(
     now = datetime.now()
     path = _state_path(config)
     with _STATE_LOCK:
-        payload = _load_state(path)
+        payload = _ensure_state_loaded(path)
         _prune_expired(payload, now)
         devices = payload.setdefault("devices", {})
         current = devices.get(device_name)
@@ -76,6 +78,11 @@ def update_control_role(
 
         payload["updated_at"] = now.isoformat(timespec="seconds")
         _save_state(path, payload)
+        _STATE_CACHE = payload
+        try:
+            _STATE_CACHE_MTIME = path.stat().st_mtime
+        except OSError:
+            _STATE_CACHE_MTIME = None
         device_state = payload.get("devices", {}).get(device_name)
     return _describe_state(device_name, device_state, session_id=session_id, now=now)
 
@@ -138,6 +145,23 @@ def _display_name(label: Any, client_ip: Any) -> str:
 
 def _state_path(config: AppConfig) -> Path:
     return config.state_path() / "web" / "control-roles.json"
+
+
+def _ensure_state_loaded(path: Path) -> dict[str, Any]:
+    global _STATE_CACHE, _STATE_CACHE_MTIME
+
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = None
+
+    if _STATE_CACHE is not None and mtime == _STATE_CACHE_MTIME:
+        return _STATE_CACHE
+
+    payload = _load_state(path)
+    _STATE_CACHE = payload
+    _STATE_CACHE_MTIME = mtime
+    return payload
 
 
 def _load_state(path: Path) -> dict[str, Any]:

@@ -64,9 +64,11 @@ html[data-skin="B"] .dev .id b{font:600 19px var(--display)}
 #spark{position:absolute;inset:0;width:100%;height:100%}
 .kv{display:flex;flex-direction:column;gap:0}
 .kv .row{display:flex;align-items:baseline;gap:12px;padding:8px 2px;border-bottom:1px solid var(--line-dim)}
+.kv .row.note-row{border-bottom:none;padding:2px 2px 8px}
 .kv .row .k{font:var(--lab-w) var(--nw-ctrl) var(--display);letter-spacing:.1em;color:var(--muted);text-transform:var(--lab-tt)}
 .kv .row .v{margin-left:auto;font:400 var(--nw-ctrl) var(--mono);color:var(--text);font-variant-numeric:tabular-nums;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:24em;text-align:right;direction:ltr}
+.dev[title]{cursor:help}
 
 .statusline{margin-top:auto;padding-top:18px}
 
@@ -112,6 +114,7 @@ html[data-skin="B"] .dev .id b{font:600 19px var(--display)}
         <div class="spark"><canvas id="spark"></canvas></div>
         <div class="kv">
           <div class="row"><span class="k">连接状态</span><span class="v" id="sess-state">检测中…</span></div>
+          <div class="row note-row"><span class="con-note" id="sess-note"></span></div>
           <div class="row"><span class="k">后端地址</span><span class="v" id="sess-addr">--</span></div>
           <div class="row"><span class="k">会话 ID</span><span class="v" id="sess-id">--</span></div>
           <div class="row"><span class="k">最近 60 次丢包</span><span class="v" id="sess-loss">--</span></div>
@@ -180,7 +183,9 @@ async function pollStates(){
         :(cam.name?esc(cam.name)+(app.capture_state?` · ${esc(app.capture_state)}`:""):"已就绪");
       const reasonLab=off?"状态":"相机";
       const freshV=age!=null?(age<90?Math.round(age)+" 秒前":OPS.fmtAgo(age)):"--";
-      return `<div class="dev">
+      const errMethods=[...new Set((cs.errors||[]).map(e=>e&&e.method).filter(Boolean))];
+      const errSummary=errMethods.length?errMethods.slice(0,4).join(" · ")+(errMethods.length>4?` 等${errMethods.length}项`:""):"";
+      return `<div class="dev"${cls==="warn"?` title="${esc("受限 · "+(errSummary?("部分读取异常:"+errSummary):"部分通道暂不可用"))}"`:""}>
         <span class="lamp ${lamp}"></span>
         <span class="id"><b>${esc(name)}</b><span class="ip">${esc(ip)}</span></span>
         <span class="st ${cls}">${label}</span>
@@ -207,6 +212,7 @@ async function pollStates(){
 
 /* ════════ Ⅱ 后端 → 前端(本会话,客户端测 RTT)════════ */
 const SAMPLES=[];const MAX=60;
+let pendingGap=false;
 function drawSpark(){
   const cv=$("spark"),ctx=cv.getContext("2d");
   const w=cv.clientWidth,h=cv.clientHeight,dpr=devicePixelRatio||1;
@@ -219,14 +225,17 @@ function drawSpark(){
   const y=v=>h-pad-(v/mx)*(h-2*pad);
   /* 面积 + 线 */
   ctx.beginPath();let started=false;
-  SAMPLES.forEach((s,i)=>{if(s.rtt==null){started=false;return;}
+  SAMPLES.forEach((s,i)=>{if(s.gap||s.rtt==null){started=false;return;}
     const px=x(i+(MAX-SAMPLES.length)),py=y(s.rtt);
     if(!started){ctx.moveTo(px,py);started=true;}else ctx.lineTo(px,py);});
   ctx.strokeStyle=css("--ac");ctx.lineWidth=1.5;ctx.stroke();
   /* 丢包红点 */
   ctx.fillStyle=css("--bad");
-  SAMPLES.forEach((s,i)=>{if(s.rtt==null){const px=x(i+(MAX-SAMPLES.length));
+  SAMPLES.forEach((s,i)=>{if(s.rtt==null&&!s.gap){const px=x(i+(MAX-SAMPLES.length));
     ctx.fillRect(px-1,pad,2,h-2*pad);}});
+  ctx.save();ctx.strokeStyle=css("--line");ctx.globalAlpha=.8;ctx.setLineDash([3,3]);ctx.lineWidth=1;
+  SAMPLES.forEach((s,i)=>{if(s.gap){const px=x(i+(MAX-SAMPLES.length));ctx.beginPath();ctx.moveTo(px,pad);ctx.lineTo(px,h-pad);ctx.stroke();}});
+  ctx.restore();
   /* 最新点 */
   const last=SAMPLES[SAMPLES.length-1];
   if(last&&last.rtt!=null){ctx.fillStyle=css("--ac");ctx.beginPath();
@@ -240,18 +249,26 @@ function renderSess(){
   else{now.innerHTML='超时<span class="u"></span>';now.classList.add("off");}
   if(oks.length){const mn=Math.min(...oks),mx=Math.max(...oks),av=oks.reduce((a,b)=>a+b,0)/oks.length;
     $("lat-mmm").textContent=`最小 ${Math.round(mn)} · 平均 ${Math.round(av)} · 最大 ${Math.round(mx)} ms`;}
-  const loss=SAMPLES.filter(s=>s.rtt==null).length;
-  $("sess-loss").textContent=`${loss}/${SAMPLES.length}`;
+  const measured=SAMPLES.filter(s=>!s.gap);
+  const loss=measured.filter(s=>s.rtt==null).length;
+  const pct=measured.length?Math.round(loss/measured.length*100):0;
+  const filling=measured.length<MAX;
+  $("sess-loss").textContent= measured.length? `${pct}% · ${loss}/${measured.length} 样本${filling?"(窗口填充中)":""}` : "--";
   /* 本会话链路状态以 ping 自身判定(不借用 OPS.conn——那是盒子↔后端的状态) */
   $("sess-state").innerHTML = !SAMPLES.length ? "检测中…"
     : (last&&last.rtt!=null) ? '<span style="color:var(--ac)">已连接</span>'
     : SAMPLES.slice(-3).some(s=>s.rtt!=null) ? '<span style="color:var(--ac-soft)">不稳定</span>'
     : '<span style="color:var(--bad)">未连接</span>';
+  $("sess-note").textContent = !SAMPLES.length ? "正在建立首次往返测量…"
+    : (last&&last.rtt!=null) ? "链路通畅 · 每 2 秒探测一次往返"
+    : SAMPLES.slice(-3).some(s=>s.rtt!=null) ? "近 6 秒内有应答但当前一次超时 · 链路抖动"
+    : "近 6 秒内无任何应答 · 后端可能不可达";
   $("pl-ping").textContent=(last&&last.rtt!=null)?Math.round(last.rtt)+" ms":"--";
   drawSpark();
 }
 async function ping(){
-  if(OPS.hidden&&OPS.hidden())return;
+  if(OPS.hidden&&OPS.hidden()){pendingGap=true;return;}
+  if(pendingGap){pendingGap=false;SAMPLES.push({gap:true});while(SAMPLES.length>MAX)SAMPLES.shift();}
   const t0=performance.now();
   try{
     const r=await fetch("/api/ping",{cache:"no-store"});

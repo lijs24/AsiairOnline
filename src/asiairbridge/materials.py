@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import math
 import os
@@ -64,7 +65,9 @@ class MaterialLibrary:
         self._rescan_pending = False
         self._preview_lock_guard = threading.Lock()
         self._preview_locks: dict[str, threading.Lock] = {}
-        self._preview_semaphore = threading.BoundedSemaphore(1)
+        preview_concurrency = max(2, (os.cpu_count() or 2) // 2)
+        self._preview_semaphore = threading.BoundedSemaphore(preview_concurrency)
+        self._warmer_semaphore = threading.BoundedSemaphore(1)
         self._scan_status: dict[str, Any] = {
             "running": False,
             "started_at": None,
@@ -85,6 +88,9 @@ class MaterialLibrary:
             "done": 0, "failed": 0, "last_error": None, "last_active_at": None,
         }
         self._dir_cache: tuple[Any, list[dict[str, Any]]] | None = None
+        self._summary_cache: tuple[Any, dict[str, Any]] | None = None
+        self._admin_cache: tuple[Any, dict[str, Any]] | None = None
+        self._activity_cache: tuple[Any, tuple[int, int]] | None = None
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
@@ -486,65 +492,110 @@ class MaterialLibrary:
         page = max(1, int(page or 1))
         page_size = max(1, min(200, int(page_size or 80)))
         pattern = str(q or "").strip().lower()
+        prefix = "/".join((device, source_label, *folder_parts)) + "/"
+        esc_prefix = _like_escape(prefix)
+        prefix_len = len(prefix)
+        base_params: dict[str, Any] = {
+            "device": device,
+            "source_label": source_label,
+            "prefix": prefix,
+            "esc_prefix": esc_prefix,
+            "plen": prefix_len,
+        }
+        image_where = """
+            device=:device
+            AND source_label=:source_label
+            AND SUBSTR(relative_path, 1, :plen)=:prefix
+            AND relative_path LIKE :esc_prefix || '%' ESCAPE '\\'
+            AND relative_path NOT LIKE :esc_prefix || '%/%' ESCAPE '\\'
+        """
+        image_params = dict(base_params)
+        if pattern:
+            image_where += """
+            AND (
+                LOWER(file_name) LIKE '%' || :search || '%' ESCAPE '\\'
+                OR LOWER(COALESCE(target, '')) LIKE '%' || :search || '%' ESCAPE '\\'
+                OR LOWER(relative_path) LIKE '%' || :search || '%' ESCAPE '\\'
+                OR LOWER(COALESCE(captured_at, '')) LIKE '%' || :search || '%' ESCAPE '\\'
+                OR LOWER(COALESCE(exposure, '')) LIKE '%' || :search || '%' ESCAPE '\\'
+            )
+            """
+            image_params["search"] = _like_escape(pattern)
+        offset = (page - 1) * page_size
 
         with self._connect() as conn:
             library_updated_at = self._library_updated_at(conn)
-            rows = conn.execute(
+            folder_rows = conn.execute(
                 """
-                SELECT * FROM materials
-                WHERE device=? AND source_label=?
-                ORDER BY COALESCE(captured_at, mtime_text) DESC, mtime DESC
+                SELECT
+                    SUBSTR(relative_path, :plen + 1, INSTR(SUBSTR(relative_path, :plen + 1), '/') - 1)
+                        AS folder_name,
+                    COUNT(*) AS item_count
+                FROM materials
+                WHERE device=:device
+                  AND source_label=:source_label
+                  AND SUBSTR(relative_path, 1, :plen)=:prefix
+                  AND relative_path LIKE :esc_prefix || '%' ESCAPE '\\'
+                  AND relative_path LIKE :esc_prefix || '%/%' ESCAPE '\\'
+                GROUP BY folder_name
                 """,
-                [device, source_label],
+                base_params,
             ).fetchall()
 
-        folders: dict[str, dict[str, Any]] = {}
-        images: list[dict[str, Any]] = []
-        prefix_len = 2 + len(folder_parts)
-        for row in rows:
-            parts = tuple(str(row["relative_path"]).split("/"))
-            if len(parts) <= prefix_len:
-                continue
-            if tuple(parts[0:2]) != (device, source_label):
-                continue
-            if folder_parts and tuple(parts[2 : 2 + len(folder_parts)]) != folder_parts:
-                continue
-            tail = parts[prefix_len:]
-            if not tail:
-                continue
-            if len(tail) > 1:
-                folder_name = tail[0]
-                if pattern and pattern not in "/".join(tail).lower():
-                    pass
-                entry = folders.setdefault(
-                    folder_name,
+            folders: list[dict[str, Any]] = []
+            for folder_row in folder_rows:
+                folder_name = str(folder_row["folder_name"])
+                folder_prefix = f"{prefix}{folder_name}/"
+                cover_thumb_url = None
+                for row in conn.execute(
+                    """
+                    SELECT * FROM materials
+                    WHERE device=:device
+                      AND source_label=:source_label
+                      AND SUBSTR(relative_path, 1, :folder_plen)=:folder_prefix
+                      AND relative_path LIKE :esc_folder_prefix || '%' ESCAPE '\\'
+                    ORDER BY COALESCE(captured_at, mtime_text) DESC, mtime DESC
+                    LIMIT 60
+                    """,
+                    {
+                        "device": device,
+                        "source_label": source_label,
+                        "folder_prefix": folder_prefix,
+                        "esc_folder_prefix": _like_escape(folder_prefix),
+                        "folder_plen": len(folder_prefix),
+                    },
+                ).fetchall():
+                    if self._thumbnail_path_for_row(row) is not None:
+                        cover_thumb_url = f"/api/materials/thumb?id={row['id']}"
+                        break
+                folders.append(
                     {
                         "name": folder_name,
                         "path": _join_folder_path(folder_path, folder_name),
-                        "item_count": 0,
-                        "cover_thumb_url": None,
-                    },
+                        "item_count": int(folder_row["item_count"] or 0),
+                        "cover_thumb_url": cover_thumb_url,
+                    }
                 )
-                entry["item_count"] += 1
-                if entry["cover_thumb_url"] is None and self._thumbnail_path_for_row(row) is not None:
-                    entry["cover_thumb_url"] = f"/api/materials/thumb?id={row['id']}"
-                continue
 
+            total_images = int(
+                conn.execute(f"SELECT COUNT(*) FROM materials WHERE {image_where}", image_params).fetchone()[0]
+            )
+            image_rows = conn.execute(
+                f"""
+                SELECT * FROM materials
+                WHERE {image_where}
+                ORDER BY COALESCE(captured_at, mtime_text) DESC, mtime DESC
+                LIMIT :limit OFFSET :offset
+                """,
+                {**image_params, "limit": page_size, "offset": offset},
+            ).fetchall()
+
+        sorted_folders = sorted(folders, key=lambda item: str(item["name"]).lower())
+        paged_images: list[dict[str, Any]] = []
+        for row in image_rows:
             item = _row_to_item(row)
             item["thumb_url"] = f"/api/materials/thumb?id={row['id']}" if self._thumbnail_path_for_row(row) else None
-            if pattern:
-                haystack = " ".join(
-                    str(item.get(key) or "")
-                    for key in ("file_name", "target", "relative_path", "captured_at", "exposure")
-                ).lower()
-                if pattern not in haystack:
-                    continue
-            images.append(item)
-
-        sorted_folders = sorted(folders.values(), key=lambda item: str(item["name"]).lower())
-        total_images = len(images)
-        offset = (page - 1) * page_size
-        paged_images = images[offset : offset + page_size]
+            paged_images.append(item)
         return {
             "ok": True,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -566,6 +617,11 @@ class MaterialLibrary:
         }
 
     def summary(self) -> dict[str, Any]:
+        updated = self.library_updated_at()
+        with self._lock:
+            cache = self._summary_cache
+            if cache is not None and cache[0] == updated:
+                return cache[1]
         with self._connect() as conn:
             library_updated_at = self._library_updated_at(conn)
             total = int(conn.execute("SELECT COUNT(*) FROM materials").fetchone()[0])
@@ -597,7 +653,7 @@ class MaterialLibrary:
                 item = _row_to_item(row)
                 item["thumb_url"] = f"/api/materials/thumb?id={row['id']}" if self._thumbnail_path_for_row(row) else None
                 latest.append(item)
-        return {
+        result = {
             "ok": True,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
             "library_updated_at": library_updated_at,
@@ -618,6 +674,12 @@ class MaterialLibrary:
             "latest": latest,
             "scan": self.scan_status(),
         }
+        with self._lock:
+            cache = self._summary_cache
+            if cache is not None and cache[0] == library_updated_at:
+                return cache[1]
+            self._summary_cache = (library_updated_at, result)
+        return result
 
     def ensure_preview(self, item_id: str, force: bool = False, user: bool = True) -> dict[str, Any]:
         if user:                                       # 用户主动看图 → 记一次活动,预热随后让路
@@ -643,30 +705,32 @@ class MaterialLibrary:
                 self._set_preview_ready(item_id, preview_path, None, None)
                 return self._ready_preview_payload(row, preview_path, "image/jpeg")
 
-            with self._preview_semaphore:
-                row = self._get_row(item_id)
-                if row is None:
-                    raise FileNotFoundError(item_id)
-                preview_path = Path(str(row["preview_path"] or self._preview_path_for(item_id)))
-                if preview_path.is_file() and not force:
-                    self._set_preview_ready(item_id, preview_path, None, None)
-                    return self._ready_preview_payload(row, preview_path, "image/jpeg")
-                self._set_preview_building(item_id)
-                started = time.monotonic()
-                try:
-                    meta = generate_stf_preview(source_path, preview_path)
-                    self._set_preview_ready(item_id, preview_path, meta, time.monotonic() - started)
-                    return {
-                        "ok": True,
-                        "id": item_id,
-                        "path": preview_path,
-                        "content_type": "image/jpeg",
-                        "generated": True,
-                        "meta": meta,
-                    }
-                except Exception as exc:  # noqa: BLE001
-                    self._set_preview_failed(item_id, str(exc))
-                    raise
+            warmer_guard = self._warmer_semaphore if not user else contextlib.nullcontext()
+            with warmer_guard:
+                with self._preview_semaphore:
+                    row = self._get_row(item_id)
+                    if row is None:
+                        raise FileNotFoundError(item_id)
+                    preview_path = Path(str(row["preview_path"] or self._preview_path_for(item_id)))
+                    if preview_path.is_file() and not force:
+                        self._set_preview_ready(item_id, preview_path, None, None)
+                        return self._ready_preview_payload(row, preview_path, "image/jpeg")
+                    self._set_preview_building(item_id)
+                    started = time.monotonic()
+                    try:
+                        meta = generate_stf_preview(source_path, preview_path)
+                        self._set_preview_ready(item_id, preview_path, meta, time.monotonic() - started)
+                        return {
+                            "ok": True,
+                            "id": item_id,
+                            "path": preview_path,
+                            "content_type": "image/jpeg",
+                            "generated": True,
+                            "meta": meta,
+                        }
+                    except Exception as exc:  # noqa: BLE001
+                        self._set_preview_failed(item_id, str(exc))
+                        raise
 
     def preview_status(self, item_id: str) -> dict[str, Any]:
         row = self._get_row(item_id)
@@ -840,17 +904,11 @@ class MaterialLibrary:
     def activity(self) -> dict[str, Any]:
         """素材库后端实时活动:是否在生成预览 / 索引扫描(下载原始数据由 web 层叠加备份锁判断)。"""
         warm = self.warmer_status()
-        ph, exts = self._raw_ext_clause()
         with self._connect() as conn:
             building = int(conn.execute(
                 "SELECT COUNT(*) FROM materials WHERE preview_status='building'"
             ).fetchone()[0])
-            ready = int(conn.execute(
-                "SELECT COUNT(*) FROM materials WHERE preview_status='ready'"
-            ).fetchone()[0])
-            raw_total = int(conn.execute(
-                f"SELECT COUNT(*) FROM materials WHERE LOWER(extension) IN ({ph})", exts
-            ).fetchone()[0])
+        ready, raw_total = self._activity_ready_raw_counts()
         return {
             "generating": bool(warm.get("active")) or building > 0,
             "warmer_active": bool(warm.get("active")),
@@ -861,6 +919,28 @@ class MaterialLibrary:
             "preview_ready": ready,
             "preview_raw_total": raw_total,
         }
+
+    def _activity_ready_raw_counts(self) -> tuple[int, int]:
+        updated = self.library_updated_at()
+        with self._lock:
+            cache = self._activity_cache
+            if cache is not None and cache[0] == updated:
+                return cache[1]
+        ph, exts = self._raw_ext_clause()
+        with self._connect() as conn:
+            ready = int(conn.execute(
+                "SELECT COUNT(*) FROM materials WHERE preview_status='ready'"
+            ).fetchone()[0])
+            raw_total = int(conn.execute(
+                f"SELECT COUNT(*) FROM materials WHERE LOWER(extension) IN ({ph})", exts
+            ).fetchone()[0])
+        result = (ready, raw_total)
+        with self._lock:
+            cache = self._activity_cache
+            if cache is not None and cache[0] == updated:
+                return cache[1]
+            self._activity_cache = (updated, result)
+        return result
 
     def _warmer_worker(self) -> None:
         if self._warmer_stop.wait(8.0):      # 首启稍候,避开启动/扫描争抢
@@ -964,29 +1044,35 @@ class MaterialLibrary:
         """按真实文件夹(relative_path 的目录,相对 device/source)聚合,仅文件夹级别、不展开单文件;
         随库更新时间缓存,避免每次轮询全表扫描。"""
         updated = self.library_updated_at()
-        cache = self._dir_cache
-        if cache is not None and cache[0] == updated:
-            return cache[1]
-        agg: dict[tuple[str, str, str], list[int]] = {}
-        with self._connect() as conn:
-            for dev, src, rel, sz in conn.execute(
-                "SELECT device, source_label, relative_path, size_bytes FROM materials"
-            ):
-                parts = str(rel or "").replace("\\", "/").split("/")
-                folder = "/".join(parts[2:-1]) if len(parts) > 3 else "(根目录)"
-                entry = agg.setdefault((str(dev), str(src), folder), [0, 0])
-                entry[0] += 1
-                entry[1] += int(sz or 0)
-        rows = [
-            {"device": d, "source": s, "folder": f, "count": c, "bytes": b}
-            for (d, s, f), (c, b) in agg.items()
-        ]
-        rows.sort(key=lambda r: (r["device"], r["source"], -r["bytes"], r["folder"]))
-        self._dir_cache = (updated, rows)
-        return rows
+        with self._lock:
+            cache = self._dir_cache
+            if cache is not None and cache[0] == updated:
+                return cache[1]
+            agg: dict[tuple[str, str, str], list[int]] = {}
+            with self._connect() as conn:
+                for dev, src, rel, sz in conn.execute(
+                    "SELECT device, source_label, relative_path, size_bytes FROM materials"
+                ):
+                    parts = str(rel or "").replace("\\", "/").split("/")
+                    folder = "/".join(parts[2:-1]) if len(parts) > 3 else "(根目录)"
+                    entry = agg.setdefault((str(dev), str(src), folder), [0, 0])
+                    entry[0] += 1
+                    entry[1] += int(sz or 0)
+            rows = [
+                {"device": d, "source": s, "folder": f, "count": c, "bytes": b}
+                for (d, s, f), (c, b) in agg.items()
+            ]
+            rows.sort(key=lambda r: (r["device"], r["source"], -r["bytes"], r["folder"]))
+            self._dir_cache = (updated, rows)
+            return rows
 
     def admin_overview(self) -> dict[str, Any]:
         import shutil
+        updated = self.library_updated_at()
+        with self._lock:
+            cache = self._admin_cache
+            if cache is not None and cache[0] == updated:
+                return cache[1]
         ph, exts = self._raw_ext_clause()
         disk: dict[str, Any] | None = None
         try:
@@ -1037,7 +1123,7 @@ class MaterialLibrary:
         db_bytes = self.db_path.stat().st_size if self.db_path.is_file() else 0
         preview_dir_bytes = self._dir_size(self.preview_dir)
         directory = self._directory_tree()
-        return {
+        result = {
             "ok": True,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
             "library_root": str(self.root),
@@ -1068,6 +1154,12 @@ class MaterialLibrary:
             "directory": directory,
             "scan": self.scan_status(),
         }
+        with self._lock:
+            cache = self._admin_cache
+            if cache is not None and cache[0] == library_updated_at:
+                return cache[1]
+            self._admin_cache = (library_updated_at, result)
+        return result
 
 
 def generate_stf_preview(source_path: Path, output_path: Path) -> dict[str, Any]:
@@ -1164,9 +1256,29 @@ def stf_stretch_to_uint8(data: Any) -> tuple[Any, dict[str, Any]]:
     normalized_median = min(max((median - black) / (white - black), 1e-6), 1 - 1e-6)
     midtone = _midtone_transfer_value(normalized_median, 0.25)
 
-    values = np.clip((data.astype(np.float32) - black) / (white - black), 0, 1)
-    stretched = _midtone_transfer(values, midtone)
-    output = np.rint(np.clip(stretched, 0, 1) * 255).astype(np.uint8)
+    if data.dtype.kind in ("u", "i"):
+        dmin = int(data.min())
+        dmax = int(data.max())
+        int64_bounds = np.iinfo(np.int64)
+        use_lut = (
+            dmax - dmin < 2_000_000
+            and dmin >= int64_bounds.min
+            and dmax <= int64_bounds.max
+        )
+    else:
+        dmin = 0
+        use_lut = False
+
+    if use_lut:
+        idx_range = np.arange(dmin, dmax + 1, dtype=np.float32)
+        v = np.clip((idx_range - black) / (white - black), 0, 1)
+        v = _midtone_transfer(v, midtone)
+        lut = np.rint(np.clip(v, 0, 1) * 255).astype(np.uint8)
+        output = lut[data.astype(np.int64) - dmin]
+    else:
+        values = np.clip((data.astype(np.float32) - black) / (white - black), 0, 1)
+        stretched = _midtone_transfer(values, midtone)
+        output = np.rint(np.clip(stretched, 0, 1) * 255).astype(np.uint8)
     if fill_value is not None:
         output[data == fill_value] = 0
     return output, {
@@ -1295,6 +1407,10 @@ def _breadcrumbs(device: str, source_label: str, folder_parts: tuple[str, ...]) 
         parts.append(part)
         crumbs.append({"label": part, "path": "/".join(parts)})
     return crumbs
+
+
+def _like_escape(value: str) -> str:
+    return str(value).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _group_count(conn: sqlite3.Connection, column: str) -> list[dict[str, Any]]:

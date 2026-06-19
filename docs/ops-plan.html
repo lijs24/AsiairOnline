@@ -49,7 +49,7 @@ html[data-skin="B"] .now .tname{font-weight:500;font-size:30px}
 .plans{display:flex;gap:5px;flex-wrap:wrap;margin:-2px 0 14px;font:400 var(--pw-meta) var(--mono)}
 .plans .cl{color:var(--muted);letter-spacing:.14em;margin-right:6px;text-transform:uppercase;font-family:var(--display)}
 .plans button{background:none;border:none;color:var(--quiet);cursor:pointer;padding:3px 8px;font:inherit;letter-spacing:.02em;
-  border:1px solid var(--line);border-radius:var(--pill)}
+  border:1px solid var(--line);border-radius:0}
 .plans button:hover{color:var(--text)}
 .plans button.on{color:var(--ac);border-color:var(--ac-soft)}
 .plans button .pc{color:var(--muted);margin-left:5px}
@@ -58,7 +58,7 @@ html[data-skin="B"] .now .tname{font-weight:500;font-size:30px}
 .plans button.run .pd{background:var(--ac);box-shadow:0 0 6px var(--ac-soft)}
 
 .behave{display:flex;flex-wrap:wrap;gap:6px 10px;margin:-4px 0 14px;font:400 var(--pw-meta) var(--mono);color:var(--quiet)}
-.behave .b{padding:2px 9px;border:1px solid var(--line);border-radius:var(--pill)}
+.behave .b{padding:2px 9px;border:1px solid var(--line);border-radius:0}
 .behave .b.on{color:var(--ac);border-color:var(--ac-soft)}
 
 /* 目标树 */
@@ -263,11 +263,21 @@ function render(){
           <span class="fold">${open?"▾":"▸"}</span></div>
         <div class="seqs">${seqRows}</div></div>`;
     }).join("");
-    tree.querySelectorAll(".tgt .row").forEach(r=>r.onclick=()=>{
-      const id=+r.parentNode.dataset.tid; openTargets[id]=!r.parentNode.classList.contains("open"); render();});
   }
   $("plan-cap").textContent = plans.length?(plans.length+" 个计划"+(d.plan_age!=null?(" · "+Math.round(d.plan_age)+"s 前"):"")):"";
 }
+
+/* 目标树展开/收起:一次性事件委托,只切 class + 更新记忆,不重建 DOM(折叠是纯 CSS) */
+$("tree").addEventListener("click",e=>{
+  const row=e.target.closest(".tgt .row");
+  if(!row)return;
+  const tgt=row.parentNode, id=+tgt.dataset.tid;
+  const open=!tgt.classList.contains("open");
+  tgt.classList.toggle("open",open);
+  openTargets[id]=open;
+  const fold=row.querySelector(".fold");
+  if(fold)fold.textContent=open?"▾":"▸";
+});
 
 async function poll(){
   try{

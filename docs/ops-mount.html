@@ -10,12 +10,6 @@ html,body{height:100%;overflow:hidden}
 #sky{position:fixed;inset:0;width:100vw;height:100vh;cursor:grab;touch-action:none;z-index:0}
 #sky.dragging{cursor:grabbing}
 
-/* C 皮肤:工程图框 */
-.frame{display:none;position:fixed;inset:16px;border:1px solid var(--line);pointer-events:none;z-index:4}
-html[data-skin="C"] .frame{display:block}
-.frame::before,.frame::after{content:"";position:absolute;width:14px;height:14px;border-color:var(--text);border-style:solid}
-.frame::before{left:-1px;top:-1px;border-width:1px 0 0 1px}
-.frame::after{right:-1px;bottom:-1px;border-width:0 1px 1px 0}
 /* B 皮肤:暗角 */
 .vignette{display:none;position:fixed;inset:0;pointer-events:none;z-index:3;
   background:radial-gradient(ellipse 75% 70% at 50% 46%, transparent 55%, rgba(6,9,17,.6) 100%)}
@@ -24,9 +18,7 @@ html[data-skin="B"] .vignette{display:block}
 #cursor-tip{position:fixed;pointer-events:none;display:none;z-index:30;white-space:nowrap;
   font:500 11px var(--mono);color:var(--ac);padding-left:14px;text-shadow:0 0 6px var(--bg)}
 html[data-skin="B"] #cursor-tip{font:italic 400 12.5px var(--body)}
-html[data-skin="C"] #cursor-tip{background:var(--scrim);padding:1px 6px 1px 14px;text-shadow:none;color:var(--text)}
 #cursor-tip::before{content:"";position:absolute;left:0;top:55%;width:9px;height:1px;background:var(--ac-soft)}
-html[data-skin="C"] #cursor-tip::before{left:4px;width:7px;background:var(--ac)}
 
 /* 主遥测带 */
 .kicker{display:none;text-align:center;font:300 10.5px var(--body);letter-spacing:.5em;color:var(--ac);text-transform:uppercase}
@@ -39,7 +31,6 @@ html[data-skin="B"] .kicker{display:block}
 .tele .tv{margin-top:4px;font:700 30px/1.1 var(--mono);color:var(--ac);font-variant-numeric:tabular-nums;
   white-space:nowrap;text-shadow:var(--glow)}
 html[data-skin="B"] .tele .tv{font:500 38px/1.1 var(--display);color:var(--text)}
-html[data-skin="C"] .tele .tv{font:500 26px/1.1 var(--mono);color:var(--text);text-shadow:none}
 .tele .ts{font:400 10px var(--mono);color:var(--quiet);margin-top:2px}
 
 /* 右栏注记 */
@@ -47,10 +38,16 @@ html[data-skin="C"] .tele .tv{font:500 26px/1.1 var(--mono);color:var(--text);te
   padding:14px 24px 10px 20px;border-left:1px solid var(--ac-soft);overflow:auto;scrollbar-width:none;
   background:linear-gradient(270deg,var(--scrim) 62%,var(--scrim0))}
 .notes::-webkit-scrollbar{display:none}
-html[data-skin="C"] .notes{border-left-color:var(--line)}
 .caps{display:flex;flex-wrap:wrap;gap:6px;padding-top:4px}
 .cap{font:var(--lab-w) 10.5px var(--display);letter-spacing:.1em;padding:2px 10px;
   border:1px solid var(--line);border-radius:var(--pill);color:var(--muted);text-transform:var(--lab-tt)}
+/* 只读铭牌:就近声明本页为纯监控,沿用 .cap 胶囊语汇,不引入卡片 */
+.romark{display:inline-flex;align-items:center;gap:5px;margin-left:8px;vertical-align:middle;
+  font:var(--lab-w) 10px var(--display);letter-spacing:.14em;padding:1px 9px;
+  border:1px solid var(--line);border-radius:var(--pill);color:var(--quiet);text-transform:var(--lab-tt)}
+html[data-skin="B"] .romark{font:italic 300 11px var(--body);letter-spacing:.04em;text-transform:none}
+.romark i{width:5px;height:5px;border-radius:50%;background:var(--quiet);flex:none}
+html[data-skin="B"] .romark i{transform:rotate(45deg);border-radius:0}
 
 /* 底部控制与状态 */
 .bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:0 24px 12px;
@@ -68,7 +65,6 @@ html[data-skin="B"] .csep{display:none}
 .phys-note{position:fixed;left:24px;bottom:118px;z-index:20;max-width:330px;
   font:italic 300 12px var(--body);color:var(--muted);
   background:linear-gradient(90deg,var(--scrim) 60%,var(--scrim0));padding:6px 18px 6px 0}
-html[data-skin="A"] .phys-note,html[data-skin="C"] .phys-note{font-style:normal;font-size:11.5px}
 
 @media (max-width:980px){
   html,body{overflow:auto}
@@ -115,7 +111,7 @@ html[data-skin="A"] .phys-note,html[data-skin="C"] .phys-note{font-style:normal;
 </head>
 <body>
 <canvas id="sky"></canvas>
-<div class="vignette"></div><div class="frame"></div>
+<div class="vignette"></div>
 <div id="cursor-tip"></div>
 <div class="ops-disconnected" id="mount-offline" style="display:none">
   <div class="ring"></div>
@@ -140,7 +136,7 @@ html[data-skin="A"] .phys-note,html[data-skin="C"] .phys-note{font-style:normal;
     <div class="hrow"><span class="k">运动 Motion</span><span class="v"><span id="moving" class="lampline"><i></i><span>--</span></span></span></div>
     <div class="hrow"><span class="k">中天侧 Pier</span><span class="v ac" id="pierside">--</span></div>
   </div>
-  <div class="hgroup"><h3><span class="rn">Ⅱ</span>目标 Goto <span id="goto-hint" style="color:var(--ac);letter-spacing:0;text-transform:none"></span></h3>
+  <div class="hgroup"><h3><span class="rn">Ⅱ</span>目标 Goto <span class="romark" title="本页为只读监控,展示盒子当前 Goto 目标;操控请在主控相机页或 ASIAIR"><i></i>监控 · 只读</span><span id="goto-hint" style="color:var(--ac);letter-spacing:0;text-transform:none"></span></h3>
     <div class="hrow" data-hi="target"><span class="k">目标</span><span class="v ac" id="t-name">--</span></div>
     <div class="hrow" data-hi="target"><span class="k">目标 RA</span><span class="v" id="t-ra">--</span></div>
     <div class="hrow" data-hi="target"><span class="k">目标 DEC</span><span class="v" id="t-dec">--</span></div>
@@ -169,7 +165,7 @@ html[data-skin="A"] .phys-note,html[data-skin="C"] .phys-note{font-style:normal;
     <button id="speed-3600" class="con" type="button">×3600</button>
     <span class="csep"></span>
     <button id="raw-toggle" class="con" type="button">RAW</button>
-    <span class="con-note" style="margin-left:auto">拖拽转视角 · 滚轮缩放 · 悬停读坐标 · 只读</span>
+    <span class="con-note" style="margin-left:auto">拖拽转视角 · 滚轮缩放 · 悬停读坐标 · 本页只读监控</span>
   </div>
   <div class="statusline">
     <span class="kind" id="status-kind" style="color:var(--good)">[—]</span>
@@ -184,18 +180,14 @@ html[data-skin="A"] .phys-note,html[data-skin="C"] .phys-note{font-style:normal;
 </div>
 
 <script>
-/* ════════ 引擎:真实遥测;断连显示"未连接"界面(不再回退演示);三皮肤共用 ════════ */
+/* ════════ 引擎:真实遥测;断连显示"未连接"界面(不再回退演示);单皮肤 B(星图册) ════════ */
 const $=id=>document.getElementById(id);
 const OPS=window.OPS;
 const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
 const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const SKINS={
-  A:{label:"600 11px 'Barlow Condensed',sans-serif",small:"600 10px 'Barlow Condensed',sans-serif",
-     cardinal:[["N",0],["E",90],["S",180],["W",270]],scope:"SCOPE"},
   B:{label:"italic 400 12px 'Spectral',serif",small:"italic 300 11px 'Spectral',serif",
      cardinal:[["北",0],["东",90],["南",180],["西",270]],scope:"镜指向"},
-  C:{label:"500 11px 'IBM Plex Sans','Noto Sans SC',sans-serif",small:"400 10px 'IBM Plex Sans',sans-serif",
-     cardinal:[["N",0],["E",90],["S",180],["W",270]],scope:"指向"},
 };
 const sk=()=>SKINS[document.documentElement.dataset.skin]||SKINS.B;
 
@@ -207,6 +199,7 @@ let aimed=false,userMoved=false;
 let reveal=REDUCED?1:0,HI=null,meteors=[];
 let revealed=false;           // 入场动画首次放行标记(与上面的 canvas reveal 无关)
 let model=null;               // 渲染模型(由真实遥测构建)
+let lastRaw=null;
 let slew=null,targetIdx=0;
 
 const pad=n=>String(n).padStart(2,"0");
@@ -288,6 +281,7 @@ function setMountOffline(on,note){
     $("status-kind").textContent="[OFF]";$("status-kind").style.color="var(--bad)";
     $("status-text").textContent="盒子未连接 · 无法访问 "+(ip||"赤道仪")+"(检查盒子电源/网络)";
     $("phys-note").textContent="";
+    $("phys-note").title="";
   }else{box.style.display="none";if(sky)sky.style.opacity="";}
 }
 function renderStatic(d){
@@ -304,7 +298,8 @@ function renderStatic(d){
   const sig=(d.capabilities||[]).join("|");
   if(sig!==capsSig){capsSig=sig;const c=$("caps");c.innerHTML="";
     (d.capabilities||[]).forEach((x,i)=>{const e=document.createElement("span");e.className="cap";e.textContent=x;e.style.setProperty("--ci",i);c.appendChild(e);});}
-  $("raw").textContent=JSON.stringify(d.raw||{},null,2);
+  lastRaw=d.raw||{};
+  if($("raw-drawer").classList.contains("open"))$("raw").textContent=JSON.stringify(lastRaw,null,2);
   const kind=d.ok===false?"ERR":d.connected?"OK":"WARN";
   $("status-kind").textContent=`[${kind}]`;
   $("status-kind").style.color=d.ok===false?"var(--bad)":d.connected?"var(--good)":"var(--warn)";
@@ -312,9 +307,9 @@ function renderStatic(d){
     :d.connected?`赤道仪在线 · ${(d.device&&d.device.name)||""}${timeScale>1?` · 预览时间×${timeScale}`:""}`
     :"赤道仪未连接";
   $("snapshot").textContent=d.snapshot_at||"--";
-  $("phys-note").textContent=
-    d.tracking===true?"跟踪开启:镜指向锁定赤道坐标,随天球同步转动。"
-    :d.connected?"未跟踪(停泊):镜指向固定在地平坐标 —— 调高时间流速,可见星空在镜后转动。":"";
+  if(d.tracking===true){$("phys-note").textContent="跟踪开启 · 镜指向锁定赤道坐标";$("phys-note").title="跟踪开启:镜指向锁定赤道坐标,随天球同步转动。";}
+  else if(d.connected){$("phys-note").textContent="未跟踪 · 停泊于地平坐标";$("phys-note").title="未跟踪(停泊):镜指向固定在地平坐标 —— 调高时间流速,可见星空在镜后转动。";}
+  else{$("phys-note").textContent="";$("phys-note").title="";}
 }
 function renderTick(){ /* 每帧:坐标读数随模型推进 */
   const sc=scopeNow();if(!sc){setText("ra",null);setText("dec",null);setText("lst",null);return;}
@@ -466,9 +461,16 @@ requestAnimationFrame(loop);
 
 /* ── 交互 ── */
 const tip=$("cursor-tip");
+/* 天球首次拖拽时,用状态行(非弹窗)一次性说明本页只读;下一轮 poll(2s)自动恢复真实状态 */
+let roHinted=false;
+function readOnlyHintOnce(){
+  if(roHinted)return;roHinted=true;
+  $("status-kind").textContent="[i]";$("status-kind").style.color="var(--ac)";
+  $("status-text").textContent="本页为只读监控 —— 转动/缩放仅改变本图视角,不会操控赤道仪;操控请在主控相机页或 ASIAIR";
+}
 (function pointer(){
   let drag=null;
-  cv.addEventListener("pointerdown",e=>{userMoved=true;drag={x:e.clientX,y:e.clientY,az:vAz,el:vEl};
+  cv.addEventListener("pointerdown",e=>{userMoved=true;readOnlyHintOnce();drag={x:e.clientX,y:e.clientY,az:vAz,el:vEl};
     cv.classList.add("dragging");cv.setPointerCapture(e.pointerId);tip.style.display="none";e.preventDefault();});
   cv.addEventListener("pointermove",e=>{
     if(drag){
@@ -497,7 +499,7 @@ const tip=$("cursor-tip");
     if(v===1)simMs=Date.now();           /* 回到实时 */
     timeScale=v;
     ["speed-1","speed-600","speed-3600"].forEach(i=>$(i).classList.toggle("on",i===id));}));
-$("raw-toggle").addEventListener("click",()=>$("raw-drawer").classList.toggle("open"));
+$("raw-toggle").addEventListener("click",()=>{const open=$("raw-drawer").classList.toggle("open");if(open)$("raw").textContent=JSON.stringify(lastRaw||{},null,2);});
 $("raw-close").addEventListener("click",()=>$("raw-drawer").classList.remove("open"));
 document.querySelectorAll("[data-hi]").forEach(el=>{
   el.addEventListener("mouseenter",()=>HI=el.dataset.hi);

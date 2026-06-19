@@ -309,8 +309,10 @@ def raw16_to_png(raw_data: bytes, width: int, height: int) -> tuple[bytes, dict[
         pixels = np.where(high_bytes >= high, 255, 0).astype(np.uint8)
     else:
         scale = 255.0 / (high - low)
-        # 与原映射逐像素等价:value<=low→0, value>=high→255, 其余 int((value-low)*scale)
-        pixels = np.clip((high_bytes.astype(np.float32) - low) * scale, 0, 255).astype(np.uint8)
+        # 与原映射逐像素等价,但避免为全幅图创建 float32 中间数组
+        ramp = np.arange(256, dtype=np.float32)
+        lut = np.clip((ramp - low) * scale, 0, 255).astype(np.uint8)
+        pixels = lut[high_bytes]
 
     buffer = BytesIO()
     Image.fromarray(pixels.reshape(height, width), mode="L").save(
@@ -327,7 +329,7 @@ def raw16_to_png(raw_data: bytes, width: int, height: int) -> tuple[bytes, dict[
 
 def _read_image_packet(ip: str, payload: bytes) -> bytes:
     started = time.monotonic()
-    packet = b""
+    packet = bytearray()
     saw_data_at: float | None = None
     with socket.create_connection((ip, IMAGE_PORT), timeout=4.0) as sock:
         sock.settimeout(1.2)
@@ -343,12 +345,12 @@ def _read_image_packet(ip: str, payload: bytes) -> bytes:
                 continue
             if not chunk:
                 break
-            packet += chunk
+            packet.extend(chunk)
             saw_data_at = time.monotonic()
 
     if not packet:
         raise TimeoutError(f"No image data returned from {ip}:{IMAGE_PORT}")
-    return packet
+    return bytes(packet)
 
 
 def _png_grayscale(width: int, height: int, pixels: bytes) -> bytes:

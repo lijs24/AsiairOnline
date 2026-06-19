@@ -343,7 +343,7 @@ $("warm-toggle").addEventListener("click",async()=>{
 });
 
 load();
-setInterval(()=>{if(!OPS.hidden||!OPS.hidden())load();},3000);
+setInterval(()=>{if(!OPS.hidden())load();},8000);
 OPS.onSkin&&OPS.onSkin(()=>{/* 配色切换无需重绘 canvas 数据 */});
 </script>
 </body>
