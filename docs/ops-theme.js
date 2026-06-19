@@ -107,7 +107,7 @@ html[data-skin="B"] .hgroup h3 .rn{color:var(--ac);margin-right:8px}
 .hrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:4px 0;position:relative}
 .hrow .k{font:var(--lab-w) 11.5px var(--display);letter-spacing:.14em;color:var(--muted);text-transform:var(--lab-tt)}
 .hrow .v{font:500 13.5px var(--mono);font-variant-numeric:tabular-nums;text-align:right;color:var(--text);overflow-wrap:anywhere}
-html[data-skin="B"] .hrow .v{font-family:var(--display);font-size:15px}
+html[data-skin="B"] .hrow .v{font-family:var(--mono);font-size:15px}
 .hrow .v.ac{color:var(--ac)}
 .hrow .v.dim{color:var(--quiet)}
 .hrow.live::before{content:"";position:absolute;left:-12px;top:6px;bottom:6px;width:3px;background:var(--ac)}
