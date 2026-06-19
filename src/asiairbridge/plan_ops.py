@@ -211,9 +211,9 @@ def plan_action_response(
         except (TypeError, ValueError):
             raise ValueError(f"{action} 需要 plan_id(整数)")
         if action == "delete":
-            rpc("delete_plan", params=[{"plan_id": pid}], timeout_seconds=8.0)
+            rpc("delete_plan", params=[{"plan_id": pid}], timeout_seconds=12.0)
             return {"ok": True, "action": "delete", "plan_id": pid}
-        rpc("import_plan", params=[{"id": pid, "enable": False}], timeout_seconds=8.0)
+        rpc("import_plan", params=[{"id": pid, "enable": False}], timeout_seconds=12.0)
         return {"ok": True, "action": "disable", "plan_id": pid, "enable": False}
 
     raise ValueError(
