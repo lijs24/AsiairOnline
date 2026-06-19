@@ -39,7 +39,7 @@ const CSS = `
   --line:rgba(139,145,165,.28); --line-dim:rgba(139,145,165,.13);
   --display:"Cormorant Garamond","OPS Serif SC","OPS Latin Serif","Noto Serif SC","Songti SC",serif;
   --body:"Spectral","OPS Serif SC","OPS Latin Serif","Noto Serif SC",serif;
-  --mono:"OPS Mono","OPS Latin Serif",monospace;
+  --mono:"OPS Serif SC","OPS Latin Serif",serif;
   --pill:999px; --glow:0 2px 14px rgba(0,0,0,.7);
   --lab-ls:.3em; --lab-tt:none; --lab-w:300;
   --sky-bg:#0a0e1a; --sky-star:#e9e2d0;
