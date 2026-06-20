@@ -38,8 +38,8 @@ html[data-skin="B"] .pulse .title h1{font:500 34px var(--display);letter-spacing
 .station:hover{border-top-color:var(--muted)}
 .station.sel{border-top-color:var(--ac)}
 .station .dv{display:flex;align-items:baseline;gap:10px}
-.station .dv b{font:var(--lab-w) 16px var(--display);letter-spacing:.12em}
-html[data-skin="B"] .station .dv b{font:600 20px var(--display)}
+.station .dv b{font:var(--lab-w) 16px var(--body);letter-spacing:.12em;font-variant-numeric:lining-nums tabular-nums}
+html[data-skin="B"] .station .dv b{font:600 20px var(--body);font-variant-numeric:lining-nums tabular-nums}
 .station .cam{margin-top:2px;font:400 16px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .station .strip{display:flex;align-items:center;gap:14px;margin-top:10px}
 .ring{width:58px;height:58px;flex:none}
@@ -57,7 +57,7 @@ html[data-skin="B"] .station .dv b{font:600 20px var(--display)}
   align-self:start;position:sticky;top:64px;max-height:calc(100vh - 80px);overflow:auto;scrollbar-width:none;
   background:linear-gradient(270deg,var(--scrim) 60%,var(--scrim0))}
 .rail::-webkit-scrollbar{display:none}
-.rail .devname{font:var(--lab-w) 14px var(--display);letter-spacing:.22em;color:var(--ac);text-transform:var(--lab-tt)}
+.rail .devname{font:var(--lab-w) 14px var(--body);letter-spacing:.22em;color:var(--ac);text-transform:var(--lab-tt);font-variant-numeric:lining-nums tabular-nums}
 .rail h2{margin:2px 0 12px;font:var(--lab-w) 20px var(--display);letter-spacing:.08em}
 html[data-skin="B"] .rail h2{font:500 24px var(--display)}
 .cat{padding:7px 0;border-bottom:1px solid var(--line-dim);cursor:pointer}
