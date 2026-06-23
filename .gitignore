@@ -29,3 +29,9 @@ docs/architecture.md
 docs/asiair-control-prototype/
 scripts/export-info-monitor-html.py
 scripts/watch-*.ps1
+
+# 跨工具工作大脑（独立本地 git，不上 GitHub）
+worklines/
+.claude/
+CLAUDE.md
+FRAMEWORK.md
