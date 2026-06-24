@@ -61,9 +61,14 @@ select.sel{background:var(--bg);color:var(--text);border:1px solid var(--line);b
 <div class="wrap">
   <div class="head seq d1">
     <h1 id="title">远程台 · 录像回放</h1>
-    <div class="sub">米家 C700 · 分段录像 · <a class="live" href="/camera-monitor">← 回到实时</a></div>
+    <div class="sub">分段录像 · <a class="live" href="/camera-monitor">← 回到实时</a></div>
   </div>
   <div class="ctl seq d2">
+    <div><label>相机</label>
+      <span class="seg" id="camseg">
+        <button data-c="ulanqab" class="on">监控1</button><button data-c="ulanqab2">监控2</button>
+      </span>
+    </div>
     <div><label>日期</label><select id="date" class="sel"></select></div>
     <div><label>编码</label>
       <span class="seg" id="seg">
@@ -78,9 +83,10 @@ select.sel{background:var(--bg);color:var(--text);border:1px solid var(--line);b
 </div>
 <script>
 (function(){
-  var stream = "h264", date = null, dates = [], hasRendered = false, reqSeq = 0;
+  var cam = "ulanqab", stream = "h264", date = null, dates = [], hasRendered = false, reqSeq = 0;
   var $date = document.getElementById("date");
   var $seg  = document.getElementById("seg");
+  var $camseg = document.getElementById("camseg");
   var $list = document.getElementById("list");
   var $sum  = document.getElementById("summary");
 
@@ -96,7 +102,8 @@ select.sel{background:var(--bg);color:var(--text);border:1px solid var(--line);b
   window.addEventListener("resize", setTopH);
 
   function api(){
-    var q = "?stream=" + encodeURIComponent(stream) + (date ? "&date=" + encodeURIComponent(date) : "");
+    var q = "?cam=" + encodeURIComponent(cam) + "&stream=" + encodeURIComponent(stream) +
+            (date ? "&date=" + encodeURIComponent(date) : "");
     return fetch("/api/camera/recordings" + q, {cache:"no-store"}).then(function(r){ return r.json(); });
   }
   function fillDates(list, sel){
@@ -110,7 +117,8 @@ select.sel{background:var(--bg);color:var(--text);border:1px solid var(--line);b
     return mb >= 1024 ? (mb/1024).toFixed(mb >= 10240 ? 1 : 2) + " GB" : mb + " MB";
   }
   function rowHtml(it, i){
-    var dl = "/api/camera/recording-file?stream=" + encodeURIComponent(it.stream) +
+    var dl = "/api/camera/recording-file?cam=" + encodeURIComponent(cam) +
+             "&stream=" + encodeURIComponent(it.stream) +
              "&name=" + encodeURIComponent(it.name);
     return '<a class="row stag" style="animation-delay:'+(i*0.04).toFixed(2)+'s" href="'+dl+'">'+
            '<span class="t">'+it.time+'</span>'+
@@ -166,6 +174,13 @@ select.sel{background:var(--bg);color:var(--text);border:1px solid var(--line);b
     var b = e.target.closest("button[data-s]"); if(!b) return;
     stream = b.getAttribute("data-s");
     $seg.querySelectorAll("button").forEach(function(x){ x.classList.toggle("on", x===b); });
+    load();
+  });
+  $camseg.addEventListener("click", function(e){
+    var b = e.target.closest("button[data-c]"); if(!b) return;
+    cam = b.getAttribute("data-c");
+    $camseg.querySelectorAll("button").forEach(function(x){ x.classList.toggle("on", x===b); });
+    date = null;  // 换相机后日期可能不同,让后端重选最新有录像的日期
     load();
   });
   load();

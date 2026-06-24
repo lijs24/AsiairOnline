@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -159,13 +160,37 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     )
 
 
+_STORAGE_PRIORITY = ("F:", "E:")
+
+
+def _priority_drive(path: Path) -> Path:
+    """存储盘优先级:配置盘在则用;不在则退到第一个可用的优先级盘(同子路径),
+    F 盘回来后自动切回。仅对带盘符的绝对路径生效(相对/UNC 原样返回)。"""
+    drive = path.drive
+    if len(drive) != 2 or drive[1] != ":":
+        return path
+    try:
+        if os.path.exists(drive + "\\"):
+            return path
+    except OSError:
+        pass
+    rest = str(path)[len(drive):]
+    for d in _STORAGE_PRIORITY:
+        try:
+            if os.path.exists(d + "\\"):
+                return Path(d + rest)
+        except OSError:
+            pass
+    return path
+
+
 def _parse_project(raw: dict[str, Any], root: Path) -> ProjectSettings:
-    private_path_prefixes = tuple(
-        _resolve_path(root, item) for item in raw.get("private_path_prefixes", [])
-    )
+    _pp = [_resolve_path(root, item) for item in raw.get("private_path_prefixes", [])]
+    _pp = _pp + [_priority_drive(p) for p in _pp]
+    private_path_prefixes = tuple(dict.fromkeys(_pp))
     return ProjectSettings(
         timezone=str(raw.get("timezone", "Asia/Shanghai")),
-        destination_root=_resolve_path(root, _required(raw, "destination_root")),
+        destination_root=_priority_drive(_resolve_path(root, _required(raw, "destination_root"))),
         logs_dir=_resolve_path(root, raw.get("logs_dir", "logs")),
         state_dir=_resolve_path(root, raw.get("state_dir", "state")),
         lock_file=_resolve_path(root, raw.get("lock_file", "state/backup.lock")),

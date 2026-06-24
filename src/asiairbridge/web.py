@@ -217,11 +217,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 from .camera_rec import list_recordings_payload
                 q = parse_qs(parsed.query)
                 self._send_json(list_recordings_payload(
-                    q.get("stream", [None])[0], q.get("date", [None])[0]))
+                    q.get("stream", [None])[0], q.get("date", [None])[0], q.get("cam", [None])[0]))
             elif parsed.path == "/api/camera/recording-file":
                 from .camera_rec import resolve_recording
                 q = parse_qs(parsed.query)
-                rec_path = resolve_recording(q.get("stream", [None])[0], q.get("name", [None])[0])
+                rec_path = resolve_recording(q.get("stream", [None])[0], q.get("name", [None])[0], q.get("cam", [None])[0])
                 if rec_path is None:
                     self.send_error(HTTPStatus.NOT_FOUND)
                 else:
